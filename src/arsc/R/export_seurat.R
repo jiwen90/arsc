@@ -1,31 +1,36 @@
 #!/usr/bin/env Rscript
-# export_seurat.R -- dump a Seurat v4/v5 object to a fast on-disk layout that
-# `arsc.read_seurat_export()` loads in seconds.
+# export_seurat.R -- write a Seurat v4/v5 object as an arsc store: a directory of
+# memory-mappable .npy arrays that `arsc.open()` maps zero-copy (N worker
+# processes share one physical copy through the OS page cache).
 #
 # Usage:
-#   Rscript export_seurat.R <object.rds|object.qs> <out_dir> [--assays RNA,ADT] [--layers counts,data]
-#                           [--no-graphs] [--no-reductions] [--threads 16]
+#   Rscript export_seurat.R <object.rds|object.qs> <out_dir> [--assays RNA,ADT]
+#           [--layers counts,data] [--no-graphs] [--no-reductions] [--threads 16]
+#           [--float64-counts]
+#
+# Layout (all arrays are NPY v1.0, little-endian):
+#   manifest.json                         shapes, dtypes, factor levels, provenance
+#   cells.txt, obs.csv                    cell barcodes / metadata (row order = cells)
+#   assays/<A>/features.txt               feature names
+#   assays/<A>/<layer>.csr.{data,indices,indptr}.npy
+#                                         cells x features CSR. A dgCMatrix (features x
+#                                         cells, CSC) has exactly these slots, so they are
+#                                         written verbatim: @x -> data, @i -> indices,
+#                                         @p -> indptr. Integer-valued layers (counts) are
+#                                         stored as float32 (exact below 2^24) so Python
+#                                         never has to cast (a cast would copy).
+#   assays/<A>/variable_features.txt      (if set)
+#   reductions/<R>.npy                    cells x k float64 (Fortran order)
+#   reductions/<R>.loadings.npy + .loadings_features.txt
+#   graphs/<G>.csr.{data,indices,indptr}.npy   cells x cells (stored transposed-CSC = CSR of t(G))
+#
+# Python's first `arsc.open()` adds obs.parquet and the per-feature CSC copies
+# (<layer>.csc.*.npy) used for fast gene lookups.
 #
 # If an assay has none of the requested layers (e.g. an ADT assay that only
 # kept `data`), the first non-empty of counts/data is exported instead and the
-# manifest records which layer was written.
-#
-# Layout written (all binary is little-endian, raw, no headers):
-#   out_dir/manifest.json             -- shapes, dtypes, file names, factor levels
-#   out_dir/obs.csv                   -- cell metadata (row order == matrix columns)
-#   out_dir/cells.txt                 -- cell barcodes, one per line
-#   out_dir/assays/<A>/features.txt   -- feature names
-#   out_dir/assays/<A>/<layer>.{i,p,x}.bin  -- CSC (genes x cells) == CSR (cells x genes)
-#   out_dir/reductions/<R>.f64        -- cells x k column-major float64 embedding
-#   out_dir/reductions/<R>.loadings.f64 (if present) -- features x k
-#   out_dir/graphs/<G>.{i,p,x}.bin    -- cells x cells sparse graph (CSC)
-#
-# Why raw binary: R has no arrow here and writeMM/text is 50-100x slower. A
-# dgCMatrix's @i/@p/@x slots are written verbatim with writeBin, so export is
-# bounded by disk speed, and Python maps them straight into scipy.sparse.
-#
-# Seurat v5 (Assay5) split layers (counts.1, counts.2, ...) are joined back
-# into one matrix in cell order.
+# manifest records which layer was written. Seurat v5 split layers
+# (counts.1, counts.2, ...) are joined back into one matrix in cell order.
 
 suppressPackageStartupMessages({
   .libPaths(c("E:/autoresearch/.Rlib", .libPaths()))
@@ -35,7 +40,7 @@ suppressPackageStartupMessages({
 })
 
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 2) stop("usage: export_seurat.R <object.rds> <out_dir> [--assays A,B] [--layers counts,data] [--no-graphs] [--no-reductions]")
+if (length(args) < 2) stop("usage: export_seurat.R <object.rds|.qs> <out_dir> [--assays A,B] [--layers counts,data] [--no-graphs] [--no-reductions]")
 rds <- args[1]; out <- args[2]
 opt <- function(flag, default = NULL) {
   k <- which(args == flag)
@@ -46,27 +51,58 @@ want_layers <- strsplit(opt("--layers", "counts"), ",")[[1]]
 do_graphs <- !("--no-graphs" %in% args)
 do_reds <- !("--no-reductions" %in% args)
 n_threads <- as.integer(opt("--threads", "16"))
+counts_f64 <- "--float64-counts" %in% args
 
 t0 <- Sys.time()
 msg <- function(...) cat(sprintf("[%6.1fs] ", as.numeric(Sys.time() - t0, units = "secs")), ..., "\n", sep = "")
+
+# ---------------------------------------------------------------- NPY writer
+# Minimal NPY v1.0 writer; data written in chunks (writeBin is limited to
+# 2^31-1 bytes per call).
+write_npy <- function(x, path, type, shape = length(x), fortran = FALSE) {
+  descr <- c(i4 = "<i4", f4 = "<f4", f8 = "<f8")[[type]]
+  size <- c(i4 = 4L, f4 = 4L, f8 = 8L)[[type]]
+  shp <- paste0(paste(format(shape, scientific = FALSE, trim = TRUE), collapse = ", "),
+                if (length(shape) == 1) "," else "")
+  hdr <- sprintf("{'descr': '%s', 'fortran_order': %s, 'shape': (%s), }", descr,
+                 if (fortran) "True" else "False", shp)
+  pad <- (64 - ((10 + nchar(hdr) + 1) %% 64)) %% 64
+  hdr <- paste0(hdr, strrep(" ", pad), "\n")
+  tmp <- paste0(path, ".tmp")
+  con <- file(tmp, "wb")
+  writeBin(as.raw(0x93), con); writeChar("NUMPY", con, eos = NULL); writeBin(as.raw(c(1L, 0L)), con)
+  writeBin(nchar(hdr), con, size = 2, endian = "little")
+  writeChar(hdr, con, eos = NULL)
+  n <- length(x); chunk <- 2^26; s <- 1
+  while (s <= n) {
+    e <- min(n, s + chunk - 1)
+    v <- x[s:e]
+    if (type == "i4") writeBin(as.integer(v), con, size = 4, endian = "little")
+    else writeBin(as.double(v), con, size = size, endian = "little")
+    s <- e + 1
+  }
+  close(con)
+  file.rename(tmp, path)
+  invisible(path)
+}
 
 obj <- if (grepl("[.]qs$", rds, ignore.case = TRUE)) qs::qread(rds, nthreads = n_threads) else readRDS(rds)
 msg("loaded ", rds, " : ", ncol(obj), " cells")
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 cells <- colnames(obj)
-writeLines(cells, file.path(out, "cells.txt"))
+writeLines(cells, file.path(out, "cells.txt"), useBytes = TRUE)
 
-write_sparse <- function(m, prefix) {
+write_sparse <- function(m, prefix, allow_f32 = TRUE) {
   if (!inherits(m, "dgCMatrix")) m <- as(as(m, "CsparseMatrix"), "generalMatrix")
   if (!inherits(m, "dgCMatrix")) m <- as(m, "dgCMatrix")
   x <- m@x
-  is_int <- length(x) == 0 || (all(x == round(x)) && max(abs(x)) < 2^31)
-  writeBin(m@i, paste0(prefix, ".i.bin"), size = 4)
-  writeBin(m@p, paste0(prefix, ".p.bin"), size = 4)
-  if (is_int) writeBin(as.integer(x), paste0(prefix, ".x.bin"), size = 4)
-  else writeBin(x, paste0(prefix, ".x.bin"), size = 8)
-  list(shape = dim(m), nnz = length(x), xdtype = if (is_int) "int32" else "float64",
-       prefix = basename(prefix))
+  is_int <- length(x) == 0 || (all(x == round(x)) && max(abs(x)) < 2^24)
+  xtype <- if (is_int && allow_f32 && !counts_f64) "f4" else "f8"
+  write_npy(m@x, paste0(prefix, ".data.npy"), xtype)
+  write_npy(m@i, paste0(prefix, ".indices.npy"), "i4")
+  write_npy(m@p, paste0(prefix, ".indptr.npy"), "i4")
+  list(shape = rev(dim(m)), nnz = length(x), dtype = c(f4 = "float32", f8 = "float64")[[xtype]],
+       integer_valued = is_int, prefix = basename(prefix), format = "csr")
 }
 
 get_layer <- function(assay_obj, layer) {
@@ -90,17 +126,18 @@ get_layer <- function(assay_obj, layer) {
     }
     m
   } else {
-    slot_name <- if (layer %in% c("counts", "data", "scale.data")) layer else return(NULL)
-    m <- methods::slot(assay_obj, slot_name)
+    if (!(layer %in% c("counts", "data", "scale.data"))) return(NULL)
+    m <- methods::slot(assay_obj, layer)
     if (!length(m) || nrow(m) == 0) return(NULL)
     m
   }
 }
 
-manifest <- list(source = normalizePath(rds, winslash = "/"), n_cells = length(cells),
-                 seurat_version = as.character(obj@version), assays = list(),
+manifest <- list(format = "arsc-store", format_version = 1L,
+                 source = normalizePath(rds, winslash = "/"), n_cells = length(cells),
+                 seurat_version = as.character(obj@version),
                  default_assay = SeuratObject::DefaultAssay(obj),
-                 reductions = list(), graphs = list(), obs = list())
+                 assays = list(), reductions = list(), graphs = list(), obs = list())
 assays <- names(obj@assays)
 if (!is.null(want_assays)) assays <- intersect(assays, strsplit(want_assays, ",")[[1]])
 for (a in assays) {
@@ -114,8 +151,9 @@ for (a in assays) {
     if (!identical(colnames(m), cells)) m <- m[, cells, drop = FALSE]
     if (is.null(feats)) feats <<- rownames(m)
     else if (!identical(rownames(m), feats)) m <- m[feats, , drop = FALSE]
-    entry$layers[[l]] <<- write_sparse(m, file.path(adir, l))
-    msg("  wrote ", a, "/", l, " ", nrow(m), "x", ncol(m), " nnz=", entry$layers[[l]]$nnz)
+    entry$layers[[l]] <<- write_sparse(m, file.path(adir, paste0(l, ".csr")))
+    msg("  wrote ", a, "/", l, " ", nrow(m), "x", ncol(m), " nnz=", entry$layers[[l]]$nnz,
+        " (", entry$layers[[l]]$dtype, ")")
     TRUE
   }
   for (l in want_layers) write_layer(l)
@@ -126,9 +164,9 @@ for (a in assays) {
     }
   }
   if (is.null(feats)) feats <- rownames(ao)
-  writeLines(feats, file.path(adir, "features.txt"))
+  writeLines(feats, file.path(adir, "features.txt"), useBytes = TRUE)
   vf <- tryCatch(SeuratObject::VariableFeatures(obj, assay = a), error = function(e) character(0))
-  if (length(vf)) writeLines(vf, file.path(adir, "variable_features.txt"))
+  if (length(vf)) writeLines(vf, file.path(adir, "variable_features.txt"), useBytes = TRUE)
   manifest$assays[[a]] <- entry
 }
 
@@ -138,12 +176,12 @@ if (do_reds && length(obj@reductions)) {
     ro <- obj@reductions[[r]]
     emb <- ro@cell.embeddings
     if (!identical(rownames(emb), cells)) emb <- emb[cells, , drop = FALSE]
-    writeBin(as.vector(emb), file.path(out, "reductions", paste0(r, ".f64")), size = 8)
+    write_npy(as.vector(emb), file.path(out, "reductions", paste0(r, ".npy")), "f8", dim(emb), fortran = TRUE)
     e <- list(shape = dim(emb), columns = colnames(emb), assay = ro@assay.used, key = ro@key)
     ld <- ro@feature.loadings
     if (length(ld) && nrow(ld) > 0) {
-      writeBin(as.vector(ld), file.path(out, "reductions", paste0(r, ".loadings.f64")), size = 8)
-      writeLines(rownames(ld), file.path(out, "reductions", paste0(r, ".loadings_features.txt")))
+      write_npy(as.vector(ld), file.path(out, "reductions", paste0(r, ".loadings.npy")), "f8", dim(ld), fortran = TRUE)
+      writeLines(rownames(ld), file.path(out, "reductions", paste0(r, ".loadings_features.txt")), useBytes = TRUE)
       e$loadings_shape <- dim(ld)
     }
     if (length(ro@stdev)) e$stdev <- ro@stdev
@@ -157,7 +195,9 @@ if (do_graphs && length(obj@graphs)) {
   for (g in names(obj@graphs)) {
     gm <- obj@graphs[[g]]
     if (!identical(colnames(gm), cells)) gm <- gm[cells, cells]
-    manifest$graphs[[g]] <- write_sparse(gm, file.path(out, "graphs", g))
+    # dgCMatrix slots of G are the CSR of t(G); arsc transposes on load.
+    manifest$graphs[[g]] <- c(write_sparse(gm, file.path(out, "graphs", paste0(g, ".csr")), allow_f32 = FALSE),
+                              list(transposed = TRUE))
     msg("  graph ", g)
   }
 }
