@@ -13,6 +13,7 @@ Quick map (see README.md):
     arsc.stats (composition / paired_test / perm_test / glmm_prop / mde)  patient-level stats
     arsc.find_markers / find_all_markers / average_expression / cell_cycle_scoring / scale_data
                                                       Seurat 4.3 parity (seurat_extra; SEURAT_PARITY.md)
+    arsc.rank_genes_groups / score_genes / highly_variable_genes / scanpy_extra.*   scanpy parity (SCANPY_PARITY.md)
     arsc.de (deseq2 / voom / fgsea / msigdb)                           pseudobulk DE + GSEA
 """
 from ._threads import preconfigure_env as _pre
@@ -33,6 +34,9 @@ from . import clones, genesets  # noqa: E402
 from . import stats, de  # noqa: E402
 from .stats import composition, paired_test, perm_test, glmm_prop  # noqa: E402
 from .de import deseq2, voom, fgsea, msigdb  # noqa: E402
+from . import scanpy_extra  # noqa: E402  (scanpy parity; neighbors/leiden live here as scanpy_extra.*)
+from .scanpy_extra import (normalize_total_log1p, score_genes, rank_genes_groups, highly_variable_genes,  # noqa: E402
+                           regress_out, qc_metrics, diffmap, dpt, magic_impute)
 from . import seurat_extra as se  # noqa: E402
 from .seurat_extra import (find_markers, find_all_markers, fold_change, average_expression,  # noqa: E402
                            cell_cycle_scoring, scale_data, normalize_data, add_metadata, which_cells,
