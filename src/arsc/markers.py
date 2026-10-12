@@ -34,7 +34,8 @@ def _rank_stats(indptr, indices, data, groups, n_groups, n_rows):
         p0, p1 = indptr[j], indptr[j + 1]
         m = p1 - p0
         nz = n_rows - m
-        tie = float(nz) ** 3 - float(nz)
+        # presto pushes the zero tie block only for non-empty columns
+        tie = float(nz) ** 3 - float(nz) if m > 0 else 0.0
         if m > 0:
             vals = data[p0:p1]
             o = np.argsort(vals, kind="mergesort")
@@ -69,6 +70,7 @@ def wilcoxauc(X, groups, *, features=None, groups_use=None, obs: pd.DataFrame | 
     groups : labels per cell, or a column name of ``obs``. NA cells are dropped.
     features : feature names (default ``0..p-1``).
     groups_use : restrict to cells in these groups (presto ``groups_use``).
+    Constant (all-zero) features get ``auc = 0.5, pval = 1`` as in presto.
 
     Returns
     -------

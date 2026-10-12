@@ -37,9 +37,10 @@ def _lognorm_kernel(indptr, data, out, scale_factor):
         for p in range(indptr[i], indptr[i + 1]):
             s += data[p]
         if s > 0:
-            f = scale_factor / s
+            # same operation order as Seurat's C++ LogNorm: log1p(x / colSum * sf);
+            # x * (sf / s) differs by 1 ulp and changes tie structure downstream
             for p in range(indptr[i], indptr[i + 1]):
-                out[p] = np.log1p(data[p] * f)
+                out[p] = np.log1p(data[p] / s * scale_factor)
 
 
 def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matrix:
