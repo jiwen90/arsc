@@ -148,7 +148,18 @@ for (a in assays) {
   write_layer <- function(l) {
     m <- tryCatch(get_layer(ao, l), error = function(e) { msg("  skip ", a, "/", l, ": ", conditionMessage(e)); NULL })
     if (is.null(m) || !inherits(m, c("Matrix", "matrix")) || nrow(m) == 0 || ncol(m) == 0) return(FALSE)
-    if (!identical(colnames(m), cells)) m <- m[, cells, drop = FALSE]
+    if (!identical(colnames(m), cells)) {
+      have <- intersect(cells, colnames(m))
+      if (length(have) < length(cells)) {  # assay measured on a subset of cells (e.g. ADT absent for a cohort)
+        msg("  ", a, "/", l, ": measured in ", length(have), "/", length(cells), " cells; others written as empty rows")
+        entry$cells_measured <<- length(have)
+        writeLines(have, file.path(adir, "cells_measured.txt"), useBytes = TRUE)
+        pad <- Matrix::sparseMatrix(i = integer(0), j = integer(0), x = numeric(0), dims = c(nrow(m), length(cells) - length(have)),
+                                    dimnames = list(rownames(m), setdiff(cells, have)))
+        m <- cbind(as(m[, have, drop = FALSE], "CsparseMatrix"), pad)
+      }
+      m <- m[, cells, drop = FALSE]
+    }
     if (is.null(feats)) feats <<- rownames(m)
     else if (!identical(rownames(m), feats)) m <- m[feats, , drop = FALSE]
     entry$layers[[l]] <<- write_sparse(m, file.path(adir, paste0(l, ".csr")))
@@ -206,7 +217,10 @@ md <- obj@meta.data
 md <- md[cells, , drop = FALSE]
 for (cn in names(md)) {
   v <- md[[cn]]
-  if (is.factor(v)) manifest$obs[[cn]] <- list(type = "factor", levels = levels(v))
+  if (inherits(v, c("Date", "IDate", "POSIXt", "difftime"))) {  # dates are integer/double internally: export as text
+    md[[cn]] <- as.character(v); manifest$obs[[cn]] <- list(type = "character")
+  }
+  else if (is.factor(v)) manifest$obs[[cn]] <- list(type = "factor", levels = levels(v))
   else if (is.logical(v)) manifest$obs[[cn]] <- list(type = "logical")
   else if (is.integer(v)) manifest$obs[[cn]] <- list(type = "integer")
   else if (is.numeric(v)) manifest$obs[[cn]] <- list(type = "double")
