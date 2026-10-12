@@ -26,41 +26,147 @@ __all__ = ["knn", "snn_graph", "find_neighbors", "wnn", "WNNResult", "l2_normali
 
 # --------------------------------------------------------------------------- kNN
 @nb.njit(parallel=True, cache=True)
-def _topk_rows(G, qn, xn, k, out_idx, out_d2, row0):
-    """For rows of G (= Q X^T), select k smallest squared distances qn + xn - 2G."""
-    m, n = G.shape
+def _heap_finish(hd, hi, out_idx, out_d2, row0):
+    m, k = hd.shape
     for r in nb.prange(m):
-        bi = np.empty(k, dtype=np.int64)
-        bd = np.empty(k)
-        cnt = 0
-        worst = np.inf
-        q = qn[r]
-        for j in range(n):
-            d = q + xn[j] - 2.0 * G[r, j]
-            if cnt < k or d < worst:
-                # insertion into sorted buffer (ascending; ties keep earlier j first)
-                pos = cnt if cnt < k else k - 1
-                while pos > 0 and bd[pos - 1] > d:
-                    if pos < k:
-                        bd[pos] = bd[pos - 1]
-                        bi[pos] = bi[pos - 1]
-                    pos -= 1
-                bd[pos] = d
-                bi[pos] = j
-                if cnt < k:
-                    cnt += 1
-                worst = bd[cnt - 1] if cnt == k else np.inf
+        # sort by (distance, index) for determinism
+        o = np.argsort(hd[r] + 0.0, kind="mergesort")
+        dd = hd[r][o]
+        ii = hi[r][o]
+        a = 0
+        while a < k:  # within exact-distance ties order by index
+            b = a + 1
+            while b < k and dd[b] == dd[a]:
+                b += 1
+            if b - a > 1:
+                ii[a:b] = np.sort(ii[a:b])
+            a = b
         for t in range(k):
-            out_idx[row0 + r, t] = bi[t]
-            out_d2[row0 + r, t] = bd[t] if bd[t] > 0 else 0.0
+            out_idx[row0 + r, t] = ii[t]
+            out_d2[row0 + r, t] = dd[t] if dd[t] > 0 else 0.0
 
 
-def knn(X, k: int, query=None, *, method: str = "exact", chunk: int = 2048, seed: int = 0):
+@nb.njit(inline="always")
+def _heap_push(hd, hi, r, d, j, k):
+    pos = 0
+    while True:
+        c = 2 * pos + 1
+        if c >= k:
+            break
+        if c + 1 < k and hd[r, c + 1] > hd[r, c]:
+            c += 1
+        if hd[r, c] <= d:
+            break
+        hd[r, pos] = hd[r, c]
+        hi[r, pos] = hi[r, c]
+        pos = c
+    hd[r, pos] = d
+    hi[r, pos] = j
+
+
+@nb.njit(inline="always")
+def _scan_cluster(Q, r, Xp, ids, starts, rpt, c, dcc, hd, hi, k, d):
+    top = hd[r, 0]
+    for p in range(starts[c], starts[c + 1]):
+        b = dcc - rpt[p]
+        if b * b > top:
+            continue
+        acc = 0.0
+        for t in range(d):
+            df = Q[r, t] - Xp[p, t]
+            acc += df * df
+        if acc < top:
+            _heap_push(hd, hi, r, acc, ids[p], k)
+            top = hd[r, 0]
+
+
+@nb.njit(parallel=True, cache=True)
+def _knn_pruned(Q, Xp, ids, starts, centers, radius, rpt, hd, hi, n_seed, n_chunks):
+    """Exact k-NN over a clustered reference set using triangle-inequality pruning.
+
+    Per query: scan the ``n_seed`` clusters with the nearest centres first (fills
+    the heap with good candidates), then sweep all remaining clusters, skipping
+    any whose lower bound max(0, |q - c| - radius_c) exceeds the current k-th
+    distance; single points are skipped when | |q - c| - |x - c| | exceeds it.
+    No allocation inside the per-query loop (Windows heap contention).
+    """
+    m, d = Q.shape
+    C = centers.shape[0]
+    k = hd.shape[1]
+    step = (m + n_chunks - 1) // n_chunks
+    for ch in nb.prange(n_chunks):
+        dc = np.empty(C)
+        seen = np.zeros(C, dtype=np.bool_)
+        seeds = np.empty(n_seed, dtype=np.int64)
+        for r in range(ch * step, min(m, (ch + 1) * step)):
+            for c in range(C):
+                acc = 0.0
+                for t in range(d):
+                    df = Q[r, t] - centers[c, t]
+                    acc += df * df
+                dc[c] = np.sqrt(acc)
+                seen[c] = False
+            # nearest n_seed centres by repeated selection (n_seed small)
+            ns = min(n_seed, C)
+            for a in range(ns):
+                best = -1
+                bv = np.inf
+                for c in range(C):
+                    if not seen[c] and dc[c] < bv:
+                        bv = dc[c]
+                        best = c
+                seen[best] = True
+                seeds[a] = best
+            for a in range(ns):
+                c = seeds[a]
+                _scan_cluster(Q, r, Xp, ids, starts, rpt, c, dc[c], hd, hi, k, d)
+            for c in range(C):
+                if seen[c]:
+                    continue
+                lb = dc[c] - radius[c]
+                if lb > 0 and lb * lb > hd[r, 0]:
+                    continue
+                _scan_cluster(Q, r, Xp, ids, starts, rpt, c, dc[c], hd, hi, k, d)
+
+
+def _partition(X, n_clusters, seed, iters=3, chunk=65536):
+    """Cheap k-means partition (BLAS assignment); returns permuted data and cluster geometry."""
+    n = X.shape[0]
+    rng = np.random.default_rng(seed)
+    C = int(min(n_clusters, n))
+    centers = X[rng.choice(n, C, replace=False)].copy()
+    xn = (X * X).sum(1)
+    assign = np.empty(n, dtype=np.int64)
+    for it in range(iters + 1):
+        cn = (centers * centers).sum(1)
+        for a in range(0, n, chunk):
+            b = min(n, a + chunk)
+            D = cn[None, :] - 2.0 * (X[a:b] @ centers.T)
+            assign[a:b] = np.argmin(D, axis=1)
+        if it == iters:
+            break
+        counts = np.bincount(assign, minlength=C)
+        sums = np.zeros_like(centers)
+        np.add.at(sums, assign, X)
+        nz = counts > 0
+        centers[nz] = sums[nz] / counts[nz, None]
+    order = np.argsort(assign, kind="stable")
+    counts = np.bincount(assign, minlength=C)
+    starts = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
+    Xp = np.ascontiguousarray(X[order])
+    rpt = np.sqrt(((Xp - centers[assign[order]]) ** 2).sum(1))
+    radius = np.zeros(C)
+    np.maximum.at(radius, assign[order], rpt)
+    return Xp, order.astype(np.int64), starts, centers, radius, rpt
+
+
+def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None = None, seed: int = 0):
     """k nearest neighbours (Euclidean). Returns ``(idx, dist)``, each (n_query x k).
 
-    ``method="exact"`` (default) is brute force in float64 (GEMM + numba top-k):
-    deterministic, and the query point itself comes first when ``query`` is
-    ``None``. ``method="pynndescent"`` is approximate (for very large data).
+    ``method="exact"`` (default): exact search in float64 with cluster-based
+    triangle-inequality pruning (numba, parallel over queries). Deterministic;
+    ties are ordered by index and the query point itself comes first when
+    ``query`` is None. ``method="pynndescent"``: approximate (for very large data).
     """
     X = np.ascontiguousarray(X, dtype=np.float64)
     Q = X if query is None else np.ascontiguousarray(query, dtype=np.float64)
@@ -76,23 +182,36 @@ def knn(X, k: int, query=None, *, method: str = "exact", chunk: int = 2048, seed
         return idx.astype(np.int64), dist.astype(np.float64)
     if method != "exact":
         raise ValueError(method)
-    xn = (X * X).sum(1)
-    qn = (Q * Q).sum(1)
+    if n_clusters is None:
+        n_clusters = max(1, int(2 * np.sqrt(n)))
+    Xp, ids, starts, centers, radius, rpt = _partition(X, n_clusters, seed)
+    # Process queries in partition order: consecutive queries share candidate
+    # clusters, so their data stays cache-resident (the scan is bandwidth-bound).
+    if query is None:
+        qorder = ids
+        Qs = Xp
+    else:
+        cn = (centers * centers).sum(1)
+        qa = np.argmin(cn[None, :] - 2.0 * (Q @ centers.T), axis=1)
+        qorder = np.argsort(qa, kind="stable").astype(np.int64)
+        Qs = np.ascontiguousarray(Q[qorder])
     m = Q.shape[0]
-    idx = np.empty((m, k), dtype=np.int64)
-    d2 = np.empty((m, k))
-    buf = np.empty((min(chunk, m), n))
-    for a in range(0, m, chunk):
-        b = min(m, a + chunk)
-        G = buf[: b - a]
-        np.matmul(Q[a:b], X.T, out=G)
-        _topk_rows(G, qn[a:b], xn, k, idx, d2, a)
+    hd = np.full((m, k), np.inf)
+    hi = np.full((m, k), -1, dtype=np.int64)
+    _knn_pruned(Qs, Xp, ids, starts, centers, radius, rpt, hd, hi, 8, max(1, 8 * nb.get_num_threads()))
+    idx_s = np.empty((m, k), dtype=np.int64)
+    d2_s = np.empty((m, k))
+    _heap_finish(hd, hi, idx_s, d2_s, 0)
+    idx = np.empty_like(idx_s)
+    d2 = np.empty_like(d2_s)
+    idx[qorder] = idx_s
+    d2[qorder] = d2_s
     if query is None:
         # put self first if it tied with a duplicate point at distance 0
         rows = np.arange(m)
-        self_pos = np.argmax(idx == rows[:, None], axis=1)
-        has_self = (idx == rows[:, None]).any(1)
-        fix = has_self & (self_pos > 0) & (d2[rows, self_pos] <= d2[:, 0])
+        is_self = idx == rows[:, None]
+        self_pos = np.argmax(is_self, axis=1)
+        fix = is_self.any(1) & (self_pos > 0) & (d2[rows, self_pos] <= d2[:, 0])
         for r in np.flatnonzero(fix):
             p = self_pos[r]
             idx[r, 1 : p + 1] = idx[r, 0:p].copy()
@@ -341,7 +460,8 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
     E = [l2_normalize(e) if l2_norm else np.asarray(e, dtype=np.float64) for e in embeddings]
     n = E[0].shape[0]
     # -- FindModalityWeights --------------------------------------------------
-    nn = [knn(e, k_nn, method=knn_method) for e in E]  # self first
+    big = [knn(e, max(knn_range, k_nn), method=knn_method) for e in E]  # self first
+    nn = [(i[:, :k_nn], d[:, :k_nn]) for i, d in big]  # exact k-NN are prefixes of each other
     nearest = np.stack([d[:, 1] for _, d in nn], axis=1)  # Distances[, 2]
     # PredictAssay drops the self column when the query cell is its own first neighbour
     within = [_neighbor_mean(E[m], nn[m][0], 1) for m in range(M)]
@@ -373,7 +493,7 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
     all_score = np.exp(np.hstack(scores)).sum(1)
     weights = np.stack([np.exp(s).sum(1) / all_score for s in scores], axis=1)
     # -- MultiModalNN -----------------------------------------------------------------
-    rng_nn = [knn(e, knn_range, method=knn_method)[0][:, 1:] for e in E]
+    rng_nn = [i[:, 1:knn_range] for i, _ in big]
     cands, n_cand = _union_candidates(rng_nn)
     embs = np.ascontiguousarray(np.hstack(E))
     dims = np.array([e.shape[1] for e in E], dtype=np.int64)

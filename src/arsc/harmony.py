@@ -378,7 +378,7 @@ def _r_factor_levels(values) -> tuple[np.ndarray, np.ndarray]:
     """Codes/levels like R ``as.factor``: existing categorical levels kept, else sorted uniques."""
     s = values if isinstance(values, pd.Series) else pd.Series(values)
     if isinstance(s.dtype, pd.CategoricalDtype):
-        cat = s.cat.remove_unused_categories()
+        cat = pd.Categorical(s.cat.remove_unused_categories())  # Series -> Categorical (has .codes)
     else:
         cat = pd.Categorical(s)
     if (cat.codes < 0).any():
