@@ -21,6 +21,8 @@ from .io import (Assay, Dataset, Reduction, Store, export_seurat, exporter_scrip
 from .markers import top_markers, wilcoxauc  # noqa: E402
 from .pseudobulk import Pseudobulk, pseudobulk  # noqa: E402
 from .scores import add_module_score, score_ucell  # noqa: E402
+from .neighbors import find_neighbors, knn, snn_graph, wnn  # noqa: E402
+from .cluster import cluster, umap  # noqa: E402
 
 if _env_threads() is not None:
     set_threads(_env_threads())

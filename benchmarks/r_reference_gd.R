@@ -13,6 +13,7 @@ args <- commandArgs(trailingOnly = TRUE)
 rds <- if (length(args) >= 1) args[1] else "E:/autoresearch/data/2023 0129 V3/gd/gdT_1.rds"
 out <- if (length(args) >= 2) args[2] else "E:/autoresearch/scratch/arsc/ref_gd"
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
+options(future.globals.maxSize = 64 * 1024^3)
 source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "r_common.R"))
 
 obj <- readRDS(rds)
