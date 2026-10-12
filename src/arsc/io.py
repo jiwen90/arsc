@@ -586,3 +586,64 @@ def write_table(df: pd.DataFrame, path, index: bool | None = None) -> Path:
     else:
         raise ValueError(f"unsupported extension {p.suffix!r}")
     return p
+
+
+def from_anndata(h5ad, out_dir, *, layers=("counts",), assay: str = "RNA", use_raw_for=None,
+                 obsm: bool = True, chunk: int = 20000) -> Path:
+    """Convert an .h5ad (scanpy projects) into an arsc store, so many processes share one mmap'd copy.
+
+    layers: AnnData layer names to export (e.g. "counts"); "X" exports .X. ``use_raw_for``: name under which
+    to export ``.raw.X`` (full gene set), e.g. "raw". Reads in backed mode, chunk by chunk (memory-safe).
+    obsm embeddings (X_umap, X_pca_harmony, ...) become reductions. Idempotent: skips if the store exists.
+    """
+    import anndata as ad
+    out = Path(out_dir)
+    if (out / "manifest.json").exists():
+        return out
+    tmp = out.with_name(out.name + f".tmp{os.getpid()}")
+    (tmp / "assays" / assay).mkdir(parents=True, exist_ok=True)
+    a = ad.read_h5ad(h5ad, backed="r")
+    try:
+        manifest = {"format": "arsc-store", "format_version": 1, "source": str(h5ad), "n_cells": int(a.n_obs),
+                    "default_assay": assay, "assays": {assay: {"class": "Assay", "layers": {}}}, "reductions": {}, "obs": {}}
+        jobs = [(l, (lambda s, l=l: a.layers[l][s]) if l != "X" else (lambda s: a.X[s]), list(a.var_names)) for l in layers]
+        if use_raw_for and a.raw is not None:
+            jobs.append((use_raw_for, lambda s: a.raw.X[s], list(a.raw.var_names)))
+        feats_written = None
+        for name, get, feats in jobs:
+            parts_ind, parts_dat, ptr, off = [], [], [0], 0
+            for s in range(0, a.n_obs, chunk):
+                m = get(slice(s, min(s + chunk, a.n_obs)))
+                m = sp.csr_matrix(m) if not sp.issparse(m) else m.tocsr()
+                parts_ind.append(m.indices.astype(np.int32))
+                parts_dat.append(m.data.astype(np.float32))
+                ptr.extend((m.indptr[1:] + off).tolist())
+                off += m.nnz
+            data = np.concatenate(parts_dat) if parts_dat else np.zeros(0, np.float32)
+            prefix = f"{name}.csr"
+            for comp, arr in (("data", data), ("indices", np.concatenate(parts_ind)), ("indptr", np.asarray(ptr, dtype=np.int64))):
+                np.save(tmp / "assays" / assay / f"{prefix}.{comp}.npy", arr)
+            manifest["assays"][assay]["layers"][name] = {
+                "shape": [int(a.n_obs), len(feats)], "nnz": int(off), "dtype": "float32",
+                "integer_valued": bool(np.all(np.mod(data[:100000], 1) == 0)), "prefix": prefix, "format": "csr"}
+            if feats_written is None:
+                (tmp / "assays" / assay / "features.txt").write_text("\n".join(feats), encoding="utf-8")
+                feats_written = feats
+            elif feats != feats_written:  # different gene set (e.g. .raw): separate assay
+                raise ValueError(f"layer {name!r} has a different feature set; export it as a separate assay")
+        (tmp / "cells.txt").write_text("\n".join(map(str, a.obs_names)), encoding="utf-8")
+        a.obs.to_parquet(tmp / "obs.parquet")
+        if obsm:
+            (tmp / "reductions").mkdir(exist_ok=True)
+            for k in a.obsm.keys():
+                e = np.asarray(a.obsm[k])
+                if e.ndim == 2 and e.dtype.kind in "fi":
+                    nm = k.removeprefix("X_")
+                    np.save(tmp / "reductions" / f"{nm}.npy", e.astype(np.float64))
+                    manifest["reductions"][nm] = {"shape": list(e.shape), "columns": [f"{nm}_{i + 1}" for i in range(e.shape[1])],
+                                                  "assay": assay}
+    finally:
+        a.file.close()
+    (tmp / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    os.replace(tmp, out)
+    return out

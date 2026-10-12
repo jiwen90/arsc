@@ -16,7 +16,7 @@ _pre()  # map AR_THREADS onto numba/BLAS env vars before they load
 from . import preprocessing as pp  # noqa: E402
 from ._threads import get_threads, set_threads, env_threads as _env_threads  # noqa: E402
 from .harmony import run_harmony  # noqa: E402
-from .io import (Assay, Dataset, Reduction, Store, export_seurat, exporter_script, open,  # noqa: E402
+from .io import (Assay, Dataset, Reduction, Store, export_seurat, exporter_script, from_anndata, open,  # noqa: E402
                  read_seurat_export, write_table)
 from .markers import top_markers, wilcoxauc  # noqa: E402
 from .pseudobulk import Pseudobulk, pseudobulk  # noqa: E402
