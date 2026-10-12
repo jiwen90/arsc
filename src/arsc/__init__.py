@@ -8,6 +8,8 @@ Quick map (see README.md):
     arsc.wilcoxauc                                    presto port
     arsc.score_ucell / add_module_score               UCell / Seurat AddModuleScore
     arsc.neighbors / wnn / cluster / umap             graph tools
+    arsc.clones.cyclone / clone_expansion_null / startrac / clone_*   clonal methods (Cyclone exact)
+    arsc.genesets.load_v3 / read_genesets / cycling_fraction          gene-set readers
 """
 from ._threads import preconfigure_env as _pre
 
@@ -23,6 +25,7 @@ from .pseudobulk import Pseudobulk, pseudobulk  # noqa: E402
 from .scores import add_module_score, score_ucell  # noqa: E402
 from .neighbors import find_neighbors, knn, snn_graph, wnn  # noqa: E402
 from .cluster import cluster, umap  # noqa: E402
+from . import clones, genesets  # noqa: E402
 
 if _env_threads() is not None:
     set_threads(_env_threads())
