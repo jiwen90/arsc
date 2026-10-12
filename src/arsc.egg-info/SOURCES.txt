@@ -1,9 +1,0 @@
-pyproject.toml
-src/arsc/__init__.py
-src/arsc/io.py
-src/arsc.egg-info/PKG-INFO
-src/arsc.egg-info/SOURCES.txt
-src/arsc.egg-info/dependency_links.txt
-src/arsc.egg-info/requires.txt
-src/arsc.egg-info/top_level.txt
-src/arsc/R/export_seurat.R
