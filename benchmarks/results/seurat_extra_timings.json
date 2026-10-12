@@ -1,0 +1,35 @@
+{
+  "arsc": {
+    "FindMarkers_wilcox_t01": 0.2439143001101911,
+    "FindMarkers_wilcox_default": 0.23736640019342303,
+    "FindMarkers_wilcox_onlypos_maxcells": 0.3110484001226723,
+    "FindMarkers_vs_rest": 1.1131829000078142,
+    "FindMarkers_t": 0.2392692002467811,
+    "FindMarkers_LR_latent": 0.1572495000436902,
+    "FindMarkers_LR_factor": 1.1385878003202379,
+    "FindMarkers_ADT": 0.022775100078433752,
+    "FindAllMarkers": 9.088670500088483,
+    "AverageExpression_data": 0.734372999984771,
+    "AverageExpression_counts": 0.22493729973211884,
+    "CellCycleScoring": 0.8842361001297832,
+    "ScaleData_regress_200": 0.3954023998230696,
+    "ScaleData_regress_split_200": 0.5008149002678692,
+    "ScaleData_regress_2000": 7.204690000042319
+  },
+  "R": {
+    "FindMarkers_wilcox_t01": 45.97,
+    "FindMarkers_wilcox_default": 3.41,
+    "FindMarkers_wilcox_onlypos_maxcells": 4.00999999999999,
+    "FindMarkers_vs_rest": 89.71,
+    "FindMarkers_t": 4.81,
+    "FindMarkers_LR_latent": 16.1,
+    "FindMarkers_LR_factor": 34.46,
+    "FindMarkers_ADT": 0.140000000000015,
+    "FindAllMarkers": 84.72,
+    "AverageExpression_data": 2.32999999999998,
+    "AverageExpression_counts": 0.389999999999986,
+    "CellCycleScoring": 1.69,
+    "ScaleData_regress_200": 2.23000000000002,
+    "ScaleData_regress_split_200": 11.9
+  }
+}
