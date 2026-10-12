@@ -1,0 +1,96 @@
+"""Small shared helpers (grouping, multiple testing, sparse plumbing)."""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
+
+
+def as_csr(X, dtype=None) -> sp.csr_matrix:
+    """Return ``X`` as CSR with sorted indices and no explicit zeros (copy only if needed)."""
+    if not sp.issparse(X):
+        X = sp.csr_matrix(np.asarray(X))
+    elif not isinstance(X, sp.csr_matrix):
+        X = X.tocsr()
+    if dtype is not None and X.dtype != dtype:
+        X = X.astype(dtype)
+    if not X.has_sorted_indices:
+        X = X.copy()
+        X.sort_indices()
+    return X
+
+
+def factorize_groups(obs: pd.DataFrame | None, by, n: int | None = None, sep: str = "_"):
+    """Encode one or more grouping columns as integer codes.
+
+    ``by`` may be a column name, a list of column names (combined like Seurat's
+    ``group.by = c(a, b)`` -> ``"a_b"``), or an array-like of labels.
+    Cells with a missing value in any grouping column get code -1.
+
+    Returns
+    -------
+    codes : int64 array (n_cells,)
+    groups : DataFrame with one row per observed group (in sorted level order),
+        columns = grouping variables, index = combined label.
+    """
+    if isinstance(by, str) or (isinstance(by, (list, tuple)) and all(isinstance(b, str) for b in by)
+                               and obs is not None and all(b in obs.columns for b in by)):
+        cols = [by] if isinstance(by, str) else list(by)
+        frame = obs[cols]
+    else:
+        arr = by if isinstance(by, pd.Series) else pd.Series(np.asarray(by))
+        cols = [arr.name if arr.name is not None else "group"]
+        frame = pd.DataFrame({cols[0]: arr.to_numpy()})
+    if n is not None and len(frame) != n:
+        raise ValueError(f"grouping has {len(frame)} entries, expected {n}")
+    cats, mats = [], []
+    valid = np.ones(len(frame), dtype=bool)
+    for c in cols:
+        s = frame[c]
+        cat = s if isinstance(s.dtype, pd.CategoricalDtype) else pd.Categorical(s)
+        cat = pd.Categorical(cat)
+        codes = np.asarray(cat.codes, dtype=np.int64)
+        valid &= codes >= 0
+        cats.append(cat.categories)
+        mats.append(codes)
+    # Mixed-radix combination in level order of each column (first column slowest).
+    combo = np.zeros(len(frame), dtype=np.int64)
+    for codes, levels in zip(mats, cats):
+        combo = combo * len(levels) + np.where(codes >= 0, codes, 0)
+    combo[~valid] = -1
+    uniq, inv = np.unique(combo[valid], return_inverse=True)
+    codes_out = np.full(len(frame), -1, dtype=np.int64)
+    codes_out[valid] = inv
+    # Decode group levels
+    rows = {}
+    rem = uniq.copy()
+    for c, levels in reversed(list(zip(cols, cats))):
+        rows[c] = np.asarray(levels)[rem % len(levels)]
+        rem //= len(levels)
+    groups = pd.DataFrame({c: rows[c] for c in cols})
+    groups.index = groups.astype(str).agg(sep.join, axis=1).to_numpy() if len(cols) > 1 else groups[cols[0]].astype(str).to_numpy()
+    return codes_out, groups
+
+
+def p_adjust_bh(p: np.ndarray, axis: int = 0) -> np.ndarray:
+    """Benjamini-Hochberg adjustment along ``axis`` (matches R ``p.adjust(.., "BH")``; NaNs kept)."""
+    p = np.asarray(p, dtype=np.float64)
+    if p.ndim == 1:
+        return _bh_1d(p)
+    return np.apply_along_axis(_bh_1d, axis, p)
+
+
+def _bh_1d(p):
+    out = np.full_like(p, np.nan)
+    ok = ~np.isnan(p)
+    q = p[ok]
+    n = q.size
+    if n == 0:
+        return out
+    o = np.argsort(-q, kind="stable")
+    ranks = np.arange(n, 0, -1, dtype=np.float64)
+    adj = np.minimum.accumulate((n / ranks) * q[o])  # same op order as R: n/i * p[o]
+    res = np.empty(n)
+    res[o] = np.minimum(adj, 1.0)
+    out[ok] = res
+    return out
