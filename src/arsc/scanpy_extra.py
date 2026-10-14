@@ -36,7 +36,7 @@ import pandas as pd
 import scipy.sparse as sp
 from scipy import stats as _st
 
-from ._utils import as_csr, p_adjust_bh
+from ._utils import as_csr, check_seed, p_adjust_bh
 from .markers import _rank_stats
 from .preprocessing import _col_mean_var, hvg_vst
 
@@ -94,17 +94,19 @@ def normalize_total_log1p(counts, target_sum: float = 1e4, dtype=np.float64) -> 
 
 # --------------------------------------------------------------------------- score_genes
 def score_genes(X, features, gene_list, *, ctrl_size: int = 50, gene_pool=None, n_bins: int = 25,
-                random_state: int | None = 0, ctrl_as_ref: bool = True, return_controls: bool = False):
+                random_state: int = 0, ctrl_as_ref: bool = True, return_controls: bool = False):
     """``sc.tl.score_genes`` (Seurat-style module score with expression-matched control genes).
 
     X : cells x genes (whatever ``adata.X`` / ``.raw.X`` is: log-normalized or scaled; sparse or dense).
-    The control-gene sampling reproduces scanpy's RNG use (``np.random.seed`` + ``Series.sample``), so the
-    control set, and hence the score, equals scanpy's. NOTE: this seeds the *global* numpy RNG like scanpy.
+    ``random_state`` (default 0, as scanpy) is the seed of the control-gene sampling. scanpy calls
+    ``np.random.seed(random_state)`` and then ``Series.sample`` on the global RNG; arsc draws the
+    identical stream from a *local* ``np.random.RandomState(random_state)`` (same MT19937 sequence),
+    so the control set, and hence the score, equals scanpy's, without touching numpy's global RNG.
+    ``random_state=None`` (scanpy: "do not reseed", i.e. whatever the global state is) is rejected.
     Returns the per-cell score (and the control gene Index when ``return_controls``).
     """
+    rs = np.random.RandomState(check_seed(random_state, "random_state"))
     var_names = pd.Index(features)
-    if random_state is not None:
-        np.random.seed(random_state)
     gl = pd.Index([gene_list] if isinstance(gene_list, str) else gene_list)
     gl = gl.intersection(var_names)
     if len(gl) == 0:
@@ -124,7 +126,7 @@ def score_genes(X, features, gene_list, *, ctrl_size: int = 50, gene_pool=None, 
     for cut in np.unique(obs_cut.loc[gl]):
         r_genes = obs_cut[(obs_cut == cut) & ~keep_ctrl_in_obs_cut].index
         if ctrl_size < len(r_genes):
-            r_genes = r_genes.to_series().sample(ctrl_size).index
+            r_genes = r_genes.to_series().sample(ctrl_size, random_state=rs).index
         if ctrl_as_ref:
             r_genes = r_genes.difference(gl)
         control = control.union(r_genes)
@@ -518,24 +520,28 @@ def qc_metrics(counts, features=None, qc_vars: dict | None = None, percent_top=(
 
 
 # --------------------------------------------------------------------------- neighbors / leiden / umap
-def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: str = "exact") -> dict:
+def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: str = "exact",
+              random_state: int = 0) -> dict:
     """``sc.pp.neighbors`` (``method="umap"``): kNN + UMAP fuzzy-simplicial-set connectivities.
 
     Uses arsc's *exact* kNN (scanpy uses exact kNN below 4,096 cells and approximate pynndescent above, so
     graphs agree exactly only for small data; ``method="pynndescent"`` reproduces the large-n route).
     As scanpy, ``n_neighbors`` counts the cell itself (n_neighbors-1 real neighbours).
     metric : ``"euclidean"`` | ``"cosine"``. Returns ``{"connectivities", "distances", "indices"}``.
+    random_state : seed (default 0, as scanpy) passed to the kNN; matters only for ``method="pynndescent"``
+        (the exact kNN and the fuzzy-simplicial-set step are deterministic).
     """
+    random_state = check_seed(random_state, "random_state")
     from umap.umap_ import fuzzy_simplicial_set
 
     from .neighbors import knn as _knn, l2_normalize
 
     X = np.asarray(emb, dtype=np.float64)
     if metric == "cosine":
-        idx, d = _knn(l2_normalize(X), n_neighbors, method=method)
+        idx, d = _knn(l2_normalize(X), n_neighbors, method=method, seed=random_state)
         d = 1.0 - (1.0 - d ** 2 / 2.0)  # unit-vector euclid^2 / 2 = cosine distance
     elif metric == "euclidean":
-        idx, d = _knn(X, n_neighbors, method=method)
+        idx, d = _knn(X, n_neighbors, method=method, seed=random_state)
     else:
         raise ValueError(metric)
     n = X.shape[0]
@@ -555,8 +561,13 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
     ``n_iterations=-1``, ``RBConfigurationVertexPartition``). Same graph + seed -> identical labels.
 
     Returns integer labels exactly as leidenalg numbers them (scanpy stores these as strings).
+    ``random_state`` (default 0, as scanpy) is leidenalg's ``seed``; for ``flavor="igraph"`` a private
+    ``random.Random(random_state)`` is installed as igraph's RNG for the call and igraph's default RNG
+    restored afterwards (Python's global ``random`` state is never touched).
     """
     import igraph as ig
+
+    random_state = check_seed(random_state, "random_state")
 
     A = sp.csr_matrix(connectivities)
     src, tgt = A.nonzero()
@@ -578,8 +589,11 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
     g.es["weight"] = w
     import random
     ig.set_random_number_generator(random.Random(random_state))
-    part = g.community_leiden(objective_function="modularity", weights="weight" if use_weights else None,
-                              resolution=resolution, n_iterations=2 if n_iterations == -1 else n_iterations)
+    try:
+        part = g.community_leiden(objective_function="modularity", weights="weight" if use_weights else None,
+                                  resolution=resolution, n_iterations=2 if n_iterations == -1 else n_iterations)
+    finally:
+        ig.set_random_number_generator(random)  # igraph's default
     return np.asarray(part.membership)
 
 
@@ -590,6 +604,9 @@ def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: f
 
     Same call path as scanpy (``umap.umap_.simplicial_set_embedding`` with ``a, b = find_ab_params``).
     scanpy defaults: ``min_dist=0.5``; Ming used ``min_dist=0.4, spread=1.0`` for the final figures.
+    ``random_state`` (default 0, as scanpy) seeds the spectral-init noise and the SGD layout through a local
+    ``RandomState``; umap-learn then runs the layout single-threaded, so same graph + seed -> bit-identical
+    coordinates. Pass other integers for alternative layouts; ``None`` is rejected.
     """
     from sklearn.utils import check_random_state
     from umap.umap_ import find_ab_params, simplicial_set_embedding
@@ -599,7 +616,7 @@ def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: f
     n = A.shape[0]
     if maxiter is None:
         maxiter = 500 if n <= 10000 else 200
-    rs = check_random_state(random_state)
+    rs = check_random_state(check_seed(random_state, "random_state"))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         emb, _ = simplicial_set_embedding(
@@ -616,7 +633,9 @@ def diffmap(connectivities, n_comps: int = 15, *, random_state: int = 0) -> dict
 
     Returns ``evals`` (n_comps) and ``X_diffmap`` (cells x n_comps; column 0 is the stationary component,
     as scanpy), plus the transition matrix pieces needed by :func:`dpt`.
+    ``random_state`` (default 0, as scanpy) seeds the ARPACK start vector (local ``RandomState``).
     """
+    random_state = check_seed(random_state, "random_state")
     from scipy.sparse.linalg import eigsh
 
     W = sp.csr_matrix(connectivities).astype(np.float64)
@@ -660,14 +679,16 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
     transition ``T``, ``eigs`` with palantir's tolerance and start vector (``default_rng(seed).random``).
     Returns ``kernel, T, EigenVectors (cells x n_components), EigenValues`` (descending; vectors unit norm).
     Exact kNN here vs scanpy's approximate kNN for > 4,096 cells in palantir: identical below that size.
+    ``seed`` (default 0, as palantir) seeds the ARPACK start vector and the kNN (``method="pynndescent"``).
     """
+    seed = check_seed(seed)
     from scipy.sparse.linalg import eigs
 
     from .neighbors import knn as _knn
 
     X = np.asarray(emb, dtype=np.float64)
     N = X.shape[0]
-    idx, d = _knn(X, knn, method=method)
+    idx, d = _knn(X, knn, method=method, seed=seed)
     idx, d = idx[:, 1:], d[:, 1:]
     ak = int(np.floor(knn / 3))
     sig = np.partition(d, ak - 1, axis=1)[:, ak - 1]

@@ -35,7 +35,7 @@ from scipy.special import ndtr
 
 from ._cc_genes import CC_GENES, CC_GENES_UPDATED_2019
 from ._rrng import RRandom
-from ._utils import as_csr, factorize_groups
+from ._utils import as_csr, check_seed, factorize_groups
 from .markers import _rank_stats
 from . import preprocessing as pp
 
@@ -324,12 +324,16 @@ def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, c
     norm_method : ``"LogNormalize"`` => fold change from ``log(mean(expm1(x)) + 1)``; anything else (``"CLR"``)
         => ``log(mean(x) + 1)`` (what Seurat does for ADT).
     n_features_total : number of features in the assay (Bonferroni multiplier; default ``X.shape[1]``).
+    random_seed : R ``set.seed`` value (default 1 = Seurat ``random.seed = 1``) for the
+        ``max_cells_per_ident`` downsampling, drawn with the R-compatible RNG (identical cells to R).
+        Unused when ``max_cells_per_ident`` is infinite (the default).
 
     Returns
     -------
     DataFrame indexed by feature: ``p_val, avg_log2FC, pct.1, pct.2, p_val_adj``, ordered by
     ``(p_val, -avg_log2FC)`` like Seurat.
     """
+    random_seed = check_seed(random_seed, "random_seed", r_seed=True)
     X = as_csr(X)
     N, P = X.shape
     names = _names(features, P)
@@ -410,8 +414,10 @@ def find_all_markers(X, groups, *, features=None, test_use: str = "wilcox", logf
     Returns the concatenation of per-cluster :func:`find_markers` tables, keeping ``p_val < return_thresh``
     (raw p-value, as Seurat), with ``cluster`` and ``gene`` columns. Clusters with fewer than
     ``min_cells_group`` cells are skipped (Seurat reports an error message and continues).
+    ``random_seed`` is passed unchanged to every per-cluster :func:`find_markers` call (as Seurat).
     For ``test_use="wilcox"`` without cell downsampling every cluster is tested from a single rank pass.
     """
+    random_seed = check_seed(random_seed, "random_seed", r_seed=True)
     X = as_csr(X)
     P = X.shape[1]
     names = _names(features, P)
@@ -528,6 +534,7 @@ def cell_cycle_scoring(X, features, s_features=None, g2m_features=None, *, ctrl:
     ``X`` is the log-normalized (cells x features) matrix; default gene sets are ``Seurat::cc.genes``.
     ``ctrl`` defaults to the size of the smaller input set (as Seurat). Phase: both scores < 0 -> ``G1``;
     equal maxima -> ``Undecided``; else the larger of ``S`` / ``G2M``.
+    ``seed`` (default 1, as Seurat) is the ``AddModuleScore`` R seed; both scores share one RNG stream.
     """
     from .scores import add_module_score
 

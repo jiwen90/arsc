@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from ._rrng import RRandom
-from ._utils import as_csr
+from ._utils import as_csr, check_seed
 
 __all__ = ["score_ucell", "add_module_score", "parse_signature"]
 
@@ -159,7 +159,7 @@ def _cut_number(x: np.ndarray, n: int) -> np.ndarray:
 
 
 def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl: int = 100,
-                     seed: int | None = 1, name: str = "Cluster", cells=None,
+                     seed: int = 1, name: str = "Cluster", cells=None,
                      return_controls: bool = False):
     """Seurat ``AddModuleScore``: mean expression of each gene set minus a binned control set.
 
@@ -171,8 +171,10 @@ def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl
         column names; otherwise ``f"{name}{i}"`` like Seurat).
     pool, nbin, ctrl : as in Seurat (genes binned by mean into ``nbin`` bins;
         ``ctrl`` random genes drawn from each signature gene's bin).
-    seed : R seed; ``seed=1`` (Seurat's default) reproduces R exactly.
-        ``None`` draws with numpy instead (not R-reproducible).
+    seed : R ``set.seed`` value; ``seed=1`` (Seurat's default) reproduces R exactly. The
+        tie-breaking noise and control-gene draws use a private R-compatible RNG
+        (``_rrng.RRandom``), so any integer reproduces R's ``AddModuleScore(seed = s)``.
+        ``None`` (Seurat: do not reseed) is rejected.
 
     Returns
     -------
@@ -191,8 +193,7 @@ def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl
     for nm, gl in zip(names, gene_lists):
         if not gl:
             raise ValueError(f"no features of {nm} present in the data")
-    rr = RRandom(seed) if seed is not None else None
-    rng = np.random.default_rng() if seed is None else None
+    rr = RRandom(check_seed(seed, r_seed=True))
     Xc = as_csr(X) if sp.issparse(X) else np.asarray(X)
     pool_idx = np.arange(len(feats)) if pool is None else feats.get_indexer(list(pool))
     n_cells = Xc.shape[0]
@@ -204,7 +205,7 @@ def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl
     data_avg = mu[pool_idx]
     order = np.argsort(data_avg, kind="stable")
     avg_sorted = data_avg[order]
-    noise = rr.rnorm(avg_sorted.size) if rr is not None else rng.standard_normal(avg_sorted.size)
+    noise = rr.rnorm(avg_sorted.size)
     cut = _cut_number(avg_sorted + noise / 1e30, nbin)
     sorted_genes = feats[pool_idx][order]
     bin_of = pd.Series(cut, index=sorted_genes)
@@ -214,7 +215,7 @@ def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl
         for g in gl:
             b = bin_of.loc[g]
             cand = np.flatnonzero(cut == b)  # in sorted order, like which(data.cut == ...)
-            idx = rr.sample_int(cand.size, ctrl) if rr is not None else rng.choice(cand.size, ctrl, replace=False)
+            idx = rr.sample_int(cand.size, ctrl)
             picked += list(sorted_genes[cand[idx]])
         ctrl_lists.append(list(dict.fromkeys(picked)))
 
