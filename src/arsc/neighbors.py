@@ -21,6 +21,8 @@ import numba as nb
 import numpy as np
 import scipy.sparse as sp
 
+from ._utils import check_seed
+
 __all__ = ["knn", "snn_graph", "find_neighbors", "wnn", "WNNResult", "l2_normalize"]
 
 
@@ -167,7 +169,12 @@ def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None 
     triangle-inequality pruning (numba, parallel over queries). Deterministic;
     ties are ordered by index and the query point itself comes first when
     ``query`` is None. ``method="pynndescent"``: approximate (for very large data).
+
+    ``seed`` (default 0): for ``"exact"`` it only seeds the k-means partition used for
+    pruning, which never changes the (exact) answer; for ``"pynndescent"`` it is the
+    ``random_state`` of the random-projection forest and NN-descent.
     """
+    seed = check_seed(seed)
     X = np.ascontiguousarray(X, dtype=np.float64)
     Q = X if query is None else np.ascontiguousarray(query, dtype=np.float64)
     n = X.shape[0]
@@ -294,13 +301,15 @@ def _nn_matrix(idx: np.ndarray, n: int) -> sp.csr_matrix:
 
 
 def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm: bool = False,
-                   method: str = "exact") -> dict:
+                   method: str = "exact", seed: int = 0) -> dict:
     """Seurat ``FindNeighbors``: k-NN (self included) and SNN graphs from an embedding.
+
+    ``seed`` is passed to :func:`knn` (matters only for ``method="pynndescent"``).
 
     Returns ``{"idx", "dist", "nn" (binary csr), "snn" (csr)}``.
     """
     X = l2_normalize(emb) if l2_norm else np.asarray(emb, dtype=np.float64)
-    idx, dist = knn(X, k, method=method)
+    idx, dist = knn(X, k, method=method, seed=seed)
     return {"idx": idx, "dist": dist, "nn": _nn_matrix(idx, X.shape[0]), "snn": snn_graph(idx, prune)}
 
 
@@ -439,7 +448,7 @@ class WNNResult:
 
 def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float = 1 / 15,
         sd_scale: float = 1.0, cross_constant=1e-4, l2_norm: bool = True, smooth: bool = False,
-        knn_method: str = "exact") -> WNNResult:
+        knn_method: str = "exact", seed: int = 0) -> WNNResult:
     """Weighted nearest neighbours (Seurat ``FindMultiModalNeighbors`` / ``FindModalityWeights``).
 
     Parameters
@@ -448,6 +457,7 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
         harmony_adt[:, :15]]``).
     k_nn, knn_range, prune_snn, sd_scale, cross_constant, l2_norm, smooth : as in Seurat
         (``cross.contant.list`` -> ``cross_constant``, scalar or per modality).
+    knn_method, seed : passed to :func:`knn` (``seed`` matters only for ``"pynndescent"``).
 
     Returns
     -------
@@ -460,7 +470,7 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
     E = [l2_normalize(e) if l2_norm else np.asarray(e, dtype=np.float64) for e in embeddings]
     n = E[0].shape[0]
     # -- FindModalityWeights --------------------------------------------------
-    big = [knn(e, max(knn_range, k_nn), method=knn_method) for e in E]  # self first
+    big = [knn(e, max(knn_range, k_nn), method=knn_method, seed=seed) for e in E]  # self first
     nn = [(i[:, :k_nn], d[:, :k_nn]) for i, d in big]  # exact k-NN are prefixes of each other
     nearest = np.stack([d[:, 1] for _, d in nn], axis=1)  # Distances[, 2]
     # PredictAssay drops the self column when the query cell is its own first neighbour

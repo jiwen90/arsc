@@ -23,7 +23,7 @@ import pandas as pd
 import scipy.sparse as sp
 
 from ._loess import loess_fit
-from ._utils import as_csr
+from ._utils import as_csr, check_seed
 
 __all__ = ["log_normalize", "clr", "hvg_vst", "scale", "pca", "PCAResult"]
 
@@ -234,7 +234,11 @@ def pca(Z: np.ndarray, n_comps: int = 50, method: str = "auto", seed: int = 42,
 
     Component signs are fixed so the largest-|loading| gene of each PC is positive
     (Seurat's signs are arbitrary; compare with ``abs(corr)``).
+
+    ``seed`` (default 42 = Seurat ``RunPCA(seed.use = 42)``): ARPACK start vector (``"arpack"``)
+    or the Gaussian test matrix (``"randomized"``); ``"gram"`` is deterministic and ignores it.
     """
+    seed = check_seed(seed)
     Z = np.asarray(Z)
     n, p = Z.shape
     k = min(n_comps, p - 1, n - 1)

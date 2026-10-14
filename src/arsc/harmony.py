@@ -37,6 +37,14 @@ import numba as nb
 import numpy as np
 import pandas as pd
 
+from ._utils import check_seed
+
+# Fixed reduction-chunk counts: per-chunk partial sums are combined in chunk order, so the float summation
+# order (and hence every objective value / convergence decision) is the same for any number of threads.
+# (They used to follow the thread count; 32 / min(8, threads) == these values on the 32-thread lab machine.)
+_OBJ_CHUNKS = 32
+_R_CHUNKS = 8
+
 __all__ = ["run_harmony", "Harmony", "HarmonyResult"]
 
 
@@ -271,12 +279,12 @@ class Harmony:
 
     # -- helpers ---------------------------------------------------------------
     def _OE(self):
-        _, _, OT = _objective_terms(self.R, self.dist, self.sigma, self.codes, self.B, nb.get_num_threads())
+        _, _, OT = _objective_terms(self.R, self.dist, self.sigma, self.codes, self.B, _OBJ_CHUNKS)
         E = np.outer(self.R.sum(0), self.Pr_b)
         return np.ascontiguousarray(OT.T), E
 
     def compute_objective(self):
-        km, ent, OT_true = _objective_terms(self.R, self.dist, self.sigma, self.codes, self.B, nb.get_num_threads())
+        km, ent, OT_true = _objective_terms(self.R, self.dist, self.sigma, self.codes, self.B, _OBJ_CHUNKS)
         # cross entropy: sum((R .* sigma) .* ((theta' .* log((O+E)/E)) * Phi)) == sum(sigma * L * (R Phi^T))
         Lmat = self.theta[None, :] * np.log((self.O + self.E) / self.E)
         cross = float(np.sum(self.sigma[:, None] * Lmat * OT_true.T))
@@ -332,7 +340,7 @@ class Harmony:
             _scale_dist(self.dist, self.sigma, sd)
             order = self.rng.permutation(self.N).astype(np.int64)
             ET, OT = np.ascontiguousarray(self.E.T), np.ascontiguousarray(self.O.T)
-            _update_R(self.R, sd, order, bounds, ET, OT, self.Pr_b, self.theta, self.codes, min(8, nb.get_num_threads()))
+            _update_R(self.R, sd, order, bounds, ET, OT, self.Pr_b, self.theta, self.codes, _R_CHUNKS)
             self.E, self.O = np.ascontiguousarray(ET.T), np.ascontiguousarray(OT.T)
             self.compute_objective()
             if it > self.window_size and self.check_convergence(0):
@@ -404,7 +412,9 @@ def run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_=1.0, nclust
     nclust : default ``min(round(N / 30), 100)``.
     max_iter : harmony rounds (R ``max_iter``); ``early_stop=False`` disables the
         objective-based stop.
-    seed : seeds k-means init and block shuffling.
+    seed : integer seed (default 0) for the k-means init (sklearn ``random_state``) and the
+        per-iteration random block order (local ``np.random.default_rng``). Same input + seed ->
+        bit-identical output, independent of ``n_threads`` (fixed reduction order).
     init_centroids : optional (nclust x d) starting centroids (bypasses k-means).
     n_threads : numba threads (default: all).
     return_object : return :class:`HarmonyResult` (with traces) instead of the array.
@@ -413,6 +423,7 @@ def run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_=1.0, nclust
     -------
     (n_cells, d) corrected embedding, or HarmonyResult.
     """
+    seed = check_seed(seed)
     if n_threads is not None:
         nb.set_num_threads(int(n_threads))
     Z = np.asarray(Z, dtype=np.float64)

@@ -10,6 +10,8 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 
+from ._utils import check_seed
+
 __all__ = ["cluster", "umap"]
 
 
@@ -53,8 +55,14 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
         as Seurat ``algorithm = 4``) or ``"louvain"`` (igraph multilevel; best
         modularity over ``n_start`` seeded runs, as Seurat ``algorithm = 1``).
     n_iterations : Leiden iterations (leidenalg default 2; -1 = until stable).
+    seed : integer RNG seed (default 0 = Seurat ``FindClusters(random.seed = 0)``). Leiden: leidenalg's
+        own seeded RNG. Louvain: start ``s`` uses a private ``random.Random(seed + s)`` installed as
+        igraph's RNG for the call (igraph's default RNG is restored afterwards; Python's global
+        ``random`` state is never touched). Same graph + seed -> identical labels; vary ``seed`` to
+        check a clustering's stability.
     Returns integer labels, 0 = largest cluster.
     """
+    seed = check_seed(seed)
     g, G = _to_igraph(graph)
     if method == "leiden":
         import leidenalg as la
@@ -71,13 +79,15 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
         rng = _random.Random()
         ig.set_random_number_generator(rng)
         best, best_q = None, -np.inf
-        for s_ in range(n_start):
-            rng.seed(seed + s_)
-            mem = np.asarray(g.community_multilevel(weights="weight", resolution=resolution).membership)
-            q = g.modularity(mem.tolist(), weights="weight", resolution=resolution)
-            if q > best_q:
-                best, best_q = mem, q
-        ig.set_random_number_generator(_random)
+        try:
+            for s_ in range(n_start):
+                rng.seed(seed + s_)
+                mem = np.asarray(g.community_multilevel(weights="weight", resolution=resolution).membership)
+                q = g.modularity(mem.tolist(), weights="weight", resolution=resolution)
+                if q > best_q:
+                    best, best_q = mem, q
+        finally:
+            ig.set_random_number_generator(_random)  # igraph's default
         labels = best
     else:
         raise ValueError(method)
@@ -87,15 +97,19 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
     return labels
 
 
-def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosine", seed: int | None = 42,
+def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosine", seed: int = 42,
          n_epochs: int | None = None, spread: float = 1.0, init: str = "spectral", knn=None) -> np.ndarray:
     """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbours, min_dist 0.3).
 
     The k-NN graph is computed exactly by arsc (``knn`` can pass a precomputed
     ``(idx, dist)``), so only the layout optimisation runs in umap-learn.
-    ``seed`` makes the layout deterministic (umap-learn then runs single-threaded);
-    ``seed=None`` is faster but not reproducible.
+    ``seed`` (default 42 = Seurat ``RunUMAP(seed.use = 42)``) seeds umap-learn's
+    ``random_state`` and ``transform_seed``; with a seed umap-learn runs its layout
+    single-threaded, so the same input + seed gives bit-identical coordinates. Pass other
+    integers to see alternative layouts. ``seed=None`` (multi-threaded, non-reproducible)
+    is rejected.
     """
+    seed = check_seed(seed)
     import umap as umap_learn
 
     from .neighbors import knn as _knn, l2_normalize
@@ -103,16 +117,16 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     X = np.asarray(emb, dtype=np.float64)
     if knn is None:
         if metric == "cosine":
-            idx, d = _knn(l2_normalize(X), n_neighbors)
+            idx, d = _knn(l2_normalize(X), n_neighbors, seed=seed)
             d = d ** 2 / 2.0  # euclidean on unit vectors -> cosine distance
         elif metric == "euclidean":
-            idx, d = _knn(X, n_neighbors)
+            idx, d = _knn(X, n_neighbors, seed=seed)
         else:
             idx = d = None
     else:
         idx, d = knn
     kw = dict(n_neighbors=n_neighbors, min_dist=min_dist, metric=metric, spread=spread, init=init,
-              n_epochs=n_epochs, random_state=seed, transform_seed=seed if seed is not None else 42)
+              n_epochs=n_epochs, random_state=seed, transform_seed=seed)
     if idx is not None:
         kw["precomputed_knn"] = (idx, d, None)
     import warnings

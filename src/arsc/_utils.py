@@ -94,3 +94,26 @@ def _bh_1d(p):
     res[o] = np.minimum(adj, 1.0)
     out[ok] = res
     return out
+
+
+def check_seed(seed, name: str = "seed", r_seed: bool = False) -> int:
+    """Validate an explicit RNG seed and return it as a Python int (see SEEDS.md).
+
+    arsc results must be exactly reproducible, so every stochastic function takes a fixed integer
+    seed. ``None`` (fresh OS entropy -> a different answer on every call) is rejected rather than
+    silently accepted; to explore stochastic variation, pass different integers (1, 2, 3, ...).
+    ``r_seed=True``: an R ``set.seed`` value (any 32-bit signed integer, negatives allowed).
+    """
+    if seed is None:
+        raise ValueError(f"{name}=None is not allowed: arsc results must be reproducible. Pass an integer "
+                         f"(e.g. {name}=1, 2, 3 to check stability across seeds); see SEEDS.md.")
+    if isinstance(seed, (bool, np.bool_)) or not isinstance(seed, (int, np.integer)):
+        raise TypeError(f"{name} must be an integer, got {type(seed).__name__}")
+    seed = int(seed)
+    if r_seed:
+        if not -2 ** 31 <= seed < 2 ** 31:
+            raise ValueError(f"{name} must be a 32-bit integer (R set.seed), got {seed}")
+        return seed
+    if seed < 0 or seed >= 2 ** 32:
+        raise ValueError(f"{name} must be in [0, 2**32), got {seed}")
+    return seed
