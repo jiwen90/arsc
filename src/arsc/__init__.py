@@ -1,6 +1,9 @@
 """arsc -- fast, R-validated single-cell compute engine.
 
 Quick map (see README.md):
+    arsc.read(path[, store=dir])                      any format -> Dataset (memory) or Store (mmap)
+    arsc.read_h5ad / read_10x_h5 / read_10x_mtx / read_seurat   format-specific readers
+    arsc.write_h5ad / Store.to_anndata / Store.write_h5ad       hand-off to scanpy / anndata
     arsc.open / read_seurat_export / write_table      I/O bridge (memory-mapped store)
     arsc.pseudobulk                                   per-sample aggregation
     arsc.pp.log_normalize / clr / hvg_vst / scale / pca
@@ -25,6 +28,8 @@ from ._threads import get_threads, set_threads, env_threads as _env_threads  # n
 from .harmony import run_harmony  # noqa: E402
 from .io import (Assay, Dataset, Reduction, Store, export_seurat, exporter_script, from_anndata, open,  # noqa: E402
                  read_seurat_export, write_table)
+from .formats import (ArscFormatError, StoreBuilder, detect_format, make_unique, read, read_10x_h5,  # noqa: E402
+                      read_10x_mtx, read_h5ad, read_seurat, to_anndata, write_h5ad)
 from .markers import top_markers, wilcoxauc  # noqa: E402
 from .pseudobulk import Pseudobulk, pseudobulk  # noqa: E402
 from .scores import add_module_score, score_ucell  # noqa: E402
@@ -45,4 +50,4 @@ from .seurat_extra import (find_markers, find_all_markers, fold_change, average_
 if _env_threads() is not None:
     set_threads(_env_threads())
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

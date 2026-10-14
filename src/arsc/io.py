@@ -42,7 +42,7 @@ import scipy.sparse as sp
 
 __all__ = [
     "Assay", "Reduction", "Dataset", "Store",
-    "open", "read_seurat_export", "export_seurat", "exporter_script", "write_table",
+    "open", "read_seurat_export", "export_seurat", "exporter_script", "write_table", "from_anndata",
 ]
 
 
@@ -75,9 +75,19 @@ class Assay:
     features: pd.Index
     layers: dict = field(default_factory=dict)
     variable_features: list = field(default_factory=list)
+    var: pd.DataFrame | None = None
+    varm: dict = field(default_factory=dict)
 
     def __getitem__(self, layer: str) -> sp.csr_matrix:
         return self.layers[layer]
+
+    def var_frame(self) -> pd.DataFrame:
+        """Per-feature annotations (empty frame indexed by feature names if none were imported)."""
+        if self.var is None:
+            return pd.DataFrame(index=pd.Index(self.features, dtype=object))
+        v = self.var.copy()
+        v.index = pd.Index(self.features, dtype=object)
+        return v
 
     def __repr__(self) -> str:
         ls = ", ".join(f"{k} (nnz={v.nnz:,})" for k, v in self.layers.items())
@@ -110,9 +120,29 @@ class Dataset:
     reductions: dict = field(default_factory=dict)
     graphs: dict = field(default_factory=dict)
     manifest: dict = field(default_factory=dict)
+    uns: dict = field(default_factory=dict)
 
     def __getitem__(self, assay: str) -> Assay:
         return self.assays[assay]
+
+    def features(self, assay: str = "RNA") -> pd.Index:
+        return self.assays[assay].features
+
+    def var(self, assay: str = "RNA") -> pd.DataFrame:
+        return self.assays[assay].var_frame()
+
+    def layers(self, assay: str = "RNA") -> list:
+        return list(self.assays[assay].layers)
+
+    def to_anndata(self, cells=None, genes=None, **kw):
+        """In-memory ``anndata.AnnData`` (see :func:`arsc.to_anndata`)."""
+        from .formats import to_anndata
+        return to_anndata(self, cells, genes, **kw)
+
+    def write_h5ad(self, path, cells=None, genes=None, **kw) -> Path:
+        """Write ``.h5ad`` (see :func:`arsc.write_h5ad`)."""
+        from .formats import write_h5ad
+        return write_h5ad(self, path, cells, genes, **kw)
 
     @property
     def n_cells(self) -> int:
@@ -135,11 +165,11 @@ class Dataset:
         """Row subset (boolean mask, positions or barcodes); copies only the selected rows."""
         idx = _as_positions(cells, self.obs.index)
         assays = {k: Assay(a.name, a.features, {l: _take_rows(m, idx) for l, m in a.layers.items()},
-                           list(a.variable_features)) for k, a in self.assays.items()}
+                           list(a.variable_features), a.var, dict(a.varm)) for k, a in self.assays.items()}
         reds = {k: Reduction(np.asarray(r.embedding)[idx], r.columns, r.loadings, r.stdev, r.assay)
                 for k, r in self.reductions.items()}
         graphs = {k: sp.csr_matrix(g)[idx][:, idx].tocsr() for k, g in self.graphs.items()}
-        return Dataset(self.obs.iloc[idx].copy(), assays, reds, graphs, dict(self.manifest))
+        return Dataset(self.obs.iloc[idx].copy(), assays, reds, graphs, dict(self.manifest), dict(self.uns))
 
     def __repr__(self) -> str:
         lines = [f"arsc.Dataset: {self.n_cells:,} cells"]
@@ -353,10 +383,15 @@ class Store:
 
     def __init__(self, path, finalize: bool = True, build_csc: bool = True):
         self.path = Path(path)
-        self.manifest = json.loads((self.path / "manifest.json").read_text())
+        mf = self.path / "manifest.json"
+        if not mf.exists():
+            hint = " (use arsc.read(path, store=dir) to convert a file)" if self.path.is_file() else ""
+            raise FileNotFoundError(f"{path} is not an arsc store: no manifest.json{hint}")
+        self.manifest = json.loads(mf.read_text(encoding="utf-8"))
         if self.manifest.get("format") != "arsc-store":
             raise ValueError(f"{path} is not an arsc store (re-export with arsc/R/export_seurat.R)")
         self._obs = None
+        self._uns = None
         self._features: dict[str, pd.Index] = {}
         if finalize:
             self.finalize(build_csc=build_csc)
@@ -429,13 +464,44 @@ class Store:
             self._features[assay] = pd.Index(txt.splitlines())
         return self._features[assay]
 
+    def var(self, assay: str = "RNA") -> pd.DataFrame:
+        """Per-feature annotations (``var.parquet`` from h5ad/10x imports; else an empty frame)."""
+        p = self.path / "assays" / assay / "var.parquet"
+        feats = self.features(assay)
+        if p.exists():
+            v = pd.read_parquet(p)
+            v.index = pd.Index(feats, dtype=object)
+            return v
+        return pd.DataFrame(index=pd.Index(feats, dtype=object))
+
+    def varm(self, assay: str, key: str) -> np.ndarray:
+        """Per-feature matrix imported from AnnData ``varm`` (memory-mapped)."""
+        info = (self.manifest["assays"][assay].get("varm") or {})[key]
+        return np.load(self.path / "assays" / assay / "varm" / info["file"], mmap_mode="r")
+
+    @property
+    def uns(self) -> dict:
+        """Unstructured metadata imported from AnnData ``uns`` (JSON-able part)."""
+        if self._uns is None:
+            p = self.path / "uns.json"
+            if p.exists():
+                from .formats import _uns_from_json
+                self._uns = _uns_from_json(json.loads(p.read_text(encoding="utf-8")))
+            else:
+                self._uns = {}
+        return self._uns
+
     def variable_features(self, assay: str = "RNA") -> list:
         p = self.path / "assays" / assay / "variable_features.txt"
         return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
 
     def _layer(self, assay, layer):
+        if assay not in (self.manifest.get("assays") or {}):
+            raise KeyError(f"assay {assay!r} not in store (has {self.assays})")
         layers = self.manifest["assays"][assay].get("layers") or {}
         layer = layer or _default_layer(layers)
+        if layer not in layers:
+            raise KeyError(f"layer {layer!r} not in assay {assay!r} (has {list(layers)})")
         return layer, layers[layer]
 
     # -- matrices (zero-copy) ---------------------------------------------------------
@@ -515,10 +581,15 @@ class Store:
             if assays is not None and a not in assays:
                 continue
             lay = {l: self.X(a, l) for l in self.layers(a) if layers is None or l in layers}
-            out_assays[a] = Assay(a, self.features(a), lay, self.variable_features(a))
+            out_assays[a] = self._assay(a, lay)
         reds = {r: self.reduction(r) for r in self.reductions} if reductions else {}
         gr = {g: self.graph(g) for g in self.graphs} if graphs else {}
-        return Dataset(self.obs, out_assays, reds, gr, self.manifest)
+        return Dataset(self.obs, out_assays, reds, gr, self.manifest, dict(self.uns))
+
+    def _assay(self, a: str, layers: dict) -> Assay:
+        var = self.var(a) if (self.path / "assays" / a / "var.parquet").exists() else None
+        varm = {k: self.varm(a, k) for k in (self.manifest["assays"][a].get("varm") or {})}
+        return Assay(a, self.features(a), layers, self.variable_features(a), var, varm)
 
     def subset(self, cells, assays=None, layers=None, reductions: bool = True, graphs: bool = False) -> Dataset:
         """Materialize only the selected cells (mask / positions / barcodes) as an in-memory Dataset."""
@@ -528,7 +599,7 @@ class Store:
             if assays is not None and a not in assays:
                 continue
             lay = {l: _take_rows(self.X(a, l), idx) for l in self.layers(a) if layers is None or l in layers}
-            out_assays[a] = Assay(a, self.features(a), lay, self.variable_features(a))
+            out_assays[a] = self._assay(a, lay)
         reds = {}
         if reductions:
             for r in self.reductions:
@@ -539,7 +610,18 @@ class Store:
             for g in self.graphs:
                 G = sp.csr_matrix(self.graph(g))
                 gr[g] = _take_rows(G, idx)[:, idx].tocsr()
-        return Dataset(self.obs.iloc[idx].copy(), out_assays, reds, gr, self.manifest)
+        return Dataset(self.obs.iloc[idx].copy(), out_assays, reds, gr, self.manifest, dict(self.uns))
+
+    # -- hand-off -------------------------------------------------------------------
+    def to_anndata(self, cells=None, genes=None, **kw):
+        """In-memory ``anndata.AnnData`` of all or selected cells/genes (see :func:`arsc.to_anndata`)."""
+        from .formats import to_anndata
+        return to_anndata(self, cells, genes, **kw)
+
+    def write_h5ad(self, path, cells=None, genes=None, **kw) -> Path:
+        """Stream all or selected cells/genes to ``.h5ad`` in bounded memory (see :func:`arsc.write_h5ad`)."""
+        from .formats import write_h5ad
+        return write_h5ad(self, path, cells, genes, **kw)
 
     def __repr__(self) -> str:
         lines = [f"arsc.Store({str(self.path)!r}): {self.n_cells:,} cells (memory-mapped)"]
@@ -589,61 +671,30 @@ def write_table(df: pd.DataFrame, path, index: bool | None = None) -> Path:
 
 
 def from_anndata(h5ad, out_dir, *, layers=("counts",), assay: str = "RNA", use_raw_for=None,
-                 obsm: bool = True, chunk: int = 20000) -> Path:
-    """Convert an .h5ad (scanpy projects) into an arsc store, so many processes share one mmap'd copy.
+                 obsm: bool = True, chunk: int | None = None, obsp: bool = False) -> Path:
+    """Convert an .h5ad into an arsc store so that many processes share one memory-mapped copy.
 
-    layers: AnnData layer names to export (e.g. "counts"); "X" exports .X. ``use_raw_for``: name under which
-    to export ``.raw.X`` (full gene set), e.g. "raw". Reads in backed mode, chunk by chunk (memory-safe).
-    obsm embeddings (X_umap, X_pca_harmony, ...) become reductions. Idempotent: skips if the store exists.
+    Compatibility wrapper around :func:`arsc.read_h5ad`; prefer ``arsc.read(h5ad, store=out_dir)``,
+    which imports every layer by default.
+
+    ``layers``: AnnData layer names to export (``"X"`` exports ``.X`` as layer ``X``).
+    ``use_raw_for``: name under which to export ``.raw.X``. This is a layer of ``assay`` when raw has
+    the same genes, and otherwise a separate assay of that name. The matrices are streamed from
+    disk in chunks (memory-safe; ``chunk`` is accepted for backward compatibility and ignored).
+    ``obsm`` embeddings become reductions. Idempotent: if ``out_dir`` already holds a store, it is
+    returned untouched.
     """
-    import anndata as ad
+    from .formats import ArscFormatError, read_h5ad
+
     out = Path(out_dir)
     if (out / "manifest.json").exists():
         return out
-    tmp = out.with_name(out.name + f".tmp{os.getpid()}")
-    (tmp / "assays" / assay).mkdir(parents=True, exist_ok=True)
-    a = ad.read_h5ad(h5ad, backed="r")
-    try:
-        manifest = {"format": "arsc-store", "format_version": 1, "source": str(h5ad), "n_cells": int(a.n_obs),
-                    "default_assay": assay, "assays": {assay: {"class": "Assay", "layers": {}}}, "reductions": {}, "obs": {}}
-        jobs = [(l, (lambda s, l=l: a.layers[l][s]) if l != "X" else (lambda s: a.X[s]), list(a.var_names)) for l in layers]
-        if use_raw_for and a.raw is not None:
-            jobs.append((use_raw_for, lambda s: a.raw.X[s], list(a.raw.var_names)))
-        feats_written = None
-        for name, get, feats in jobs:
-            parts_ind, parts_dat, ptr, off = [], [], [0], 0
-            for s in range(0, a.n_obs, chunk):
-                m = get(slice(s, min(s + chunk, a.n_obs)))
-                m = sp.csr_matrix(m) if not sp.issparse(m) else m.tocsr()
-                parts_ind.append(m.indices.astype(np.int32))
-                parts_dat.append(m.data.astype(np.float32))
-                ptr.extend((m.indptr[1:] + off).tolist())
-                off += m.nnz
-            data = np.concatenate(parts_dat) if parts_dat else np.zeros(0, np.float32)
-            prefix = f"{name}.csr"
-            for comp, arr in (("data", data), ("indices", np.concatenate(parts_ind)), ("indptr", np.asarray(ptr, dtype=np.int64))):
-                np.save(tmp / "assays" / assay / f"{prefix}.{comp}.npy", arr)
-            manifest["assays"][assay]["layers"][name] = {
-                "shape": [int(a.n_obs), len(feats)], "nnz": int(off), "dtype": "float32",
-                "integer_valued": bool(np.all(np.mod(data[:100000], 1) == 0)), "prefix": prefix, "format": "csr"}
-            if feats_written is None:
-                (tmp / "assays" / assay / "features.txt").write_text("\n".join(feats), encoding="utf-8")
-                feats_written = feats
-            elif feats != feats_written:  # different gene set (e.g. .raw): separate assay
-                raise ValueError(f"layer {name!r} has a different feature set; export it as a separate assay")
-        (tmp / "cells.txt").write_text("\n".join(map(str, a.obs_names)), encoding="utf-8")
-        a.obs.to_parquet(tmp / "obs.parquet")
-        if obsm:
-            (tmp / "reductions").mkdir(exist_ok=True)
-            for k in a.obsm.keys():
-                e = np.asarray(a.obsm[k])
-                if e.ndim == 2 and e.dtype.kind in "fi":
-                    nm = k.removeprefix("X_")
-                    np.save(tmp / "reductions" / f"{nm}.npy", e.astype(np.float64))
-                    manifest["reductions"][nm] = {"shape": list(e.shape), "columns": [f"{nm}_{i + 1}" for i in range(e.shape[1])],
-                                                  "assay": assay}
-    finally:
-        a.file.close()
-    (tmp / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
-    os.replace(tmp, out)
+    kw = dict(assay=assay, layers=list(layers), obsm=obsm, obsp=obsp)
+    if use_raw_for:
+        try:
+            read_h5ad(h5ad, out, raw=use_raw_for, raw_as_layer=True, **kw)
+        except ArscFormatError:
+            read_h5ad(h5ad, out, raw=use_raw_for, raw_as_layer=False, **kw)
+    else:
+        read_h5ad(h5ad, out, raw=None, **kw)
     return out
