@@ -45,9 +45,21 @@ references are absent. 7 are synthetic tests that always run.
 | spreading + 48 bootstraps | 64 s |
 | NN clone distance, 31,433 cells x 802 clones (321k pairs) | 32 s, 2.4 GB peak private |
 
-R's NN distance for 8 clones alone took 12 s on the same graph.
+R's NN distance for 8 clones alone took 12 s on the same graph. The R blocked spreading with 4
+bootstraps took 6.5 min; arsc does 48 bootstraps in 64 s.
+
+**Full-size deviance check (4 bootstraps each):**
+
+| | R (current code) | arsc |
+|---|---|---|
+| mean deviance | 0.236 | 0.237 |
+| cells with deviance < 0.3 | 24,584 | 24,664 |
+| correlation with a 48-bootstrap arsc estimate | 0.85 | 0.84 |
 
 ## Known differences and caveats
+- **Bundled cell-clone matrix:** the bundled `cell_clone_prob.rds` keeps 31,433 cells, but the
+  current code, in R or in Python, keeps about 24.6k cells at deviance < 0.3. The bundled
+  matrix therefore predates the current defaults.
 - **Bundled distance file:** the bundled `inst/extdata/clone_graph_dis.tsv` is not reproduced by
   the current code, in R or in Python. It correlates r = 0.90 with the current NN distance, and it
   is not the exact OT distance either. It was presumably produced by an earlier version or with
