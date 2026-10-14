@@ -28,6 +28,14 @@ sc = pytest.importorskip("scanpy")
 ad = pytest.importorskip("anndata")
 
 
+def _need_loess():
+    """scanpy seurat_v3 needs the compiled scikit-misc loess extension, not just the package."""
+    try:
+        from skmisc.loess import loess  # noqa: F401
+    except ImportError:
+        pytest.skip("scikit-misc loess extension not importable")
+
+
 @pytest.fixture(scope="module")
 def d():
     st = arsc.open(str(STORE))
@@ -133,7 +141,7 @@ def test_hvg_log_flavors(d, flavor, kw):
 
 
 def test_hvg_seurat_v3(d):
-    pytest.importorskip("skmisc")
+    _need_loess()
     b = d["a"].copy()
     sc.pp.highly_variable_genes(b, flavor="seurat_v3", layer="counts", n_top_genes=1000)
     r = sx.highly_variable_genes(d["C"], d["feats"], flavor="seurat_v3", n_top_genes=1000)
@@ -144,7 +152,7 @@ def test_hvg_seurat_v3(d):
 
 
 def test_hvg_seurat_v3_batch(d):
-    pytest.importorskip("skmisc")
+    _need_loess()
     b = d["a"].copy()
     sc.pp.highly_variable_genes(b, flavor="seurat_v3", layer="counts", n_top_genes=1000, batch_key="batch")
     r = sx.highly_variable_genes(d["C"], d["feats"], flavor="seurat_v3", n_top_genes=1000, batch_key=d["obs"].batch.to_numpy())
@@ -225,6 +233,8 @@ def test_diffmap_dpt(nbr):
 
 def test_palantir_pieces(d, nbr):
     palantir = pytest.importorskip("palantir")
+    if not hasattr(palantir, "utils"):
+        pytest.skip("palantir install incomplete (no palantir.utils)")
     E, n = nbr["E"], 3000
     bb = ad.AnnData(d["L"][:n].copy(), obs=pd.DataFrame(index=[str(i) for i in range(n)]))
     bb.obsm["X_pca_harmony"] = E

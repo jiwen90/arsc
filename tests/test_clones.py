@@ -21,7 +21,9 @@ REF = Path(os.environ.get("ARSC_SCRATCH", ROOT / "scratch" / "arsc")) / "clones_
 META = ROOT / "projects/cancercell2024-melanoma-icb/cache/cd8_nn_labeled_FORCYCLONE_FINAL_cyclone.meta.csv.gz"
 V3 = ROOT / "data/2023 0129 V3"
 TPS = [0, 3, 6, 9]
-have_data = META.exists() and REF.exists()
+have_meta = META.exists()
+have_data = have_meta and (REF / "cyclone_pub_k.csv").exists()
+needs_meta = pytest.mark.skipif(not have_meta, reason="cached CD8 meta not available")
 needs_data = pytest.mark.skipif(not have_data, reason="cached CD8 meta / R references not built")
 
 
@@ -127,7 +129,7 @@ def cy_pub(meta):
     return C.cyclone(meta, timepoints=TPS, verbose=False, **RUNS["pub"])
 
 
-@needs_data
+@needs_meta
 def test_cyclone_reproduces_published_trajectories(meta, cy_pub):
     """Published settings of validate_cyclone.R -> identical clone- and cell-level assignment (ARI 1.0)."""
     pub = meta[meta.clone_id.notna()].groupby("clone_id").k.first()

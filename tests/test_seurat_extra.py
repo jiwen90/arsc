@@ -17,7 +17,7 @@ from arsc import preprocessing as pp  # noqa: E402
 from arsc import seurat_extra as se  # noqa: E402
 
 REF = SCRATCH / "ref_extra"
-pytestmark = pytest.mark.skipif(not (EXP_GD.exists() and (REF / "timings_r.json").exists()),
+pytestmark = pytest.mark.skipif(not ((EXP_GD / "manifest.json").exists() and (REF / "timings_r.json").exists()),
                                 reason="R reference outputs not built (benchmarks/r_reference_seurat_extra.R)")
 
 

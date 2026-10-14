@@ -17,7 +17,7 @@ from refutil import EXP_GD, REF_GD, read_dense  # noqa: E402
 import arsc  # noqa: E402
 from arsc import preprocessing as pp  # noqa: E402
 
-pytestmark = pytest.mark.skipif(not (EXP_GD.exists() and REF_GD.exists()), reason="R reference outputs not built")
+pytestmark = pytest.mark.skipif(not ((EXP_GD / "manifest.json").exists() and REF_GD.exists() and any(REF_GD.iterdir())), reason="R reference outputs not built")
 
 
 @pytest.fixture(scope="module")
