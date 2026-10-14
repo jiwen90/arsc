@@ -4,10 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arsc"
-version = "0.1.0"
-description = "Fast, R-validated single-cell compute engine (Seurat/harmony/presto/UCell ports) for the autoresearch framework"
+version = "0.2.0"
+description = "Fast, R-validated single-cell compute engine: memory-mapped stores, Seurat/scanpy/harmony/presto/UCell ports, clonal analysis"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "Proprietary (private; not yet licensed for redistribution)" }
+keywords = ["single-cell", "scRNA-seq", "Seurat", "scanpy", "TCR", "clonotype"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
 dependencies = [
   "numpy>=1.24",
   "scipy>=1.10",
@@ -18,8 +24,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+h5ad = ["anndata>=0.10", "h5py>=3.8"]
 graph = ["igraph>=0.10", "leidenalg>=0.10", "umap-learn>=0.5", "pynndescent>=0.5"]
-dev = ["pytest>=7", "scanpy", "harmonypy==0.0.10", "anndata"]
+all = ["arsc[h5ad,graph]"]
+dev = ["arsc[h5ad,graph]", "pytest>=7", "scanpy>=1.10", "harmonypy==0.0.10", "psutil"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

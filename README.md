@@ -4,6 +4,45 @@ Python replacements for the Seurat-ecosystem steps the research agents use. Each
 numerically against its R reference. **No plotting**: arsc returns arrays and tidy tables, and all
 figures are made in R ggplot (`tools/R/ar_theme.R`).
 
+## Quickstart
+```bash
+pip install -e ".[h5ad]"        # core + h5ad/10x readers; ".[dev]" adds scanpy/pytest for the tests
+```
+```python
+import arsc
+
+# 1. Read anything. Small files load into memory; large ones convert once into a memory-mapped store.
+ds = arsc.read("pbmc.h5ad")                                  # in-memory Dataset
+st = arsc.read("pbmc.h5ad", store="stores/pbmc")             # Store: streamed conversion, bounded RAM
+st = arsc.read("filtered_feature_bc_matrix.h5", store="stores/run1")   # RNA + ADT assays
+st = arsc.read("filtered_feature_bc_matrix/")                # 10x mtx directory (Dataset)
+st = arsc.read("obj.qs", store="stores/obj")                 # Seurat v4/v5 via the bundled R exporter
+st = arsc.open("stores/pbmc")                                # reopen later: zero-copy, shared by processes
+
+# 2. Compute (arrays and tidy tables in, arrays and tidy tables out).
+L  = arsc.pp.log_normalize(st.X("RNA", "counts"))
+mk = arsc.wilcoxauc(L, st.obs["cell_type"], features=st.features("RNA"))
+pb = arsc.pseudobulk(st.X("RNA", "counts"), st.obs["sample"])
+
+# 3. Hand off to scanpy / anndata (all or a subset; only the selected rows are read).
+adata = st.to_anndata(cells=st.obs["cell_type"] == "CD8 T", genes=["CD8A", "GZMK", "PDCD1"])
+st.write_h5ad("cd8.h5ad", cells=st.obs["cell_type"] == "CD8 T")    # streamed, any size
+```
+
+### Formats
+| input | reader | notes |
+|---|---|---|
+| arsc store directory | `arsc.open` | memory-mapped; first open builds per-gene CSC copies |
+| `.h5ad` | `arsc.read_h5ad` | dense/CSR/CSC `X`, `layers`, `raw` (own assay), `obs`/`var` dtypes, `obsm` -> reductions, `varm`, `obsp` -> graphs, JSON-able `uns`; streamed |
+| 10x `.h5` (v3, v2) | `arsc.read_10x_h5` | split by feature type: Gene Expression -> `RNA`, Antibody Capture -> `ADT`, ... |
+| 10x mtx directory | `arsc.read_10x_mtx` | `matrix.mtx[.gz]`, `features.tsv[.gz]`/`genes.tsv`, `barcodes.tsv[.gz]` |
+| Seurat `.qs` (preferred) / `.rds` | `arsc.read_seurat` | needs R + SeuratObject (+ qs); `R/export_seurat.R` |
+| `.h5Seurat` | not native | in R: `SeuratDisk::Convert(f, dest = "h5ad")`, or `qs::qsave(LoadH5Seurat(f), "x.qs")` |
+
+Write: `arsc.write_h5ad` / `Store.write_h5ad` / `Dataset.write_h5ad`. The output reads back
+identically in `anndata`/`scanpy`; matrices are written as CSR, and the source dtype is restored.
+Integer-valued matrices are stored as float32 (exact below 2^24); non-integer float64 stays float64.
+
 ## Design
 - **Memory-mapped store** (`arsc.open(dir)`): CSR/CSC components are stored as `.npy` and opened
   zero-copy with `mmap_mode="r"`. N processes share one physical copy through the OS page cache.
@@ -38,5 +77,6 @@ st = arsc.open("E:/autoresearch/data/<store>")          # mmap, zero-copy
 L  = arsc.pp.log_normalize(st.X())
 mk = arsc.wilcoxauc(L, st.obs["cell_type"], features=st.features())
 ```
-Status: core validated. Not yet included: scVI-class models, trajectory tools, and an AnnData
-(`.h5ad`) → store converter for scanpy-native projects (planned).
+Status: core validated. h5ad/10x IO validated against anndata/scanpy on synthetic data
+(`tests/test_formats.py`). Not yet included: scVI-class models, a native h5Seurat/loom reader.
+See `ROADMAP.md`.
