@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, stats as sps
 
+from ._utils import check_seed
+
 __all__ = ["composition", "sample_means", "bh", "boot_ci", "wilcoxon_signed_rank", "paired_test", "perm_test",
            "arm_contrast", "glmm_prop", "gee_prop", "lmm_score", "mde", "feasibility", "count_logit_delta",
            "loo_effect"]
@@ -87,7 +89,10 @@ def _tf(x, transform, eps=1e-3):
 
 
 def boot_ci(x, f=np.median, B: int = 4000, seed: int = 1):
-    """Percentile bootstrap CI of ``f`` (NaN when < 3 finite values)."""
+    """Percentile bootstrap CI of ``f`` (NaN when < 3 finite values).
+
+    ``seed`` (default 1) seeds a local ``np.random.default_rng`` for the ``B`` resamples."""
+    seed = check_seed(seed)
     x = np.asarray(x, float)
     x = x[np.isfinite(x)]
     if len(x) < 3:
@@ -146,7 +151,9 @@ def paired_test(df: pd.DataFrame, value: str = "value", t0=None, t1=None, patien
                 time: str = "timepoint", by=None, transform: str = "none", eps: float = 1e-3, B: int = 4000,
                 seed: int = 1) -> pd.DataFrame:
     """Within-patient change t0 -> t1 (== ar_paired_test): n, sign counts, median delta, bootstrap CI,
-    exact Wilcoxon p, leave-one-out range of the median, minimum attainable p, BH fdr."""
+    exact Wilcoxon p, leave-one-out range of the median, minimum attainable p, BH fdr.
+    ``seed`` (default 1) seeds the bootstrap CI; every group uses the same seed (as ar_paired_test)."""
+    seed = check_seed(seed)
     groups = [("all", df)] if by is None else list(df.groupby(by, observed=True))
     rows = []
     for g, d in groups:
@@ -173,7 +180,9 @@ def paired_test(df: pd.DataFrame, value: str = "value", t0=None, t1=None, patien
 
 def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
     """Two-group permutation test on per-patient values (== ar_perm_test): exact enumeration when
-    choose(n_x + n_y, n_x) <= B, otherwise B random permutations.  ``stat(a, b)`` defaults to difference of medians."""
+    choose(n_x + n_y, n_x) <= B, otherwise B random permutations.  ``stat(a, b)`` defaults to difference of medians.
+    ``seed`` (default 1) seeds a local ``np.random.default_rng`` for the sampled permutations (unused when exact)."""
+    seed = check_seed(seed)
     x = np.asarray(x, float); y = np.asarray(y, float)
     x = x[np.isfinite(x)]; y = y[np.isfinite(y)]
     z = np.concatenate([x, y]); nx = len(x)
@@ -197,11 +206,12 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
     return dict(n_x=nx, n_y=len(y), stat=float(obs), p_perm=float(np.mean(np.abs(null) >= abs(obs) - 1e-12)))
 
 
-def arm_contrast(a, b, B: int = 20000) -> dict:
+def arm_contrast(a, b, B: int = 20000, seed: int = 1) -> dict:
     """Between-arm comparison of per-patient deltas: exact permutation on the median difference, Hodges-Lehmann
-    shift and leave-one-patient-out range / sign reversals."""
+    shift and leave-one-patient-out range / sign reversals. ``seed`` (default 1) is passed to :func:`perm_test`
+    (used only when the permutation is sampled, i.e. choose(n_a + n_b, n_a) > B)."""
     a = np.asarray(a, float); b = np.asarray(b, float)
-    pt = perm_test(a, b, B=B)
+    pt = perm_test(a, b, B=B, seed=seed)
     hl = float(np.median(np.subtract.outer(a, b)))
     loo = [np.median(np.delete(a, i)) - np.median(b) for i in range(len(a))] + \
           [np.median(a) - np.median(np.delete(b, i)) for i in range(len(b))]

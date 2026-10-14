@@ -25,6 +25,8 @@ from scipy.cluster.hierarchy import cut_tree, linkage
 from scipy.spatial.distance import pdist, squareform
 from scipy.special import gammaln
 
+from ._utils import check_seed
+
 __all__ = [
     "Cyclone", "cyclone", "cyclone_patient_table", "cyclone_states", "read_10x_clonotypes",
     "clone_expansion_null", "startrac", "clone_table", "clone_diversity", "clone_dynamics",
@@ -478,9 +480,11 @@ def clone_expansion_null(meta, hd, pairs=((0, 3), (3, 6), (6, 9)), hd_times=("T1
     and a signed sqrt(Yates chi2) ``chi``.  Null: HD T1 vs T2 downsampled to the patient's depths, cutoff =
     quantile(|chi_HD|, null_q); ``sig_null`` if |chi| > cutoff.  ``reps`` repeated downsamplings are averaged in
     the patient summary.  Random draws use numpy (``seed``), so they are statistically but not bitwise equal to R.
+    ``seed`` (default 1) seeds one local ``np.random.default_rng`` consumed in input order (patients by first appearance, then ``pairs``, then reps), so the same input rows + seed give identical draws.
 
     Returns ``(clones, patients)`` DataFrames.
     """
+    seed = check_seed(seed)
     hd_time_col = hd_time_col or time_col
     hd_clone_col = hd_clone_col or clone_col
     rng = np.random.default_rng(seed)
@@ -572,8 +576,11 @@ def startrac(meta, clone_col="clone_id", state_col="metaclusters_exh", group_col
 
     expa(state) = 1 - H(clone sizes in state)/log2(n cells in state); tran(state) = sum_c w_c H_c(states);
     migr(state) = same with ``loc_col``; pairwise tran(A,B) over states A,B.  Entropies in bits, unnormalised.
+    ``seed`` (default 1) seeds the optional per-group ``downsample`` (local ``default_rng``; each group draws
+    a sub-seed from it in group order). Unused without ``downsample``.
     Returns ``(cluster, pairwise)`` DataFrames.
     """
+    seed = check_seed(seed)
     rng = np.random.default_rng(seed)
     gc = [group_cols] if isinstance(group_cols, str) else list(group_cols)
     cols = list(dict.fromkeys([clone_col, state_col, *gc, *([loc_col] if loc_col else [])]))
@@ -638,7 +645,9 @@ def clone_diversity(ct, sample_cols=("patient_alias", "timepoint"), depth=None, 
 
     Metrics (means over ``reps`` draws): shannon (nats), simpson, richness, top10_frac, clonality.
     Rarefaction uses an exact multivariate hypergeometric draw (== sampling cells without replacement).
+    ``seed`` (default 1) seeds a local ``np.random.default_rng`` consumed in sorted sample order.
     """
+    seed = check_seed(seed)
     sc = list(sample_cols)
     rng = np.random.default_rng(seed)
     sizes = ct.groupby(sc, observed=True).n.sum().rename("N")

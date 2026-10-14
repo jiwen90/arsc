@@ -27,6 +27,7 @@ import pandas as pd
 from scipy import special, stats as sps
 from scipy.optimize import minimize_scalar
 
+from ._utils import check_seed
 from .stats import bh
 
 __all__ = ["deseq2", "voom", "fgsea", "msigdb", "filter_by_expr", "tmm_factors", "duplicate_correlation"]
@@ -479,7 +480,11 @@ def fgsea(stats: pd.Series, genesets: dict, min_size: int = 10, max_size: int = 
     same-sign null) follow fgsea exactly; p-values come from ``nperm`` sampled gene sets per set size
     (fgseaSimple), so the smallest attainable p is 1/(nperm+1) -- fgsea >= 1.14 default (multilevel) resolves
     far smaller p.  Columns: pathway, pval, padj, ES, NES, nMoreExtreme, size, leadingEdge (comma-joined).
+    ``seed`` (default 1): the null for set size k uses permutation streams seeded from ``(seed, k, i)``
+    (splitmix64, one independent stream per permutation), so results are bit-identical regardless of the
+    number of threads.
     """
+    seed = check_seed(seed)
     s = stats[np.isfinite(stats)].sort_values(ascending=False, kind="stable")
     names = s.index.to_numpy()
     idx = {g: i for i, g in enumerate(names)}

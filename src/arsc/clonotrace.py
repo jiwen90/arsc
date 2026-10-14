@@ -42,6 +42,8 @@ import pandas as pd
 import scipy.sparse as sp
 from scipy import stats as sps
 
+from ._utils import check_seed
+
 __all__ = [
     "knn_connectivity", "cell_transition", "label_spreading", "propagate_clones", "sparsify", "filter_and_sparsify",
     "snn_cost_graph", "shortest_paths", "clone_distance", "revise_distance", "cluster_clones", "cmdscale",
@@ -272,8 +274,10 @@ def propagate_clones(adj, clones, *, min_size: int = 10, alpha: float = 0.6, sam
     labels and the spreading is rerun. The per-cell deviance is the mean L1 distance from the
     full-label reference, over the bootstraps where the cell's labeled/unlabeled status is
     unchanged. Bootstrap draws use numpy's RNG (``seed``), not R's, so the deviances agree with R
-    only statistically.
+    only statistically. ``seed`` (default 0) seeds a local ``np.random.default_rng``; the spreading
+    itself is deterministic, so same input + seed -> identical deviances.
     """
+    seed = check_seed(seed)
     s = pd.Series(list(clones), dtype=object)
     vc = s.dropna().astype(str).value_counts()
     big = set(vc.index[vc >= min_size])
@@ -633,8 +637,10 @@ def revise_distance(D, embedding, Q, *, clusters: pd.DataFrame | np.ndarray | No
     compositions. It is chosen per clustering, and the median over clusterings is used.
     ``clusters``: cells x resolutions labels; give it for reproducible results. The default builds a
     Leiden ladder on a UMAP kNN graph at ``resolutions``, like R, but the partitions are not
-    identical to R's. Returns ``(D_revised DataFrame, info dict)``.
+    identical to R's. ``seed`` (default 0) is the leidenalg seed of that ladder (unused when
+    ``clusters`` or ``mean_weight`` is given). Returns ``(D_revised DataFrame, info dict)``.
     """
+    seed = check_seed(seed)
     Dm, names = _square(D)
     X = np.ascontiguousarray(embedding, dtype=np.float64)
     Qc, qnames, _ = _as_Q(Q)
@@ -721,7 +727,7 @@ def _composition_tv(comp, a, b, integer):
 def _leiden_ladder(X, resolutions, k, seed):
     from .cluster import cluster
     from .scanpy_extra import neighbors
-    nb_ = neighbors(X, n_neighbors=int(k))
+    nb_ = neighbors(X, n_neighbors=int(k), random_state=seed)
     G = nb_["connectivities"] if isinstance(nb_, dict) else nb_[1]
     return pd.DataFrame({f"leiden_r{r}": cluster(G, resolution=r, seed=seed, n_iterations=-1, group_singletons=False)
                          for r in resolutions})
@@ -737,8 +743,14 @@ def cluster_clones(D, k: int = 10, resolution: float = 1.0, *, prune: float = 0.
     is undirected and keeps both directions as parallel edges, as igraph does in R. Leiden
     optimizes modularity (igraph ``community_leiden``, beta 0.01). The RNG differs from R's, so
     expect a high ARI, not identical labels. Labels are 1-based like R.
+    ``seed`` (default 0): a private ``random.Random(seed)`` is installed as igraph's RNG for the call
+    and igraph's default restored afterwards (Python's global ``random`` state is not touched; the
+    stream is the same one ``random.seed(seed)`` would give, so labels match earlier arsc versions).
     """
+    import random
+
     import igraph as ig
+    seed = check_seed(seed)
     Dm, names = _square(D)
     n = Dm.shape[0]
     if not 1 <= k < n:
@@ -754,14 +766,12 @@ def cluster_clones(D, k: int = 10, resolution: float = 1.0, *, prune: float = 0.
     wv = jac.ravel() if weight == "jaccard" else Dm[s_, e_]
     keep = jac.ravel() > prune
     g = ig.Graph(n=n, edges=list(zip(s_[keep].tolist(), e_[keep].tolist())), directed=False)
-    import random
-    state = random.getstate()
-    random.seed(seed)
+    ig.set_random_number_generator(random.Random(seed))
     try:
         part = g.community_leiden(objective_function="modularity", weights=wv[keep].tolist(), resolution=resolution,
                                   beta=0.01, n_iterations=n_iterations)
     finally:
-        random.setstate(state)
+        ig.set_random_number_generator(random)  # igraph's default
     mem = np.asarray(part.membership) + 1
     return pd.Series(mem, index=names, name="cluster")
 
@@ -916,8 +926,10 @@ def profile_enrichment(cell_profile_prob: pd.DataFrame, cluster_label, n_perm: i
     """Cluster x profile mass and a one-sided permutation p-value (R ``cluster_profile_enrich``).
 
     The cluster labels are permuted ``n_perm`` times. ``p = mean(perm >= observed)``, with no
-    ``+1``, as in R. Returns ``(mass, pval)`` DataFrames.
+    ``+1``, as in R. ``seed`` (default 0) seeds a local ``np.random.default_rng``.
+    Returns ``(mass, pval)`` DataFrames.
     """
+    seed = check_seed(seed)
     lab = np.asarray(cluster_label)
     truth = profile_mass(cell_profile_prob, lab)
     codes, uniq = pd.factorize(pd.Series(lab), sort=True)
@@ -1037,8 +1049,9 @@ def fate_genes(profile, cluster, X, genes: Sequence[str], cell_cluster, cell_t, 
     (:func:`bin_filter`); genes with ``> min_cells`` non-zero cells; :func:`soft_cluster_fit`
     with ``df=1``; calibrate each p-value against all genes' p-values under ``n_perm`` label
     permutations (rows shuffled, then shuffled within each row); then BH. Returns None if fewer
-    than 5 cells pass, as R does.
+    than 5 cells pass, as R does. ``seed`` (default 0) seeds a local ``np.random.default_rng``.
     """
+    seed = check_seed(seed)
     from .clones import p_adjust_bh
     profs = [profile] if not isinstance(profile, (list, tuple)) else list(profile)
     sel = np.asarray(cell_cluster).astype(str) == str(cluster)
@@ -1155,8 +1168,11 @@ def run(embedding, clones, *, cells=None, cell_clusters=None, start_cluster=None
     ``embedding``: cells x dims (e.g. 15 PCs). ``clones``: label per cell (NaN = none).
     ``cell_clusters`` and ``start_cluster`` choose the pseudotime root; without them the root is
     the first clone. ``revised=False`` reproduces the published figures; ``True`` is the
-    package's 1.2.x default.
+    package's 1.2.x default. ``seed`` (default 0) is the single seed of the whole pipeline: it is
+    passed unchanged to every stochastic step (bootstrap of :func:`propagate_clones`, the Leiden
+    ladder of :func:`revise_distance`, :func:`cluster_clones`); the other steps are deterministic.
     """
+    seed = check_seed(seed)
     X = np.ascontiguousarray(embedding, dtype=np.float64)
     cells = pd.Index(cells if cells is not None else (embedding.index if isinstance(embedding, pd.DataFrame)
                                                        else range(X.shape[0])))
