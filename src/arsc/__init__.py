@@ -12,6 +12,7 @@ Quick map (see README.md):
     arsc.score_ucell / add_module_score               UCell / Seurat AddModuleScore
     arsc.neighbors / wnn / cluster / umap             graph tools
     arsc.clones.cyclone / clone_expansion_null / startrac / clone_*   clonal methods (Cyclone exact)
+    arsc.clonotrace.run / propagate_clones / clone_distance / clone_dpt / fate_genes   CloneTrace port (CLONOTRACE_PARITY.md)
     arsc.genesets.load_v3 / read_genesets / cycling_fraction          gene-set readers
     arsc.stats (composition / paired_test / perm_test / glmm_prop / mde)  patient-level stats
     arsc.find_markers / find_all_markers / average_expression / cell_cycle_scoring / scale_data
@@ -35,7 +36,7 @@ from .pseudobulk import Pseudobulk, pseudobulk  # noqa: E402
 from .scores import add_module_score, score_ucell  # noqa: E402
 from .neighbors import find_neighbors, knn, snn_graph, wnn  # noqa: E402
 from .cluster import cluster, umap  # noqa: E402
-from . import clones, genesets  # noqa: E402
+from . import clones, clonotrace, genesets  # noqa: E402
 from . import stats, de  # noqa: E402
 from .stats import composition, paired_test, perm_test, glmm_prop  # noqa: E402
 from .de import deseq2, voom, fgsea, msigdb  # noqa: E402

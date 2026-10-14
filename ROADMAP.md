@@ -26,8 +26,8 @@
    anndata/scanpy readers and round trips (h5ad -> store -> h5ad, 10x h5/mtx vs scanpy).
 
 ## Next
-- **CloneTrace** (clonal fate modeling): port next to `arsc.clones.cyclone`. The port will be
-  scoped after reading the published code.
+- ~~CloneTrace~~: done in 0.2 (`arsc.clonotrace`, `CLONOTRACE_PARITY.md`). Still open: a
+  faithful `MASS::isoMDS` optimizer, and a joint CloneTrace x Cyclone analysis on real TCR data.
 - Native h5Seurat reader; loom reader.
 - MuData (`.h5mu`) export of multi-assay stores (RNA + ADT).
 - Rebuild the R reference outputs that the R-parity tests depend on (`benchmarks/r_reference_*.R`).

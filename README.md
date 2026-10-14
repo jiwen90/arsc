@@ -79,4 +79,5 @@ mk = arsc.wilcoxauc(L, st.obs["cell_type"], features=st.features())
 ```
 Status: core validated. h5ad/10x IO validated against anndata/scanpy on synthetic data
 (`tests/test_formats.py`). Not yet included: scVI-class models, a native h5Seurat/loom reader.
-See `ROADMAP.md`.
+Clonal fate modelling: `arsc.clonotrace` (CloneTrace port; `CLONOTRACE_PARITY.md`) next to
+`arsc.clones.cyclone`. See `ROADMAP.md`.
