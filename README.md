@@ -81,3 +81,5 @@ Status: core validated. h5ad/10x IO validated against anndata/scanpy on syntheti
 (`tests/test_formats.py`). Not yet included: scVI-class models, a native h5Seurat/loom reader.
 Clonal fate modelling: `arsc.clonotrace` (CloneTrace port; `CLONOTRACE_PARITY.md`) next to
 `arsc.clones.cyclone`. See `ROADMAP.md`.
+Reproducibility: every stochastic function takes an integer seed with a fixed default (`None` is rejected)
+and never touches the global RNG; table and pattern in `SEEDS.md`, tests in `tests/test_seeds.py`.
