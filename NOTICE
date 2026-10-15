@@ -68,8 +68,8 @@ LICENSES/scanpy-BSD-3-Clause.txt).
   - UMAP: McInnes L, Healy J, Melville J. arXiv (2018).
   - Diffusion pseudotime: Haghverdi L, et al. Nat Methods (2016).
   - Palantir diffusion maps: Setty M, et al. Nat Biotechnol (2019). scanpy_extra.palantir_diffusion_maps,
-    palantir_multiscale_space and magic_impute follow palantir 1.4.5 (palantir.utils). Palantir's
-    licence is not verified here (believed GPL-2.0; see the note at the end of this file).
+    palantir_multiscale_space and magic_impute follow palantir 1.4.5 (palantir.utils). Palantir is MIT
+    (PyPI metadata for 1.4.5 and the repository LICENSE, checked 2026-10-15); text in LICENSES/.
   - MAGIC imputation: van Dijk D, et al. Cell (2018).
 
 Clonal analysis (arsc.clones, arsc.clonotrace).
@@ -107,8 +107,6 @@ Licence compatibility of the originals with GPL-3.0-or-later
 -------------------------------------------------------------
   - GPL-3 (harmony, presto, UCell), GPL (>= 2) (limma, edgeR, lme4, R's RNG.c), GPL-2 | GPL-3 (R
     stats, statmod) and LGPL (>= 3) (DESeq2): compatible.
-  - MIT (Seurat, fgsea, Clonotrace) and BSD-3-Clause (scanpy): compatible; their notices are kept in
+  - MIT (Seurat, fgsea, Clonotrace, palantir) and BSD-3-Clause (scanpy): compatible; their notices are kept in
     LICENSES/.
-  - A GPL-2.0-only original would NOT be compatible with GPL-3.0-or-later. palantir (which the
-    scanpy_extra palantir/MAGIC functions follow) is believed to be GPL-2.0; whether it is "only" or
-    "or later" was not verifiable from a local copy and must be checked before a public release.
+  - A GPL-2.0-only original would NOT be compatible with GPL-3.0-or-later; none is known to be ported.
