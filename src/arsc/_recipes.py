@@ -62,7 +62,7 @@ TASKS = [
     ("Clones", "STARTRAC expansion / transition indices", "arsc.clones.startrac(obs, clone_col=..., state_col=..., group_cols=...)"),
     ("Clones", "clonal fate (CloneTrace port)", "arsc.clonotrace.run(embedding, clones, ...)"),
     ("Trajectory", "diffusion map / DPT / Palantir diffusion / MAGIC", "arsc.diffmap, arsc.dpt, arsc.scanpy_extra.palantir_diffusion_maps, arsc.magic_impute"),
-    ("Utility", "threads", "arsc.set_threads(n); env AR_THREADS"),
+    ("Utility", "threads", "arsc.set_threads(n); env AR_THREADS (default 4)"),
 ]
 
 RECIPES = [

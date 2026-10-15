@@ -112,7 +112,7 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 | Clones | STARTRAC expansion / transition indices | `arsc.clones.startrac(obs, clone_col=..., state_col=..., group_cols=...)` |
 | Clones | clonal fate (CloneTrace port) | `arsc.clonotrace.run(embedding, clones, ...)` |
 | Trajectory | diffusion map / DPT / Palantir diffusion / MAGIC | `arsc.diffmap, arsc.dpt, arsc.scanpy_extra.palantir_diffusion_maps, arsc.magic_impute` |
-| Utility | threads | `arsc.set_threads(n); env AR_THREADS` |
+| Utility | threads | `arsc.set_threads(n); env AR_THREADS (default 4)` |
 <!-- TASKS:END -->
 
 ## Translate English to arsc
@@ -517,7 +517,7 @@ print(adata)
 * **Memory**: `st.X()` is free; `X.toarray()` on a full matrix is not (cells x genes x 8 bytes). Subset cells
   (`st.subset`) and genes (`X[:, idx]`, `st.get_features`) before densifying. Pseudobulk and marker functions
   stay sparse.
-* **Windows vs Linux**: identical results. Threads come from `AR_THREADS` or `arsc.set_threads(n)`. The page-cache
+* **Windows vs Linux**: identical results. Threads come from `AR_THREADS` or `arsc.set_threads(n)`; unset, arsc uses 4 (never every core, so parallel runs cannot swamp the machine). The page-cache
   sharing of stores works on both; on Linux, forked workers also share the parent's open maps.
 
 ### Exact vs approximate (summary; full tables in the PARITY files)

@@ -207,7 +207,8 @@ def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None 
     k = int(min(k, n))
     if method == "pynndescent":
         from pynndescent import NNDescent
-        index = NNDescent(X, n_neighbors=k, random_state=seed, n_jobs=-1)
+        from ._threads import get_threads
+        index = NNDescent(X, n_neighbors=k, random_state=seed, n_jobs=get_threads())  # never -1 (all cores)
         if query is None:
             idx, dist = index.neighbor_graph
         else:

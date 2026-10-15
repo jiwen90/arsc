@@ -1,10 +1,15 @@
 """Thread control. arsc parallelizes with threads (numba ``prange`` + BLAS), never
-with process copies. ``AR_THREADS`` (framework convention) caps both."""
+with process copies. ``AR_THREADS`` caps both. Without it arsc uses a small default
+(``DEFAULT_THREADS`` = 4), never every core: several analyses often run side by side on one
+machine, and each one sizing its pools by the core count oversubscribes the CPU many times over.
+An explicit ``NUMBA_NUM_THREADS`` / ``OMP_NUM_THREADS`` set by the caller is respected."""
 from __future__ import annotations
 
 import os
 
-_ENV_VARS = ("NUMBA_NUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
+_ENV_VARS = ("NUMBA_NUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+             "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS")
+DEFAULT_THREADS = 4  # when AR_THREADS is unset: small, so concurrent processes cannot swamp the machine
 
 
 def env_threads() -> int | None:
@@ -15,12 +20,23 @@ def env_threads() -> int | None:
         return None
 
 
-def preconfigure_env() -> None:
-    """Before numba/numpy load: map AR_THREADS onto the libraries' own env vars."""
+def default_threads() -> int:
+    """Threads arsc uses: ``AR_THREADS`` if set, else an explicit ``NUMBA_NUM_THREADS``, else ``DEFAULT_THREADS``."""
     n = env_threads()
     if n is not None:
-        for var in _ENV_VARS:
-            os.environ.setdefault(var, str(n))
+        return n
+    try:
+        return max(1, int(os.environ.get("NUMBA_NUM_THREADS", "")))
+    except ValueError:
+        return DEFAULT_THREADS
+
+
+def preconfigure_env() -> None:
+    """Before numba/numpy load: map AR_THREADS (or the small default) onto the libraries' own env vars.
+    Variables the caller already set are kept."""
+    n = default_threads()
+    for var in _ENV_VARS:
+        os.environ.setdefault(var, str(n))
 
 
 _limiter = None

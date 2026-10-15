@@ -26,10 +26,10 @@ Quick map (see README.md):
 """
 from ._threads import preconfigure_env as _pre
 
-_pre()  # map AR_THREADS onto numba/BLAS env vars before they load
+_pre()  # map AR_THREADS (default 4, never the core count) onto numba/BLAS env vars before they load
 
 from . import preprocessing as pp  # noqa: E402
-from ._threads import get_threads, set_threads, env_threads as _env_threads  # noqa: E402
+from ._threads import get_threads, set_threads, default_threads as _default_threads  # noqa: E402
 from .harmony import run_harmony  # noqa: E402
 from .io import (Assay, Dataset, Reduction, Store, export_seurat, exporter_script, from_anndata, open,  # noqa: E402
                  read_seurat_export, write_table)
@@ -53,7 +53,6 @@ from .seurat_extra import (find_markers, find_all_markers, fold_change, average_
                            cell_cycle_scoring, scale_data, normalize_data, add_metadata, which_cells,
                            split_object, rename_idents, cc_genes, cc_genes_updated_2019)
 
-if _env_threads() is not None:
-    set_threads(_env_threads())
+set_threads(_default_threads())  # also caps BLAS pools that were already loaded (threadpoolctl)
 
 __version__ = "0.2.0"
