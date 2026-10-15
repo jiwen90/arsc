@@ -6,6 +6,13 @@ import pandas as pd
 import scipy.sparse as sp
 
 
+def as_list(cols) -> list:
+    """Column-name argument as a list: a single string is one column (not its characters); None is []."""
+    if cols is None:
+        return []
+    return [cols] if isinstance(cols, str) else list(cols)
+
+
 def as_csr(X, dtype=None) -> sp.csr_matrix:
     """Return ``X`` as CSR with sorted indices and no explicit zeros (copy only if needed)."""
     if not sp.issparse(X):
@@ -41,6 +48,9 @@ def factorize_groups(obs: pd.DataFrame | None, by, n: int | None = None, sep: st
             and any(b in obs.columns for b in by) and not all(b in obs.columns for b in by)):
         raise KeyError(f"grouping columns {[b for b in by if b not in obs.columns]} not in obs; "
                        f"available: {list(obs.columns)}")
+    if (isinstance(by, (list, tuple)) and by and all(isinstance(b, str) for b in by) and obs is not None
+            and not any(b in obs.columns for b in by) and (n is None or len(by) != n)):
+        raise KeyError(f"grouping column(s) {list(by)} not in obs; available: {list(obs.columns)}")
     if isinstance(by, str) or (isinstance(by, (list, tuple)) and all(isinstance(b, str) for b in by)
                                and obs is not None and all(b in obs.columns for b in by)):
         cols = [by] if isinstance(by, str) else list(by)

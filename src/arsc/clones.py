@@ -26,7 +26,7 @@ from scipy.cluster.hierarchy import cut_tree, linkage
 from scipy.spatial.distance import pdist, squareform
 from scipy.special import gammaln
 
-from ._utils import check_seed
+from ._utils import as_list, check_seed
 
 __all__ = [
     "Cyclone", "cyclone", "cyclone_patient_table", "cyclone_states", "read_10x_clonotypes", "read_10x_contigs",
@@ -1043,12 +1043,12 @@ def clone_table(meta, clone_col, sample_cols=("patient_alias", "timepoint"), by=
     >>> list(ct.columns)
     ['patient', 'timepoint', 'clone', 'n', 'freq']
     """
-    sc = list(sample_cols) + ([by] if isinstance(by, str) else list(by or []))
+    sc = as_list(sample_cols) + as_list(by)
     d = pd.DataFrame(meta)
     _need_cols(d, [clone_col, *sc], "clone_table")
     d = d[d[clone_col].notna() & (d[clone_col].astype(str) != "")]
     ct = d.groupby([*sc, d[clone_col].rename("clone")], observed=True, sort=True).size().rename("n").reset_index()
-    ct["freq"] = ct.n / ct.groupby(list(sample_cols), observed=True).n.transform("sum")
+    ct["freq"] = ct.n / ct.groupby(as_list(sample_cols), observed=True).n.transform("sum")
     return ct
 
 
@@ -1085,7 +1085,7 @@ def clone_diversity(ct, sample_cols=("patient_alias", "timepoint"), depth=None, 
     (12, 8)
     """
     seed = check_seed(seed)
-    sc = list(sample_cols)
+    sc = as_list(sample_cols)
     _need_cols(ct, [*sc, "n"], "clone_diversity (ct from clone_table)")
     rng = np.random.default_rng(seed)
     sizes = ct.groupby(sc, observed=True).n.sum().rename("N")
@@ -1094,11 +1094,12 @@ def clone_diversity(ct, sample_cols=("patient_alias", "timepoint"), depth=None, 
         if eligible.empty:
             raise ValueError("no sample reaches the depth floor")
         depth = int(max(floor, eligible.min()))
-    ok = sizes[sizes >= depth].index
+    ok = {k if isinstance(k, tuple) else (k,) for k in sizes[sizes >= depth].index}
     if verbose:
         print(f"[clones] diversity rarefied to {depth} cells; {len(ok)}/{len(sizes)} samples retained")
     rows = []
     for key, d in ct.groupby(sc, observed=True, sort=True):
+        key = key if isinstance(key, tuple) else (key,)   # pandas gives 1-tuples for a one-column list
         if key not in ok:
             continue
         counts = d.n.to_numpy().astype(np.int64)
@@ -1112,7 +1113,6 @@ def clone_diversity(ct, sample_cols=("patient_alias", "timepoint"), depth=None, 
                 clon = 1 - h / np.log(len(s))
             m.append([h, 1 - (p ** 2).sum(), len(s), np.sort(p)[::-1][:10].sum(), clon])
         mm = np.mean(m, axis=0)
-        key = key if isinstance(key, tuple) else (key,)
         rows.append({**dict(zip(sc, key)), "shannon": mm[0], "simpson": mm[1], "richness": mm[2],
                      "top10_frac": mm[3], "clonality": mm[4], "depth": depth})
     return pd.DataFrame(rows)

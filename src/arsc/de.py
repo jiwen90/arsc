@@ -76,6 +76,19 @@ def _align_coldata(counts: pd.DataFrame, coldata: pd.DataFrame) -> pd.DataFrame:
     return coldata.loc[counts.columns].copy()
 
 
+def _check_raw_counts(counts: pd.DataFrame, fn: str, strict: bool) -> None:
+    """Raw pseudobulk counts are non-negative integers; log-normalised input is a common silent mistake."""
+    v = counts.to_numpy(dtype=float, na_value=np.nan)
+    bad = bool(np.isnan(v).any() or (v < 0).any() or (v != np.round(v)).any())
+    if bad:
+        msg = (f"{fn}: counts are not non-negative integers; pass raw counts summed per sample "
+               "(arsc.pseudobulk on the counts layer, then .to_frame()), not log-normalised or scaled values")
+        if strict:
+            raise ValueError(msg)
+        import warnings
+        warnings.warn(msg, stacklevel=3)
+
+
 # ------------------------------------------------------------------ DESeq2 (pydeseq2)
 
 _DDS_CLS = None
@@ -188,7 +201,11 @@ def deseq2(counts: pd.DataFrame, coldata: pd.DataFrame, design: str, contrast, m
     miss = [v for v in _vars_in(design) if v not in cd.columns]
     if miss:
         raise KeyError(f"design variable(s) {miss} not in coldata; available: {list(cd.columns)}")
+    _check_raw_counts(counts, "de.deseq2", strict=True)
     keep = (counts.values >= min_count).sum(axis=1) >= min_samples
+    if not keep.any():
+        raise ValueError(f"de.deseq2: no gene has >= {min_count} counts in >= {min_samples} samples; "
+                         "check that counts are raw pseudobulk sums, or lower min_count / min_samples")
     cnt = counts.loc[keep].round().astype(int)
     for v in _vars_in(design):
         if v in cd and (cd[v].dtype == object or str(cd[v].dtype) in ("category", "string")):
@@ -531,6 +548,7 @@ def voom(counts: pd.DataFrame, coldata: pd.DataFrame, formula: str, coef, block:
     """
     import patsy
     cd = _align_coldata(counts, coldata)
+    _check_raw_counts(counts, "de.voom", strict=False)
     miss = [v for v in _vars_in(formula) if v not in cd.columns]
     if miss:
         raise KeyError(f"formula variable(s) {miss} not in coldata; available: {list(cd.columns)}")

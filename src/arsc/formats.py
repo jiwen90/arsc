@@ -702,7 +702,8 @@ def read_h5ad(path: PathLike, store: PathLike | None = None, *, assay: str = "RN
     obsm, varm, obsp, uns : import these AnnData slots.
     dtype : value dtype on disk (``"auto"``: float32 when exact, else the source dtype).
     chunk_nnz : non-zeros per streamed chunk.
-    overwrite : replace an existing store.
+    overwrite : replace an existing store. Without it, an existing store built from a file of the same name
+        is reopened as is (with a warning if the file is newer than the store).
 
     Returns
     -------
@@ -724,6 +725,9 @@ def read_h5ad(path: PathLike, store: PathLike | None = None, *, assay: str = "RN
     if store is not None and (Path(store) / "manifest.json").exists() and not overwrite:
         st = _open_store(store)
         if Path(st.manifest.get("source", "")).name == path.name:
+            if path.stat().st_mtime > (Path(store) / "manifest.json").stat().st_mtime:
+                warnings.warn(f"{store} was built before {path.name} was last modified; returning the existing "
+                              "store. Pass overwrite=True to rebuild it from the current file", stacklevel=2)
             return st
         raise FileExistsError(f"{store} holds a different source ({st.manifest.get('source')}); pass overwrite=True")
     read_elem, _ = _anndata_elem_io()

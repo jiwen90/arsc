@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, stats as sps
 
-from ._utils import check_seed
+from ._utils import as_list, check_seed
 
 __all__ = ["composition", "sample_means", "bh", "boot_ci", "wilcoxon_signed_rank", "paired_test", "perm_test",
            "arm_contrast", "glmm_prop", "gee_prop", "lmm_score", "mde", "feasibility", "count_logit_delta",
@@ -72,7 +72,7 @@ def composition(obs: pd.DataFrame, celltype: str, sample_cols=("patient_alias", 
     >>> len(cd8)                                     # 6 patients x 2 timepoints
     12
     """
-    keys = list(sample_cols) + list(extra_cols or [])
+    keys = as_list(sample_cols) + as_list(extra_cols)
     _need_cols(obs, keys + [celltype], "obs", "sample_cols / extra_cols / celltype")
     o = obs[keys + [celltype]].copy()
     o[celltype] = o[celltype].astype(str)
@@ -113,10 +113,11 @@ def sample_means(obs: pd.DataFrame, cols, sample_cols=("patient_alias", "timepoi
     >>> list(sm.columns)
     ['patient', 'timepoint', 'cell_type', 'nUMI', 'n_cells']
     """
-    keys = list(sample_cols) + ([by] if isinstance(by, str) else list(by or []))
-    _need_cols(obs, keys + list(cols), "obs", "cols / sample_cols / by")
+    keys = as_list(sample_cols) + as_list(by)
+    cols = as_list(cols)
+    _need_cols(obs, keys + cols, "obs", "cols / sample_cols / by")
     g = obs.groupby(keys, observed=True)
-    df = g[list(cols)].mean()
+    df = g[cols].mean()
     df["n_cells"] = g.size()
     return df[df["n_cells"] >= min_cells].reset_index()
 
@@ -337,7 +338,9 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
     Parameters
     ----------
     x, y : per-patient values of the two groups (one value per patient, not per cell).
-    stat : ``stat(a, b) -> float``; default difference of medians.
+    stat : ``stat(a, b) -> float``; default difference of medians. Medians tie across permutations, so with
+        complete separation the median p can exceed the exact floor of :func:`mde` (4 vs 4: 0.057, not 0.029);
+        pass ``stat=lambda a, b: a.mean() - b.mean()`` to reach that floor.
     B : enumeration limit / number of sampled permutations.
     seed : seeds a local ``np.random.default_rng`` for sampled permutations (unused when exact).
 

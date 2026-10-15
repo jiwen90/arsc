@@ -443,7 +443,7 @@ def cycling_fraction(meta, positive, sample_cols=("patient_alias", "timepoint"),
     ['patient', 'timepoint', 'cell_type', 'n', 'k', 'prop', 'logit_cc']
     """
     by = [by] if isinstance(by, str) else list(by or [])
-    keys = list(sample_cols) + by
+    keys = ([sample_cols] if isinstance(sample_cols, str) else list(sample_cols)) + by
     d = pd.DataFrame(meta)[keys].copy()
     d["pos"] = np.asarray(positive, dtype=bool)
     g = d.groupby(keys, observed=True, sort=True).agg(n=("pos", "size"), k=("pos", "sum")).reset_index()

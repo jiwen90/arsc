@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+import warnings
+
 import numba as nb
 import numpy as np
 import pandas as pd
@@ -147,6 +149,14 @@ def score_ucell(X, features, signatures: dict, *, max_rank: int = 1500, w_neg: f
         all_genes += pos + neg
     missing = [g for g in dict.fromkeys(all_genes) if g not in feats]
     n_missing = len(missing)
+    if n_missing:
+        # UCell also warns here; values are unchanged (missing genes are imputed as the minimum, see Notes).
+        warnings.warn(f"score_ucell: {n_missing} signature gene(s) not in features, scored as unexpressed: "
+                      f"{missing[:20]}{' ...' if n_missing > 20 else ''} (symbols are case-sensitive)", stacklevel=2)
+        empty = [k for k, (pos, neg) in sigs.items() if not any(g in feats for g in pos + neg)]
+        if empty:
+            warnings.warn(f"score_ucell: no gene of signature(s) {empty} is in features; their scores carry no "
+                          "information (check gene symbols / species)", stacklevel=2)
     n_total = X.shape[1] + n_missing
     max_rank = int(min(max_rank, n_total))
     for name, (pos, neg) in sigs.items():

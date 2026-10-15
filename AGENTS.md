@@ -497,6 +497,11 @@ print(adata)
   `cluster` and `umap` return numpy arrays.
 * `hvg_vst(...).highly_variable` is not ranked: use `hvg.sort_values("rank").index[:n]` for Seurat's order.
 * `stats.composition` renames the label column to `celltype` and returns `k`, `n`, `prop`.
+* `stats.perm_test` defaults to the difference of medians, which ties across permutations: 4 vs 4 completely
+  separated patients give p = 0.057, not the 0.029 floor that `stats.mde(4, 4)` reports. Pass
+  `stat=lambda a, b: a.mean() - b.mean()` to reach the floor.
+* `arsc.read(file, store=dir)` reopens an existing store built from a file of the same name instead of
+  rebuilding it (it warns if the file is newer). Pass `overwrite=True` after the source file changes.
 * `add_module_score` / `cell_cycle_scoring` sample `ctrl` control genes per expression bin; on small gene sets
   (the toy has 300 genes) pass `ctrl=5`. The real-data default is 100.
 * Seeds are integers with fixed defaults (`seed`, or `random_state` in the scanpy-parity functions); `None` is

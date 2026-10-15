@@ -407,7 +407,8 @@ raw_as_layer : store ``.raw`` as a layer of ``assay`` (same genes only).
 obsm, varm, obsp, uns : import these AnnData slots.
 dtype : value dtype on disk (``"auto"``: float32 when exact, else the source dtype).
 chunk_nnz : non-zeros per streamed chunk.
-overwrite : replace an existing store.
+overwrite : replace an existing store. Without it, an existing store built from a file of the same name
+    is reopened as is (with a warning if the file is newer than the store).
 
 Returns
 -------
@@ -1127,7 +1128,8 @@ raw_as_layer : store ``.raw`` as a layer of ``assay`` (same genes only).
 obsm, varm, obsp, uns : import these AnnData slots.
 dtype : value dtype on disk (``"auto"``: float32 when exact, else the source dtype).
 chunk_nnz : non-zeros per streamed chunk.
-overwrite : replace an existing store.
+overwrite : replace an existing store. Without it, an existing store built from a file of the same name
+    is reopened as is (with a warning if the file is newer than the store).
 
 Returns
 -------
@@ -2593,7 +2595,9 @@ Two-sided: p = fraction of permutations with ``|stat| >= |observed|``.
 Parameters
 ----------
 x, y : per-patient values of the two groups (one value per patient, not per cell).
-stat : ``stat(a, b) -> float``; default difference of medians.
+stat : ``stat(a, b) -> float``; default difference of medians. Medians tie across permutations, so with
+    complete separation the median p can exceed the exact floor of :func:`mde` (4 vs 4: 0.057, not 0.029);
+    pass ``stat=lambda a, b: a.mean() - b.mean()`` to reach that floor.
 B : enumeration limit / number of sampled permutations.
 seed : seeds a local ``np.random.default_rng`` for sampled permutations (unused when exact).
 

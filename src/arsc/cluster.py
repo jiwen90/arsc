@@ -17,6 +17,15 @@ __all__ = ["cluster", "umap"]
 
 def _to_igraph(graph):
     import igraph as ig
+    if isinstance(graph, dict):
+        raise TypeError(f"cluster expects a graph matrix, got a dict with keys {list(graph)}; "
+                        "pass find_neighbors(...)['snn'] (or wnn(...).wsnn)")
+    if not sp.issparse(graph) and not isinstance(graph, np.ndarray):
+        raise TypeError(f"cluster expects a cells x cells sparse graph, got {type(graph).__name__}; "
+                        "pass find_neighbors(...)['snn'] (or wnn(...).wsnn)")
+    if graph.shape[0] != graph.shape[1]:
+        raise ValueError(f"cluster expects a square cells x cells graph, got shape {graph.shape}; "
+                         "build one with find_neighbors(embedding)['snn']")
     G = sp.csr_matrix(graph)
     G = G.maximum(G.T)  # symmetric
     U = sp.triu(G, k=1).tocoo()

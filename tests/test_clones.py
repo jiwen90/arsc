@@ -304,3 +304,14 @@ def test_read_10x_contigs(tmp_path):
     assert b.loc["C-1", "clone_id"] == "CBX" and b.loc["B-1", "clone_id"] == "CB2"
     with pytest.raises(KeyError, match="contig_annotations"):
         C.read_10x_contigs(f, key="nonexistent")
+
+
+def test_clone_diversity_single_sample_column():
+    """One sample column (list or plain string) used to return an empty table (pandas 1-tuple group keys)."""
+    import arsc
+    obs = arsc.datasets.toy().obs
+    obs = obs.assign(sample_id=obs["patient"].astype(str) + "_" + obs["timepoint"].astype(str))
+    for sc in (["sample_id"], "sample_id"):
+        ct = arsc.clones.clone_table(obs, "clone_id", sample_cols=sc)
+        dv = arsc.clones.clone_diversity(ct, sample_cols=sc, floor=50, verbose=False)
+        assert len(dv) == 12 and "clonality" in dv.columns

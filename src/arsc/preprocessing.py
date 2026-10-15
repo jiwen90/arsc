@@ -15,6 +15,8 @@ arsc                   Seurat equivalent
 """
 from __future__ import annotations
 
+import warnings
+
 from dataclasses import dataclass
 
 import numba as nb
@@ -69,6 +71,11 @@ def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matr
     (3000, 300)
     """
     X = as_csr(X)
+    d = X.data[:100000]
+    if d.size and d.max() < 30 and (d != np.round(d)).any():
+        warnings.warn("log_normalize: input is non-integer with small values; it looks already log-normalised. "
+                      "Pass raw counts (e.g. st.X('RNA', 'counts'); an h5ad's .X arrives as layer 'X')",
+                      stacklevel=2)
     out = np.zeros(X.data.shape, dtype=dtype)
     _lognorm_kernel(X.indptr, X.data.astype(np.float64, copy=False), out, float(scale_factor))
     return sp.csr_matrix((out, X.indices.copy(), X.indptr.copy()), shape=X.shape)
