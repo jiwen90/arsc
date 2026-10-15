@@ -489,7 +489,9 @@ def _read_obs_csv(d: Path, manifest: dict, cells: list) -> pd.DataFrame:
     obs.index.name = None
     for col, s in spec.items():
         if s["type"] == "factor":
-            obs[col] = pd.Categorical(obs[col], categories=list(s.get("levels") or []))
+            lev = s.get("levels") or []
+            lev = [lev] if isinstance(lev, str) else list(lev)  # jsonlite auto_unbox writes a 1-level factor as a string
+            obs[col] = pd.Categorical(obs[col], categories=lev)
         elif s["type"] == "integer" and not obs[col].isna().any():
             obs[col] = obs[col].astype(np.int64)
         elif s["type"] == "logical" and not obs[col].isna().any():
@@ -502,6 +504,35 @@ def _read_obs_csv(d: Path, manifest: dict, cells: list) -> pd.DataFrame:
     if not obs.index.equals(pd.Index(cells)):
         raise ValueError("obs.csv row order does not match cells.txt")
     return obs
+
+
+def _warn_if_source_changed(path: Path) -> None:
+    """A store registered with a ``PROVENANCE.json`` (AutoResearch ``tools/store_register.py``) records its source
+    files' size and mtime; warn when a source now differs, so analyses never silently use a stale conversion.
+    Source paths are relative to the root three levels above ``data/_derived/<name>/<store>``; a source that is not
+    reachable (e.g. not mounted) is skipped. Costs a few ``stat`` calls."""
+    prov = path / "PROVENANCE.json"
+    if not prov.exists():
+        return
+    try:
+        pv = json.loads(prov.read_text(encoding="utf-8"))
+        root = path.resolve().parents[3]
+    except (OSError, ValueError, IndexError):
+        return
+    for s in pv.get("sources") or []:
+        f = root / str(s.get("path", ""))
+        try:
+            fs = [f] if f.is_file() else [x for x in f.rglob("*") if x.is_file()] if f.is_dir() else []
+            if not fs:
+                continue
+            size, mt = sum(x.stat().st_size for x in fs), max(x.stat().st_mtime_ns for x in fs)
+        except OSError:
+            continue
+        if size != s.get("bytes") or mt != s.get("mtime_ns"):
+            import warnings
+            warnings.warn(f"arsc store {path.name}: its source {s.get('path')} changed since the store was registered "
+                          f"({pv.get('registered_at', '?')}): size {s.get('bytes')} -> {size}. The store holds the OLD "
+                          "data; re-convert and register it again (skill data-stores).", stacklevel=3)
 
 
 # --------------------------------------------------------------------------- store
@@ -576,6 +607,7 @@ class Store:
         self._obs = None
         self._uns = None
         self._features: dict[str, pd.Index] = {}
+        _warn_if_source_changed(self.path)
         if finalize:
             self.finalize(build_csc=build_csc)
 

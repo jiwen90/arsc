@@ -34,9 +34,10 @@ Set `ARSC_SCRATCH` to the directory that holds the references (the other data va
    (max abs diff, correlation, identical-call rate), and a test that asserts the threshold. Add it
    to the matching `*_PARITY.md` (or a new one). Say "exact" only when a test shows identity
    (`np.array_equal` or a tolerance at floating-point rounding); give the measured number otherwise.
-2. **Licences.** Implement methods from the paper and the mathematics; do not copy or translate
-   source code from GPL/LGPL packages. Credit the method's paper in `NOTICE`. Optional
-   dependencies with copyleft licences must stay optional.
+2. **Licences.** arsc is GPL-3.0-or-later. A port may follow code whose licence is compatible with
+   GPL-3.0-or-later: GPL-3, GPL-2-or-later, LGPL, MIT, BSD, Apache-2.0. **Not** GPL-2.0-only code
+   (incompatible with GPL-3). Credit the original in `NOTICE` (package, version, licence) and the method's
+   paper; for an MIT/BSD/Apache original, add its licence text to `LICENSES/`.
 3. **Seeds.** Every stochastic function takes an integer seed with a fixed default, rejects
    `None` (use `arsc._utils.check_seed`) and never touches the global NumPy/Python RNG. Add the
    function to `SEEDS.md` and `tests/test_seeds.py`.

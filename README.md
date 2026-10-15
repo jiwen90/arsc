@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/jiwen90/arsc/actions/workflows/ci.yml"><img src="https://github.com/jiwen90/arsc/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg" alt="License: GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg" alt="Python 3.10-3.12">
 </p>
 
@@ -197,4 +197,8 @@ If you use arsc, please cite it ([CITATION.cff](CITATION.cff)) and the methods i
 
 ## License
 
-MIT ([LICENSE](LICENSE)). The methods' original authors are credited in [NOTICE](NOTICE).
+GPL-3.0-or-later ([LICENSE](LICENSE)). Several modules translate or closely follow GPL code (harmony, limma/edgeR,
+presto, UCell), so arsc as a whole is GPL. You may use it freely, including privately and in a lab; if you
+distribute arsc or a program that includes it, the GPL applies to that distribution (source available, same
+licence). [NOTICE](NOTICE) credits each ported original with its licence; the MIT/BSD originals' licence
+texts (Seurat, fgsea, Clonotrace, scanpy) are kept in [LICENSES/](LICENSES).

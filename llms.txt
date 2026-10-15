@@ -10,6 +10,8 @@ questions (markers, pseudobulk DE with the patient as unit, composition, GSEA, c
 and gotchas. In Python, `arsc.help()` prints the task map and `arsc.recipes("<question>")` prints a matching recipe;
 `arsc.datasets.toy()` is a synthetic dataset with planted effects for trying any of them.
 
+Licence: GPL-3.0-or-later (LICENSE); NOTICE credits each ported original with its licence.
+
 ## Docs
 
 - [AGENTS.md](AGENTS.md): complete guide for AI agents (read first)
@@ -35,4 +37,5 @@ and gotchas. In Python, `arsc.help()` prints the task map and `arsc.recipes("<qu
 - [CONTRIBUTING.md](CONTRIBUTING.md): development, tests, docstring and parity rules
 - [CHANGELOG.md](CHANGELOG.md)
 - [ROADMAP.md](ROADMAP.md)
-- [NOTICE](NOTICE): methods credited and dependency licences
+- [NOTICE](NOTICE): licence (GPL-3.0-or-later), methods credited with each original's licence, dependency licences
+- [LICENSES/](LICENSES): licence texts of the MIT/BSD originals (Seurat, fgsea, Clonotrace, scanpy)

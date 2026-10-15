@@ -16,6 +16,9 @@ pip install "arsc[all] @ git+https://github.com/jiwen90/arsc.git"   # PyPI name 
 # extras: h5ad (anndata, h5py), graph (leiden, umap), stats (pydeseq2, statsmodels, patsy), all = everything
 ```
 
+Licence: GPL-3.0-or-later (several modules translate GPL code: harmony, limma/edgeR voom, presto, UCell). Code that
+imports arsc and is distributed with it falls under the GPL; NOTICE lists each ported original and its licence.
+
 ## Mental model (read this first)
 
 * **Store** (`arsc.open(dir)`): a directory of `.npy` files opened with `mmap`. Nothing is read until you ask;

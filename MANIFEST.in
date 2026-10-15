@@ -2,6 +2,7 @@
 # tests/ and benchmarks/ are excluded until their private dataset paths are removed
 # (they reference local reference outputs); re-include with `graft tests` afterwards.
 include LICENSE NOTICE README.md CHANGELOG.md CITATION.cff CONTRIBUTING.md
+recursive-include LICENSES *.txt
 recursive-include src/arsc/R *.R
 prune tests
 prune benchmarks

@@ -223,7 +223,7 @@ for (cn in names(md)) {
   if (inherits(v, c("Date", "IDate", "POSIXt", "difftime"))) {  # dates are integer/double internally: export as text
     md[[cn]] <- as.character(v); manifest$obs[[cn]] <- list(type = "character")
   }
-  else if (is.factor(v)) manifest$obs[[cn]] <- list(type = "factor", levels = levels(v))
+  else if (is.factor(v)) manifest$obs[[cn]] <- list(type = "factor", levels = I(levels(v)))  # I(): a 1-level factor stays a JSON array
   else if (is.logical(v)) manifest$obs[[cn]] <- list(type = "logical")
   else if (is.integer(v)) manifest$obs[[cn]] <- list(type = "integer")
   else if (is.numeric(v)) manifest$obs[[cn]] <- list(type = "double")

@@ -6,6 +6,17 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Seurat import: a factor with a single level (e.g. `orig.ident` of a one-sample object) was written by jsonlite
+  as a JSON string, and `Store.obs` failed with "Categorical categories must be unique". The exporter now writes
+  the levels as an array (`I()`), and the reader also accepts the old string form (stores already on disk).
+
+### Changed
+- Licence: arsc is now GPL-3.0-or-later (was labelled MIT). Several modules translate or closely
+  follow GPL code (harmony 1.2, limma/edgeR voom chain, presto, UCell). `NOTICE` lists each ported original
+  with its licence; the licence texts of the MIT/BSD originals (Seurat, fgsea, Clonotrace, scanpy) are in
+  `LICENSES/`.
+
 ### Added
 - Agent entry points: `AGENTS.md`, `llms.txt`, `CLAUDE.md` and a Claude Code skill, with a
   task-to-function map and runnable recipes.
@@ -22,7 +33,7 @@ All notable changes to arsc are recorded here. The format follows
 - Clearer error messages across the API (missing columns, absent levels, misaligned inputs, unknown
   options, design problems) that say how to fix the problem.
 - Reproducible benchmark suite against scanpy and Seurat (`benchmarks/`).
-- Packaging for publication: MIT `LICENSE`, `NOTICE` (method credits), `CITATION.cff`,
+- Packaging for publication: `LICENSE`, `NOTICE` (method credits), `CITATION.cff`,
   `CONTRIBUTING.md`, GitHub Actions CI (tests on Linux and Windows, Python 3.10-3.12; build check),
   `stats` and `clonotrace` extras, project URLs, logo.
 

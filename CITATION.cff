@@ -9,7 +9,7 @@ authors:
 version: 0.2.0
 # date-released is a placeholder: set it to the date of the first public release.
 date-released: 2026-10-14
-license: MIT
+license: GPL-3.0-or-later
 repository-code: "https://github.com/jiwen90/arsc"
 keywords:
   - single-cell
