@@ -76,8 +76,8 @@ Clonal analysis (arsc.clones, arsc.clonotrace).
   - STARTRAC indices: Zhang L, et al. Lineage tracking reveals dynamic relationships of T cells in
     colorectal cancer. Nature (2018).
   - Cyclone clone-trajectory clustering: ports cyclone_find_trajectories() from the analysis
-    script clone_trajectory_util.R of the Cancer Cell 2024 publication (the script carries no
-    licence statement); see the clones.cyclone docstring and CLONES_PARITY.md.
+    script clone_trajectory_util.R of the Cancer Cell 2024 publication, written by the arsc
+    author (jiwen90), who licenses this port under arsc's licence; see the clones.cyclone docstring and CLONES_PARITY.md.
   - STARTRAC: reimplemented from the paper's formulas (the Startrac R package is not a source).
   - CloneTrace: Fu Y, et al. Deciphering Cell Fate and Clonal Dynamics via Integrative Single-Cell
     Lineage Modeling. bioRxiv 2025.09.01.673503. arsc.clonotrace ports the Clonotrace R package
