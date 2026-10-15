@@ -1,10 +1,16 @@
-"""Gene-set readers (port of ``ar_read_genesets`` / ``ar_msigdb`` / ``ar_cycling_fraction``).
+"""Gene-set readers (Python ports of the R helpers ``ar_read_genesets`` / ``ar_msigdb`` / ``ar_cycling_fraction``).
 
-Gene sets are plain ``dict[str, list[str]]``.  Readers cover the formats used by the Cancer Cell 2024 analysis
-under ``data/2023 0129 V3`` (jo_pathways.json, pathways.json, hotspot module CSVs, CPDB lists, cell-cycle .txt
-lists) plus GMT.  MSigDB is read from local GMT files only (no network): set ``ARSC_MSIGDB_DIR`` or drop GMTs into
-``scratch/arsc/msigdb``; :func:`export_msigdb_gmt` can fill that cache through R ``msigdbr`` when its data
-package (msigdbdf) is installed.
+Gene sets are plain ``dict[str, list[str]]``. Readers cover JSON (MSigDB-style ``{name: {"geneSymbols": [...]}}``
+or ``{name: [genes]}``), GMT, hotspot-style module CSVs, CellPhoneDB pathway tables and one-gene-per-line
+``.txt`` lists. MSigDB is read from local GMT files only (no network): set ``ARSC_MSIGDB_DIR`` or drop GMTs into
+``<cache>/msigdb`` (cache = ``$ARSC_CACHE``, else ``$AR_ROOT/.cache`` when ``AR_ROOT`` is set, else
+``~/.cache/arsc``); :func:`export_msigdb_gmt` can fill that cache through R ``msigdbr`` when its data package
+(msigdbdf) is installed.
+
+Environment variables: ``ARSC_CACHE`` (cache root), ``ARSC_MSIGDB_DIR`` (extra GMT directory),
+``ARSC_DATA_V3`` (folder of the named collections loaded by :func:`load_v3`), ``ARSC_RLIB`` (extra R library
+for the R helpers), ``AR_ROOT`` (host project root; adds its ``.cache``, ``.Rlib``, ``scratch/arsc/msigdb`` and
+``data/msigdb`` to the search paths).
 """
 from __future__ import annotations
 
@@ -19,8 +25,40 @@ import pandas as pd
 __all__ = ["read_genesets", "read_json_sets", "read_gmt", "read_module_csv", "read_cpdb", "load_v3",
            "V3_SETS", "msigdb", "export_msigdb_gmt", "filter_genesets", "cycling_fraction"]
 
-DATA_V3 = Path(os.environ.get("ARSC_DATA_V3", "E:/autoresearch/data/2023 0129 V3"))
-AR_ROOT = Path(os.environ.get("AR_ROOT", "E:/autoresearch"))
+_v3 = os.environ.get("ARSC_DATA_V3")
+DATA_V3 = Path(_v3) if _v3 else None
+_ar = os.environ.get("AR_ROOT")
+AR_ROOT = Path(_ar) if _ar else None
+
+
+def _cache_root() -> Path:
+    """``$ARSC_CACHE``, else ``$AR_ROOT/.cache``, else ``~/.cache/arsc``."""
+    env = os.environ.get("ARSC_CACHE")
+    if env:
+        return Path(env)
+    if AR_ROOT is not None:
+        return AR_ROOT / ".cache"
+    return Path.home() / ".cache" / "arsc"
+
+
+def _r_libpaths_code() -> str:
+    """R code that prepends ``$ARSC_RLIB`` / ``$AR_ROOT/.Rlib`` to ``.libPaths()`` when set (else nothing)."""
+    libs = []
+    if os.environ.get("ARSC_RLIB"):
+        libs.append(Path(os.environ["ARSC_RLIB"]).as_posix())
+    if AR_ROOT is not None and (AR_ROOT / ".Rlib").exists():
+        libs.append((AR_ROOT / ".Rlib").as_posix())
+    if not libs:
+        return ""
+    return ".libPaths(unique(c(" + ", ".join(f'"{x}"' for x in libs) + ", .libPaths()))); "
+
+
+def _v3_root() -> Path:
+    if DATA_V3 is None:
+        raise RuntimeError("load_v3() needs the folder of the named gene-set collections: set the environment "
+                           "variable ARSC_DATA_V3 to it (before importing arsc), or read the files directly with "
+                           "arsc.genesets.read_genesets(path).")
+    return DATA_V3
 
 
 def _clean(gs: dict, min_size=1) -> dict:
@@ -33,14 +71,50 @@ def _clean(gs: dict, min_size=1) -> dict:
 
 
 def read_json_sets(path) -> dict:
-    """MSigDB-style JSON ``{name: {"geneSymbols": [...]}}`` (jo_pathways.json, pathways.json,
-    jo_pathways_subsets.json) or ``{name: [genes]}``."""
+    """Read gene sets from JSON: MSigDB-style ``{name: {"geneSymbols": [...]}}`` or plain ``{name: [genes]}``.
+
+    Parameters
+    ----------
+    path : path of the ``.json`` file.
+
+    Returns
+    -------
+    dict ``{set name: [gene symbols]}`` (not de-duplicated; :func:`read_genesets` cleans).
+
+    Examples
+    --------
+    >>> import json, os, tempfile
+    >>> from arsc import genesets
+    >>> f = os.path.join(tempfile.mkdtemp(), "sets.json")
+    >>> json.dump({"TCELL": {"geneSymbols": ["CD3E", "CD8A"]}, "BCELL": ["MS4A1"]}, open(f, "w"))
+    >>> genesets.read_json_sets(f)
+    {'TCELL': ['CD3E', 'CD8A'], 'BCELL': ['MS4A1']}
+    """
     with open(path, encoding="utf-8") as f:
         j = json.load(f)
     return {k: (v["geneSymbols"] if isinstance(v, dict) and "geneSymbols" in v else v) for k, v in j.items()}
 
 
 def read_gmt(path) -> dict:
+    r"""Read a GMT file (``name <TAB> description <TAB> gene1 <TAB> gene2 ...``, one set per line).
+
+    Parameters
+    ----------
+    path : path of the ``.gmt`` file.
+
+    Returns
+    -------
+    dict ``{set name: [genes]}``; lines with no genes are skipped.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from arsc import genesets
+    >>> f = os.path.join(tempfile.mkdtemp(), "sets.gmt")
+    >>> _ = open(f, "w").write("TCELL\tna\tCD3E\tCD8A\nBCELL\tna\tMS4A1\tCD79A\n")
+    >>> genesets.read_gmt(f)
+    {'TCELL': ['CD3E', 'CD8A'], 'BCELL': ['MS4A1', 'CD79A']}
+    """
     gs = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -51,8 +125,29 @@ def read_gmt(path) -> dict:
 
 
 def read_module_csv(path) -> dict:
-    """Long CSV (gene, module|set|pathway) such as hotspot ``module_genes_clean_*.csv`` (module -1 dropped,
-    sets named ``module<k>``) or wide CSV with one column per set (hotspot ``gene_list_*.csv``)."""
+    """Read gene modules from a CSV: long (gene + module/set/pathway column) or wide (one column per set).
+
+    Long format (e.g. hotspot ``module_genes``): module ``-1`` (unassigned) is dropped and numeric modules are
+    named ``module<k>``. Wide format: every column is a set (index-like columns are ignored).
+
+    Parameters
+    ----------
+    path : path of the ``.csv`` file.
+
+    Returns
+    -------
+    dict ``{set name: [genes]}``.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> import pandas as pd
+    >>> from arsc import genesets
+    >>> f = os.path.join(tempfile.mkdtemp(), "modules.csv")
+    >>> pd.DataFrame({"gene": ["CD3E", "CD8A", "LYZ"], "module": [1, 1, -1]}).to_csv(f, index=False)
+    >>> genesets.read_module_csv(f)
+    {'module1': ['CD3E', 'CD8A']}
+    """
     d = pd.read_csv(path)
     lc = {c.lower(): c for c in d.columns}
     gcol = next((lc[x] for x in ("gene", "genes", "symbol") if x in lc), None)
@@ -67,9 +162,30 @@ def read_module_csv(path) -> dict:
 
 
 def read_cpdb(cpdb_csv, names_from=None) -> dict:
-    """CPDB pathway table (pathway, hgnc_symbol_ids comma-separated); first duplicate name wins, as the original.
-    ``names_from``: a .txt file or directory of .txt files listing pathway names to keep (e.g. ``cpdb gene sets/``
-    -> the 174 curated pathways)."""
+    """Read a CellPhoneDB pathway table (columns ``pathway``, ``hgnc_symbol_ids`` comma-separated).
+
+    The first row of a duplicated pathway name wins, as in the original R helper.
+
+    Parameters
+    ----------
+    cpdb_csv : path of the pathway CSV.
+    names_from : optional ``.txt`` file, or directory of ``.txt`` files, listing the pathway names to keep
+        (in that order).
+
+    Returns
+    -------
+    dict ``{pathway: [genes]}``.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> import pandas as pd
+    >>> from arsc import genesets
+    >>> f = os.path.join(tempfile.mkdtemp(), "cpdb.csv")
+    >>> pd.DataFrame({"pathway": ["IFN", "TNF"], "hgnc_symbol_ids": ["IFNG,IFNGR1", "TNF,TNFRSF1A"]}).to_csv(f, index=False)
+    >>> genesets.read_cpdb(f)
+    {'IFN': ['IFNG', 'IFNGR1'], 'TNF': ['TNF', 'TNFRSF1A']}
+    """
     d = pd.read_csv(cpdb_csv).drop_duplicates("pathway")
     gs = {p: str(s).split(",") for p, s in zip(d.pathway, d.hgnc_symbol_ids)}
     if names_from is not None:
@@ -81,8 +197,32 @@ def read_cpdb(cpdb_csv, names_from=None) -> dict:
 
 
 def read_genesets(path=None, cpdb_csv=None, min_size=1) -> dict:
-    """Read gene sets into ``{name: [genes]}`` (see ``ar_read_genesets``): JSON, GMT, CSV (long/wide), a .txt
-    (one gene per line) or a directory of .txt files; ``cpdb_csv`` for CPDB (optionally restricted by ``path``)."""
+    r"""Read gene sets from any supported file into ``{name: [genes]}`` (Python port of ``ar_read_genesets``).
+
+    Dispatches on the path: ``.json`` (:func:`read_json_sets`), ``.gmt`` (:func:`read_gmt`), ``.csv``
+    (:func:`read_module_csv`), a directory of ``.txt`` files (one set per file, named by the file stem), or a
+    single ``.txt`` file (one gene per line). Genes are de-duplicated in order and empty entries dropped.
+
+    Parameters
+    ----------
+    path : file or directory (for ``cpdb_csv``: optional list of pathway names to keep, see :func:`read_cpdb`).
+    cpdb_csv : path of a CellPhoneDB pathway table (then ``path`` restricts the pathways).
+    min_size : drop sets with fewer genes (default 1).
+
+    Returns
+    -------
+    dict ``{set name: [genes]}``.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from arsc import genesets
+    >>> f = os.path.join(tempfile.mkdtemp(), "sets.gmt")
+    >>> _ = open(f, "w").write("TCELL\tna\tCD3E\tCD8A\nBCELL\tna\tMS4A1\tCD79A\n")
+    >>> gs = genesets.read_genesets(f, min_size=2)
+    >>> sorted(gs)
+    ['BCELL', 'TCELL']
+    """
     if cpdb_csv is not None:
         gs = read_cpdb(cpdb_csv, path)
     else:
@@ -100,21 +240,21 @@ def read_genesets(path=None, cpdb_csv=None, min_size=1) -> dict:
     return _clean(gs, min_size)
 
 
-# Named sets of the V3 data folder -> loader
+# Named collections of the ARSC_DATA_V3 folder -> loader (evaluated lazily)
 V3_SETS = {
-    "jo_pathways": lambda: read_json_sets(DATA_V3 / "jo_pathways.json"),
-    "jo_pathways_subsets": lambda: read_json_sets(DATA_V3 / "jo_pathways_subsets.json"),
-    "pathways": lambda: read_json_sets(DATA_V3 / "pathways.json"),
-    "hotspot_modules": lambda: read_module_csv(DATA_V3 / "hotspot" / "2023 0203" / "module_genes_clean_3000_200.csv"),
-    "cpdb_all": lambda: read_cpdb(DATA_V3 / "hotspot" / "CPDB_pathways_genes.csv"),
-    "cpdb_selected": lambda: read_cpdb(DATA_V3 / "hotspot" / "CPDB_pathways_genes.csv", DATA_V3 / "cpdb gene sets"),
+    "jo_pathways": lambda: read_json_sets(_v3_root() / "jo_pathways.json"),
+    "jo_pathways_subsets": lambda: read_json_sets(_v3_root() / "jo_pathways_subsets.json"),
+    "pathways": lambda: read_json_sets(_v3_root() / "pathways.json"),
+    "hotspot_modules": lambda: read_module_csv(_v3_root() / "hotspot" / "2023 0203" / "module_genes_clean_3000_200.csv"),
+    "cpdb_all": lambda: read_cpdb(_v3_root() / "hotspot" / "CPDB_pathways_genes.csv"),
+    "cpdb_selected": lambda: read_cpdb(_v3_root() / "hotspot" / "CPDB_pathways_genes.csv", _v3_root() / "cpdb gene sets"),
     "cpdb_categories": lambda: {f.stem: [x.strip() for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
-                                for f in sorted((DATA_V3 / "cpdb gene sets").glob("*.txt"))},
-    "cellcycle_go": lambda: {"cellcycle_go": _read_listfile(DATA_V3 / "cellcycle_go.txt")},
-    "cellcycle_kegg": lambda: {"cellcycle_kegg": _read_listfile(DATA_V3 / "cellcycle_kegg.txt")},
-    "cellcycle_reactome": lambda: {"cellcycle_reactome": _read_listfile(DATA_V3 / "cellcycle_reactome.txt")},
-    "gnf2_mki67": lambda: {"gnf2_mki67": _read_listfile(DATA_V3 / "gnf2_mki67.txt")},
-    "regev_cell_cycle": lambda: {"regev_cell_cycle": _read_listfile(DATA_V3 / "regev_lab_cell_cycle_genes.txt")},
+                                for f in sorted((_v3_root() / "cpdb gene sets").glob("*.txt"))},
+    "cellcycle_go": lambda: {"cellcycle_go": _read_listfile(_v3_root() / "cellcycle_go.txt")},
+    "cellcycle_kegg": lambda: {"cellcycle_kegg": _read_listfile(_v3_root() / "cellcycle_kegg.txt")},
+    "cellcycle_reactome": lambda: {"cellcycle_reactome": _read_listfile(_v3_root() / "cellcycle_reactome.txt")},
+    "gnf2_mki67": lambda: {"gnf2_mki67": _read_listfile(_v3_root() / "gnf2_mki67.txt")},
+    "regev_cell_cycle": lambda: {"regev_cell_cycle": _read_listfile(_v3_root() / "regev_lab_cell_cycle_genes.txt")},
 }
 
 
@@ -128,7 +268,27 @@ def _read_listfile(path) -> list:
 
 
 def load_v3(name: str, min_size=1) -> dict:
-    """Load a named V3 gene-set collection (see ``V3_SETS``)."""
+    """Load a named gene-set collection from the folder given by the ``ARSC_DATA_V3`` environment variable.
+
+    The names and file layout are listed in ``V3_SETS`` (JSON pathway files, hotspot modules, CellPhoneDB
+    tables, cell-cycle lists). Raises a RuntimeError that explains the fix when ``ARSC_DATA_V3`` is not set.
+
+    Parameters
+    ----------
+    name : one of ``sorted(arsc.genesets.V3_SETS)``.
+    min_size : drop sets with fewer genes (default 1).
+
+    Returns
+    -------
+    dict ``{set name: [genes]}``.
+
+    Examples
+    --------
+    >>> from arsc import genesets
+    >>> "pathways" in genesets.V3_SETS
+    True
+    >>> gs = genesets.load_v3("pathways")  # doctest: +SKIP
+    """
     if name not in V3_SETS:
         raise KeyError(f"unknown set {name!r}; available: {sorted(V3_SETS)}")
     return _clean(V3_SETS[name](), min_size)
@@ -137,16 +297,41 @@ def load_v3(name: str, min_size=1) -> dict:
 # ---------------------------------------------------------------------------------------------------- MSigDB
 def _msigdb_dirs():
     env = os.environ.get("ARSC_MSIGDB_DIR")
-    return ([Path(env)] if env else []) + [AR_ROOT / "scratch" / "arsc" / "msigdb", AR_ROOT / "data" / "msigdb"]
+    dirs = ([Path(env)] if env else []) + [_cache_root() / "msigdb"]
+    if AR_ROOT is not None:
+        dirs += [AR_ROOT / "scratch" / "arsc" / "msigdb", AR_ROOT / "data" / "msigdb"]
+    return dirs
 
 
 def msigdb(collection="H", subcollection=None, species="Homo sapiens", cache_dir=None) -> dict:
-    """MSigDB sets from a local GMT cache (no network).
+    r"""MSigDB gene sets from a local GMT cache (no network).
 
-    Looks for ``<collection>[.<subcollection>].gmt`` (case-insensitive, ``:`` replaced by ``_``) or any GMT whose
-    name starts with the MSigDB convention (``h.all*``, ``c2.cp.reactome*``) in ``cache_dir`` /
-    ``$ARSC_MSIGDB_DIR`` / ``scratch/arsc/msigdb`` / ``data/msigdb``.  Raises FileNotFoundError with instructions
-    when absent (use :func:`export_msigdb_gmt` or R ``ar_msigdb`` + ``write``).
+    Looks for ``<collection>[.<subcollection>].gmt`` (case-insensitive, ``:`` replaced by ``_``) or any GMT
+    whose name follows the MSigDB convention (``h.all*``, ``c2.cp.reactome*``) in ``cache_dir``, else in
+    ``$ARSC_MSIGDB_DIR``, ``<cache>/msigdb`` (``$ARSC_CACHE``, ``$AR_ROOT/.cache`` or ``~/.cache/arsc``) and, when
+    ``AR_ROOT`` is set, ``$AR_ROOT/scratch/arsc/msigdb`` and ``$AR_ROOT/data/msigdb``. Raises FileNotFoundError
+    listing the searched folders when absent (fill them with :func:`export_msigdb_gmt` or GMTs downloaded from
+    gsea-msigdb.org). For the R-msigdbr route with a csv cache see :func:`arsc.de.msigdb`.
+
+    Parameters
+    ----------
+    collection : MSigDB collection, e.g. ``"H"`` (hallmark), ``"C2"``, ``"C7"``.
+    subcollection : e.g. ``"CP:REACTOME"``; ``None`` for the whole collection.
+    species : kept for API symmetry with :func:`export_msigdb_gmt` (the GMT file decides the species).
+    cache_dir : search only this directory.
+
+    Returns
+    -------
+    dict ``{set name: [genes]}``.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from arsc import genesets
+    >>> d = tempfile.mkdtemp()
+    >>> _ = open(os.path.join(d, "h.all.v2024.1.Hs.symbols.gmt"), "w").write("HALLMARK_X\tna\tA\tB\n")
+    >>> genesets.msigdb("H", cache_dir=d)
+    {'HALLMARK_X': ['A', 'B']}
     """
     dirs = [Path(cache_dir)] if cache_dir else _msigdb_dirs()
     sub = (subcollection or "").lower().replace(":", "_").replace("-", "_")
@@ -169,13 +354,33 @@ def msigdb(collection="H", subcollection=None, species="Homo sapiens", cache_dir
 
 
 def export_msigdb_gmt(collection="H", subcollection=None, species="Homo sapiens", out_dir=None) -> Path:
-    """Write one MSigDB collection to GMT through R ``msigdbr`` (one-off; needs the msigdbdf data package)."""
-    out_dir = Path(out_dir or AR_ROOT / "scratch" / "arsc" / "msigdb")
+    """Write one MSigDB collection to a GMT file through R ``msigdbr`` (one-off; needs msigdbr + msigdbdf in R).
+
+    Extra R libraries come from ``$ARSC_RLIB`` and ``$AR_ROOT/.Rlib`` when set.
+
+    Parameters
+    ----------
+    collection : MSigDB collection, e.g. ``"H"``.
+    subcollection : e.g. ``"CP:REACTOME"``.
+    species : msigdbr species name (default ``"Homo sapiens"``).
+    out_dir : output directory (default: the first folder :func:`msigdb` searches).
+
+    Returns
+    -------
+    pathlib.Path of the written ``.gmt``.
+
+    Examples
+    --------
+    >>> from arsc import genesets
+    >>> f = genesets.export_msigdb_gmt("H")  # doctest: +SKIP
+    >>> hallmark = genesets.msigdb("H")  # doctest: +SKIP
+    """
+    out_dir = Path(out_dir or _msigdb_dirs()[0])
     out_dir.mkdir(parents=True, exist_ok=True)
     name = collection.lower() + (("." + subcollection.lower().replace(":", "_").replace("-", "_")) if subcollection else "")
     out = out_dir / f"{name}.gmt"
     sub = f', subcollection = "{subcollection}"' if subcollection else ""
-    code = ('.libPaths(c("E:/autoresearch/.Rlib", .libPaths())); library(msigdbr); '
+    code = (_r_libpaths_code() + 'library(msigdbr); '
             f'd <- msigdbr(species = "{species}", collection = "{collection}"{sub}); '
             'l <- split(d$gene_symbol, d$gs_name); '
             f'writeLines(vapply(names(l), function(n) paste(c(n, "NA", unique(l[[n]])), collapse = "\\t"), ""), "{out.as_posix()}")')
@@ -185,14 +390,58 @@ def export_msigdb_gmt(collection="H", subcollection=None, species="Homo sapiens"
 
 # ---------------------------------------------------------------------------------------------------- misc
 def filter_genesets(gs: dict, universe, min_size=1) -> dict:
-    """Restrict sets to genes in ``universe`` (e.g. object features) and drop sets smaller than ``min_size``."""
+    """Restrict gene sets to genes in ``universe`` (e.g. the dataset's features) and drop small sets.
+
+    Parameters
+    ----------
+    gs : dict ``{set name: [genes]}``.
+    universe : iterable of genes to keep (e.g. ``ds.features("RNA")``).
+    min_size : drop sets with fewer than this many genes left (default 1).
+
+    Returns
+    -------
+    dict ``{set name: [genes in universe]}``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import genesets
+    >>> ds = arsc.datasets.toy()
+    >>> genesets.filter_genesets({"T": ["CD3E", "CD8A", "NOT_A_GENE"]}, ds.features("RNA"))
+    {'T': ['CD3E', 'CD8A']}
+    """
     u = set(universe)
     return {k: [g for g in v if g in u] for k, v in gs.items() if sum(g in u for g in v) >= min_size}
 
 
 def cycling_fraction(meta, positive, sample_cols=("patient_alias", "timepoint"), by=None, min_cells=20) -> pd.DataFrame:
-    """Per-sample positive counts (e.g. MKI67 counts > 0 or score > threshold) by group with the count-corrected
-    logit log((k+0.5)/(n-k+0.5)) for paired deltas (sparse positives)."""
+    """Per-sample counts of positive cells by group, with a count-corrected logit for paired deltas.
+
+    ``logit_cc = log((k + 0.5) / (n - k + 0.5))`` stays finite when ``k`` is 0 or ``n`` (sparse positives such as
+    MKI67+ cells). The sample (patient x timepoint) is the unit; compare samples, not cells.
+
+    Parameters
+    ----------
+    meta : cell-level metadata.
+    positive : boolean per cell (e.g. ``MKI67 counts > 0``), row-aligned with ``meta``.
+    sample_cols : columns defining a sample (default ``("patient_alias", "timepoint")``; pass yours).
+    by : optional extra grouping column(s) (e.g. cell type).
+    min_cells : drop sample x group rows with fewer cells (default 20).
+
+    Returns
+    -------
+    DataFrame: ``sample_cols`` (+ ``by``), ``n``, ``k``, ``prop``, ``logit_cc``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import genesets
+    >>> ds = arsc.datasets.toy()
+    >>> mki67 = ds.X("RNA", "counts")[:, list(ds.features("RNA")).index("MKI67")].toarray().ravel() > 0
+    >>> cf = genesets.cycling_fraction(ds.obs, mki67, sample_cols=("patient", "timepoint"), by="cell_type")
+    >>> list(cf.columns)
+    ['patient', 'timepoint', 'cell_type', 'n', 'k', 'prop', 'logit_cc']
+    """
     by = [by] if isinstance(by, str) else list(by or [])
     keys = list(sample_cols) + by
     d = pd.DataFrame(meta)[keys].copy()

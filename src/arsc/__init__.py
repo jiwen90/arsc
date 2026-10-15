@@ -1,5 +1,9 @@
 """arsc -- fast, R-validated single-cell compute engine.
 
+Start here: ``arsc.help()`` prints the task -> function map, ``arsc.recipes()`` the runnable recipes
+(``arsc.recipes("compare responders and non-responders")`` finds one from a plain-English question), and
+``arsc.datasets.toy()`` gives a small synthetic dataset to try them on. Agents: read AGENTS.md.
+
 Quick map (see README.md):
     arsc.read(path[, store=dir])                      any format -> Dataset (memory) or Store (mmap)
     arsc.read_h5ad / read_10x_h5 / read_10x_mtx / read_seurat   format-specific readers
@@ -37,7 +41,8 @@ from .scores import add_module_score, score_ucell  # noqa: E402
 from .neighbors import find_neighbors, knn, snn_graph, wnn  # noqa: E402
 from .cluster import cluster, umap  # noqa: E402
 from . import clones, clonotrace, genesets  # noqa: E402
-from . import stats, de  # noqa: E402
+from . import stats, de, datasets  # noqa: E402
+from ._help import help, recipes  # noqa: E402,A004  (task map / runnable recipes)
 from .stats import composition, paired_test, perm_test, glmm_prop  # noqa: E402
 from .de import deseq2, voom, fgsea, msigdb  # noqa: E402
 from . import scanpy_extra  # noqa: E402  (scanpy parity; neighbors/leiden live here as scanpy_extra.*)

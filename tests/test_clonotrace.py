@@ -16,7 +16,8 @@ import scipy.sparse as sp
 from arsc import clonotrace as ct
 from arsc.clones import ari
 
-REF = Path(os.environ.get("ARSC_SCRATCH", Path(__file__).resolve().parents[3] / "scratch" / "arsc_dev")) / "clonotrace_ref"
+REF = Path(os.environ.get("ARSC_TEST_CLONOTRACE_REF")
+           or Path(os.environ.get("ARSC_SCRATCH", "__unset__")) / "clonotrace_ref")
 have_ref = pytest.mark.skipif(not (REF / "coembed.csv").exists(), reason="Clonotrace R references not built")
 
 

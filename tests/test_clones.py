@@ -16,10 +16,10 @@ from scipy import stats
 from arsc import clones as C
 from arsc import genesets as G
 
-ROOT = Path(os.environ.get("AR_ROOT", "E:/autoresearch"))
-REF = Path(os.environ.get("ARSC_SCRATCH", ROOT / "scratch" / "arsc")) / "clones_ref"
-META = ROOT / "projects/cancercell2024-melanoma-icb/cache/cd8_nn_labeled_FORCYCLONE_FINAL_cyclone.meta.csv.gz"
-V3 = ROOT / "data/2023 0129 V3"
+# data-dependent tests read their paths from the environment (tests/conftest.py, tests/local.env)
+REF = Path(os.environ.get("ARSC_SCRATCH", "__unset__")) / "clones_ref"
+META = Path(os.environ.get("ARSC_TEST_CLONES_META", "__unset__"))
+V3 = Path(os.environ.get("ARSC_DATA_V3", "__unset__"))
 TPS = [0, 3, 6, 9]
 have_meta = META.exists()
 have_data = have_meta and (REF / "cyclone_pub_k.csv").exists()
@@ -272,9 +272,35 @@ def test_cycling_fraction_vs_R(meta):
 
 
 @pytest.mark.skipif(not (V3 / "jo_pathways.json").exists(), reason="V3 data missing")
-def test_v3_genesets():
+def test_v3_genesets(monkeypatch):
+    monkeypatch.setattr(G, "DATA_V3", V3)  # load_v3 reads ARSC_DATA_V3; point it at the test folder
     assert len(G.load_v3("pathways")) == 19 and len(G.load_v3("jo_pathways")) == 4
     mods = G.load_v3("hotspot_modules")
     assert {k: len(v) for k, v in mods.items()} == {"module1": 832, "module2": 882, "module3": 754, "module4": 234}
     assert len(G.load_v3("cpdb_all")) == 4589 and len(G.load_v3("cpdb_selected")) == 174
     assert "MKI67" in G.load_v3("gnf2_mki67")["gnf2_mki67"]
+
+
+def test_read_10x_contigs(tmp_path):
+    f = tmp_path / "filtered_contig_annotations.csv"
+    pd.DataFrame({
+        "barcode": ["A-1", "A-1", "A-1", "B-1", "B-1", "C-1", "D-1"],
+        "is_cell": ["true", "true", "true", "true", "true", "true", "false"],
+        "high_confidence": ["true"] * 6 + ["true"],
+        "chain": ["TRA", "TRB", "TRB", "TRB", "TRA", "TRB", "TRB"],
+        "productive": ["true", "true", "true", "true", "true", "false", "true"],
+        "cdr3": ["CA1", "CB1", "CB2", "CB2", "CA1", "CBX", "CBD"],
+        "cdr3_nt": ["aa1", "bb1", "bb2", "bb2", "aa1", "bbx", "bbd"],
+        "v_gene": ["V1", "V2", "V3", "V3", "V1", "V9", "V8"],
+        "j_gene": ["J1", "J2", "J3", "J3", "J1", "J9", "J8"],
+        "umis": [4, 2, 9, 5, 3, 1, 6]}).to_csv(f, index=False)
+    t = C.read_10x_contigs(f, sample="s1").set_index("barcode")
+    assert list(t.index) == ["A-1", "B-1"]                       # C-1 unproductive, D-1 not a cell
+    assert t.loc["A-1", "TRB_cdr3_nt"] == "bb2,bb1"             # highest umis first
+    assert t.loc["A-1", "clone_id"] == "aa1|bb1,bb2"            # sorted inside the id
+    assert t.loc["A-1", "n_TRB"] == 2 and t.loc["B-1", "n_TRA"] == 1
+    assert (t["sample"] == "s1").all()
+    b = C.read_10x_contigs(f, chains=("TRB",), key="cdr3", productive_only=False).set_index("barcode")
+    assert b.loc["C-1", "clone_id"] == "CBX" and b.loc["B-1", "clone_id"] == "CB2"
+    with pytest.raises(KeyError, match="contig_annotations"):
+        C.read_10x_contigs(f, key="nonexistent")

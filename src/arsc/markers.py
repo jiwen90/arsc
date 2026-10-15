@@ -70,14 +70,35 @@ def wilcoxauc(X, groups, *, features=None, groups_use=None, obs: pd.DataFrame | 
     groups : labels per cell, or a column name of ``obs``. NA cells are dropped.
     features : feature names (default ``0..p-1``).
     groups_use : restrict to cells in these groups (presto ``groups_use``).
-    Constant (all-zero) features get ``auc = 0.5, pval = 1`` as in presto.
+    obs : cell metadata, needed only when ``groups`` is a column name.
+
+    Constant (all-zero) features get ``auc = 0.5, pval = 1`` as in presto. ``pval`` is a cell-level
+    test: use it to rank markers, not as evidence for a difference between conditions (for that,
+    pseudobulk per patient and use :func:`arsc.de.deseq2` / :func:`arsc.de.voom`).
 
     Returns
     -------
     Tidy DataFrame (n_groups * n_features rows, group-major like presto):
     ``feature, group, avgExpr, logFC, statistic, auc, pval, padj, pct_in, pct_out``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> mk = arsc.wilcoxauc(L, ds.obs["cell_type"], features=ds.features("RNA"))
+    >>> list(mk.columns)
+    ['feature', 'group', 'avgExpr', 'logFC', 'statistic', 'auc', 'pval', 'padj', 'pct_in', 'pct_out']
+    >>> top = arsc.top_markers(mk, n=3)
+    >>> top[top.group == "B"].feature.tolist()[0] in ("MS4A1", "CD79A", "CD19")
+    True
     """
     if isinstance(groups, str):
+        if obs is None:
+            raise ValueError(f"groups={groups!r} is a column name, so pass obs= (the cell metadata), "
+                             "or pass the labels themselves, e.g. groups=ds.obs[{groups!r}]")
+        if groups not in obs.columns:
+            raise KeyError(f"column {groups!r} not in obs; available: {list(obs.columns)}")
         groups = obs[groups]
     labels = groups if isinstance(groups, pd.Series) else pd.Series(np.asarray(groups))
     labels = labels.reset_index(drop=True)
@@ -85,6 +106,11 @@ def wilcoxauc(X, groups, *, features=None, groups_use=None, obs: pd.DataFrame | 
         X = as_csr(X)
     else:
         X = sp.csr_matrix(np.asarray(X))
+    if len(labels) != X.shape[0]:
+        raise ValueError(f"groups has {len(labels)} labels but X has {X.shape[0]} rows (cells); "
+                         "they must be row-aligned (subset obs and X with the same mask)")
+    if features is not None and len(features) != X.shape[1]:
+        raise ValueError(f"features has {len(features)} names but X has {X.shape[1]} columns")
     if groups_use is not None:
         keep = labels.isin(list(groups_use)).to_numpy()
         X, labels = X[keep], labels[keep].reset_index(drop=True)
@@ -99,7 +125,8 @@ def wilcoxauc(X, groups, *, features=None, groups_use=None, obs: pd.DataFrame | 
     N, P = X.shape
     G = len(glev)
     if G < 2:
-        raise ValueError("Must have at least 2 groups defined.")
+        raise ValueError(f"Must have at least 2 groups defined (found {G}: {list(glev.index)}); "
+                         "check the labels and groups_use")
     C = X.tocsc()
     C.sort_indices()
     rs, nnz, sums, ties = _rank_stats(C.indptr.astype(np.int64), C.indices.astype(np.int64),
@@ -141,7 +168,31 @@ def wilcoxauc(X, groups, *, features=None, groups_use=None, obs: pd.DataFrame | 
 
 def top_markers(res: pd.DataFrame, n: int = 10, auc_min: float = 0.0, padj_max: float = 1.0,
                 pct_in_min: float = 0.0, by: str = "auc") -> pd.DataFrame:
-    """Top ``n`` features per group from :func:`wilcoxauc` output (filters, then sort by ``by``)."""
+    """Top ``n`` features per group from :func:`wilcoxauc` output (filters, then sort by ``by``).
+
+    Parameters
+    ----------
+    res : output of :func:`wilcoxauc`.
+    n : features kept per group.
+    auc_min : minimum AUC.
+    padj_max : maximum BH-adjusted p.
+    pct_in_min : minimum percent of in-group cells expressing.
+    by : column to sort by (descending), default ``"auc"``.
+
+    Returns
+    -------
+    DataFrame with the same columns as ``res``, up to ``n`` rows per group.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> mk = arsc.wilcoxauc(L, ds.obs["cell_type"], features=ds.features("RNA"))
+    >>> top = arsc.top_markers(mk, n=5, auc_min=0.6, padj_max=0.05)
+    >>> int(top.groupby("group").size().max())
+    5
+    """
     r = res[(res.auc >= auc_min) & (res.padj <= padj_max) & (res.pct_in >= pct_in_min)]
     return (r.sort_values(["group", by], ascending=[True, False]).groupby("group", sort=False).head(n)
             .reset_index(drop=True))

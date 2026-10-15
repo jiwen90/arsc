@@ -1,4 +1,4 @@
-"""scanpy functions used in the 02619 notebooks that are not covered by the other arsc modules.
+"""scanpy functions (beyond the other arsc modules) needed to reproduce scanpy-based analyses.
 
 Conventions follow arsc: plain matrices / DataFrames, cells x features, no AnnData, no plotting.
 Each function reproduces the numerics of scanpy 1.11.5 (validated in ``tests/test_scanpy_extra.py``;
@@ -18,13 +18,12 @@ Python                                scanpy
 :func:`neighbors`                     ``sc.pp.neighbors`` (umap-style connectivities, exact kNN)
 :func:`leiden`                        ``sc.tl.leiden`` (flavor leidenalg: same graph + seed -> same labels)
 :func:`umap_from_connectivities`      ``sc.tl.umap`` (min_dist/spread, spectral init, scanpy a/b fit)
-:func:`diffmap`, :func:`dpt`          ``sc.tl.diffmap`` / ``sc.tl.dpt`` (not used by Ming; provided
-                                      for the scanpy pseudotime route)
+:func:`diffmap`, :func:`dpt`          ``sc.tl.diffmap`` / ``sc.tl.dpt`` (the scanpy pseudotime route)
 ====================================  =========================================================
 
 ``sc.pp.normalize_total`` + ``log1p`` = :func:`arsc.pp.log_normalize`; ``sc.pp.scale`` = :func:`arsc.pp.scale`;
 ``sc.tl.pca`` = :func:`arsc.pp.pca`; ``sc.pp.harmony_integrate`` ~ :func:`arsc.run_harmony`;
-``sc.tl.embedding_density``/``paga`` are not used by the notebooks and are not implemented.
+``sc.tl.embedding_density``/``paga`` are not implemented.
 """
 from __future__ import annotations
 
@@ -80,11 +79,32 @@ def _scanpy_norm_kernel(indptr, data, out, target):
 
 
 def normalize_total_log1p(counts, target_sum: float = 1e4, dtype=np.float64) -> sp.csr_matrix:
-    """``sc.pp.normalize_total(target_sum)`` followed by ``sc.pp.log1p``.
+    """``sc.pp.normalize_total(target_sum)`` followed by ``sc.pp.log1p`` (bitwise equal to scanpy).
 
     Differs from :func:`arsc.pp.log_normalize` (Seurat: ``x / s * sf``) only at the 1-ulp level, but that
-    changes tie structure, which matters for rank tests (Wilcoxon) -- use this one to reproduce scanpy
-    ``rank_genes_groups`` p-values exactly. Also equals ``sc.pp.normalize_per_cell(counts_per_cell_after=)``+log1p.
+    changes tie structure, which matters for rank tests (Wilcoxon): use this one to reproduce scanpy
+    ``rank_genes_groups`` p-values exactly. Also equals ``sc.pp.normalize_per_cell(counts_per_cell_after=)``
+    + log1p. Cells with zero counts stay zero.
+
+    Parameters
+    ----------
+    counts : cells x genes raw counts (sparse or dense).
+    target_sum : counts per cell after scaling (default 1e4).
+    dtype : output dtype (default float64).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix of log1p-normalized values, cells x genes.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> L.shape
+    (600, 300)
     """
     X = as_csr(counts)
     out = np.zeros(X.data.shape, dtype=dtype)
@@ -95,22 +115,49 @@ def normalize_total_log1p(counts, target_sum: float = 1e4, dtype=np.float64) -> 
 # --------------------------------------------------------------------------- score_genes
 def score_genes(X, features, gene_list, *, ctrl_size: int = 50, gene_pool=None, n_bins: int = 25,
                 random_state: int = 0, ctrl_as_ref: bool = True, return_controls: bool = False):
-    """``sc.tl.score_genes`` (Seurat-style module score with expression-matched control genes).
+    """``sc.tl.score_genes``: module score with expression-matched control genes (scanpy-exact).
 
-    X : cells x genes (whatever ``adata.X`` / ``.raw.X`` is: log-normalized or scaled; sparse or dense).
-    ``random_state`` (default 0, as scanpy) is the seed of the control-gene sampling. scanpy calls
-    ``np.random.seed(random_state)`` and then ``Series.sample`` on the global RNG; arsc draws the
-    identical stream from a *local* ``np.random.RandomState(random_state)`` (same MT19937 sequence),
-    so the control set, and hence the score, equals scanpy's, without touching numpy's global RNG.
-    ``random_state=None`` (scanpy: "do not reseed", i.e. whatever the global state is) is rejected.
-    Returns the per-cell score (and the control gene Index when ``return_controls``).
+    ``random_state`` (default 0, as scanpy) seeds the control-gene sampling. scanpy calls
+    ``np.random.seed(random_state)`` and then ``Series.sample`` on the global RNG; arsc draws the identical
+    stream from a *local* ``np.random.RandomState(random_state)`` (same MT19937 sequence), so the control set,
+    and hence the score, equals scanpy's, without touching numpy's global RNG. ``random_state=None`` (scanpy:
+    "do not reseed") is rejected.
+
+    Parameters
+    ----------
+    X : cells x genes, whatever ``adata.X`` / ``.raw.X`` would be (log-normalized or scaled; sparse or dense).
+    features : gene names of the columns of ``X``.
+    gene_list : genes of the signature (genes absent from ``features`` are ignored, as scanpy).
+    ctrl_size : control genes drawn per expression bin (default 50).
+    gene_pool : genes to draw controls from (default all).
+    n_bins : number of expression bins (default 25).
+    random_state : integer seed (default 0).
+    ctrl_as_ref : include the signature genes in the control pool (scanpy >= 1.10 default True).
+    return_controls : also return the control genes.
+
+    Returns
+    -------
+    numpy array, one score per cell (plus the control gene Index when ``return_controls``).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> s = sx.score_genes(L, genes, ["CD8A", "CD8B", "GZMK"])
+    >>> s.shape
+    (600,)
     """
     rs = np.random.RandomState(check_seed(random_state, "random_state"))
     var_names = pd.Index(features)
     gl = pd.Index([gene_list] if isinstance(gene_list, str) else gene_list)
     gl = gl.intersection(var_names)
     if len(gl) == 0:
-        raise ValueError("No valid genes were passed for scoring.")
+        raise ValueError("No valid genes were passed for scoring: none of "
+                         f"{list(pd.Index([gene_list] if isinstance(gene_list, str) else gene_list))[:10]} is in "
+                         "`features` (check the gene symbols / species, and that `features` matches X's columns).")
     if gene_pool is None:
         pool = var_names.astype("string")
     else:
@@ -210,18 +257,53 @@ def rank_genes_groups(X, groups, features=None, *, method: str = "wilcoxon", ref
                       groups_subset=None, tie_correct: bool = False, corr_method: str = "benjamini-hochberg",
                       pts: bool = False, n_genes: int | None = None, rankby_abs: bool = False,
                       log1p_base: float | None = None) -> pd.DataFrame:
-    """``sc.tl.rank_genes_groups`` -> tidy table equal to ``sc.get.rank_genes_groups_df(adata, group=None)``.
+    """``sc.tl.rank_genes_groups`` as a tidy table (equal to ``sc.get.rank_genes_groups_df(adata, group=None)``).
 
-    X : cells x genes; expected log1p-normalized (as scanpy assumes: ``logfoldchanges`` use ``expm1``).
-    method : ``"wilcoxon"`` (normal approximation, no continuity correction, scanpy default
-        ``tie_correct=False``), ``"t-test"`` (Welch), ``"t-test_overestim_var"``.
+    Cell-level marker ranking: use it to describe clusters, not as evidence for differences between
+    conditions (cells are not independent replicates; for conditions use :func:`arsc.pseudobulk` + DE).
+
+    Parameters
+    ----------
+    X : cells x genes; expected log1p-normalized (scanpy's ``logfoldchanges`` use ``expm1``).
+    groups : label per cell (e.g. ``ds.obs["leiden"]``).
+    features : gene names (default ``0..p-1``).
+    method : ``"wilcoxon"`` (normal approximation, no continuity correction), ``"t-test"`` (Welch) or
+        ``"t-test_overestim_var"``. ``logreg`` is not implemented.
     reference : ``"rest"`` or one group label (ranks are then computed within group + reference only).
-    Columns: ``group, names, scores, logfoldchanges, pvals, pvals_adj`` (+ ``pct_nz_group, pct_nz_reference``
-    when ``pts``); rows sorted by decreasing score within group (``n_genes`` keeps the top n, by |score| when
-    ``rankby_abs``). ``logreg`` is not implemented.
+    groups_subset : restrict the output to these groups (scanpy ``groups=``).
+    tie_correct : tie correction for wilcoxon (scanpy default False).
+    corr_method : ``"benjamini-hochberg"`` or ``"bonferroni"``.
+    pts : add ``pct_nz_group`` / ``pct_nz_reference``.
+    n_genes : keep the top n genes per group (by |score| when ``rankby_abs``).
+    rankby_abs : rank by absolute score.
+    log1p_base : base used for log1p, if not natural (as ``adata.uns["log1p"]["base"]``).
+
+    Returns
+    -------
+    DataFrame with ``group, names, scores, logfoldchanges, pvals, pvals_adj`` (+ ``pct_nz_*`` with ``pts``),
+    sorted by decreasing score within group.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> rg = sx.rank_genes_groups(L, ds.obs["cell_type"], genes, n_genes=3)
+    >>> sorted(rg[rg.group == "B"]["names"])
+    ['CD19', 'CD79A', 'MS4A1']
     """
     if method not in ("wilcoxon", "t-test", "t-test_overestim_var"):
-        raise NotImplementedError(method)
+        raise NotImplementedError(f"rank_genes_groups: method {method!r} is not implemented; use 'wilcoxon', "
+                                  "'t-test' or 't-test_overestim_var' (logreg is not ported)")
+    if corr_method not in ("benjamini-hochberg", "bonferroni"):
+        raise ValueError(f"corr_method must be 'benjamini-hochberg' or 'bonferroni', got {corr_method!r}")
+    if len(groups) != X.shape[0]:
+        raise ValueError(f"rank_genes_groups: {len(groups)} group labels for {X.shape[0]} cells; pass one label "
+                         "per row of X (same order)")
+    if features is not None and len(features) != X.shape[1]:
+        raise ValueError(f"rank_genes_groups: {len(features)} feature names for {X.shape[1]} columns of X")
     lab = pd.Series(np.asarray(groups)).reset_index(drop=True)
     cat = lab.astype("category")
     levels = list(cat.cat.categories)
@@ -233,7 +315,8 @@ def rank_genes_groups(X, groups, features=None, *, method: str = "wilcoxon", ref
     N, P = X.shape
     names = np.asarray(pd.Index(features) if features is not None else pd.RangeIndex(P))
     if reference != "rest" and reference not in levels:
-        raise ValueError(f"reference {reference!r} not found")
+        raise ValueError(f"reference {reference!r} not found among the group labels {levels[:20]}; "
+                         "use 'rest' or one of these labels")
     sel = [g for g in sel if g != reference] if reference != "rest" else sel
     expm1 = (lambda x: np.expm1(x * np.log(log1p_base))) if log1p_base else np.expm1
     Xs = as_csr(X) if sp.issparse(X) else np.asarray(X)
@@ -324,12 +407,41 @@ def highly_variable_genes(X, features=None, *, flavor: str = "seurat", n_top_gen
                           log1p_base: float | None = None, batch_key=None) -> pd.DataFrame:
     """``sc.pp.highly_variable_genes`` for ``flavor`` in ``seurat`` | ``cell_ranger`` | ``seurat_v3``.
 
-    seurat / cell_ranger: X = log1p-normalized cells x genes. Columns ``means, dispersions,
-    dispersions_norm, highly_variable`` (exactly scanpy's). With ``n_top_genes`` the cutoffs are ignored.
-    seurat_v3: X = RAW counts; delegates to :func:`arsc.pp.hvg_vst` (Seurat vst, R-validated; scanpy's
-    skmisc loess is the same model). Columns ``means, variances, variances_norm, highly_variable_rank,
-    highly_variable_nbatches, highly_variable``; ``batch_key`` (array of labels, v3 only) gives scanpy's
-    per-batch ranking with median rank. ``batch_key`` is not supported for seurat / cell_ranger.
+    seurat / cell_ranger: ``X`` = log1p-normalized cells x genes; columns ``means, dispersions,
+    dispersions_norm, highly_variable`` (exactly scanpy's). With ``n_top_genes`` the mean/dispersion cutoffs
+    are ignored. seurat_v3: ``X`` = RAW counts; delegates to :func:`arsc.pp.hvg_vst` (Seurat vst, R-validated;
+    scanpy's skmisc loess is the same model); columns ``means, variances, variances_norm,
+    highly_variable_rank, highly_variable_nbatches, highly_variable``.
+
+    Parameters
+    ----------
+    X : cells x genes (log1p-normalized for seurat/cell_ranger; raw counts for seurat_v3).
+    features : gene names (index of the result).
+    flavor : ``"seurat"`` (default), ``"cell_ranger"``, ``"seurat_v3"`` (or ``"seurat_v3_paper"``).
+    n_top_genes : number of genes to flag (required for seurat_v3).
+    min_mean, max_mean, min_disp, max_disp : cutoffs for seurat/cell_ranger when ``n_top_genes`` is None.
+    n_bins : number of mean bins for dispersion normalisation (default 20).
+    span : loess span for seurat_v3 (default 0.3).
+    log1p_base : base used for log1p, if not natural.
+    batch_key : array of batch labels (seurat_v3 only): per-batch ranking combined by median rank, as scanpy.
+
+    Returns
+    -------
+    DataFrame indexed by gene with the scanpy columns listed above.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> hv = sx.highly_variable_genes(L, genes, n_top_genes=50)
+    >>> int(hv["highly_variable"].sum())
+    50
+    >>> v3 = sx.highly_variable_genes(ds.X("RNA", "counts"), genes, flavor="seurat_v3", n_top_genes=50)
+    >>> "variances_norm" in v3.columns
+    True
     """
     names = pd.Index(features) if features is not None else pd.RangeIndex(X.shape[1])
     if flavor in ("seurat_v3", "seurat_v3_paper"):
@@ -432,8 +544,32 @@ def dendrogram(rep, groups, *, cor_method: str = "pearson", linkage_method: str 
                optimal_ordering: bool = False) -> dict:
     """``sc.tl.dendrogram``: hierarchical clustering of group means of a representation (PCA by default).
 
-    rep : cells x d array (``X_pca``) or a DataFrame of genes (``var_names`` mode).
-    Returns ``linkage, categories_ordered, categories_idx_ordered, correlation_matrix``.
+    Parameters
+    ----------
+    rep : cells x d array (e.g. ``X_pca``) or a cells x genes DataFrame (``var_names`` mode).
+    groups : label per cell.
+    cor_method : correlation between group means: ``"pearson"`` (default), ``"spearman"``, ``"kendall"``.
+    linkage_method : scipy linkage method (default ``"complete"``).
+    optimal_ordering : scipy optimal leaf ordering.
+
+    Returns
+    -------
+    dict with ``linkage``, ``categories_ordered``, ``categories_idx_ordered``, ``correlation_matrix`` and
+    ``dendrogram_info`` (scipy ``dendrogram`` output, no plotting).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> dn = sx.dendrogram(pcs, ds.obs["cell_type"])
+    >>> sorted(dn["categories_ordered"])
+    ['B', 'CD4 T', 'CD8 T', 'Mono', 'NK']
     """
     import scipy.cluster.hierarchy as sch
     from scipy.spatial import distance
@@ -454,8 +590,27 @@ def dendrogram(rep, groups, *, cor_method: str = "pearson", linkage_method: str 
 def regress_out(X, covariates, *, categorical: bool = False) -> np.ndarray:
     """``sc.pp.regress_out``: residuals of every gene after OLS on ``covariates`` (+ intercept).
 
-    X : cells x genes (sparse is densified, as scanpy). covariates : cells x k numeric array/DataFrame, or
-    (``categorical=True``) a single label vector, in which case each gene is centered per category.
+    Parameters
+    ----------
+    X : cells x genes (sparse is densified, as scanpy; subset genes first for large data).
+    covariates : cells x k numeric array / DataFrame, or (``categorical=True``) one label vector.
+    categorical : treat ``covariates`` as a single categorical key: each gene is centered per category.
+
+    Returns
+    -------
+    dense numpy array of residuals, cells x genes.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> import numpy as np
+    >>> depth = np.asarray(ds.X("RNA", "counts").sum(1)).ravel()
+    >>> sx.regress_out(L[:, :20], depth[:, None]).shape
+    (600, 20)
     """
     Xd = X.toarray() if sp.issparse(X) else np.asarray(X)
     Xd = Xd.astype(np.float64 if Xd.dtype.itemsize > 4 or Xd.dtype.kind == "i" else Xd.dtype, copy=True)
@@ -488,10 +643,32 @@ def _top_pct(indptr, data, tops, total):
 
 
 def qc_metrics(counts, features=None, qc_vars: dict | None = None, percent_top=(20,), log1p: bool = True) -> pd.DataFrame:
-    """``sc.pp.calculate_qc_metrics`` (cell-level) on a raw-counts matrix.
+    """``sc.pp.calculate_qc_metrics`` (cell-level columns) on a raw-counts matrix.
 
-    qc_vars : ``{"mt": bool_mask_or_gene_list, ...}``. Returns ``n_genes_by_counts, total_counts,
-    pct_counts_in_top_<n>_genes, total_counts_<v>, pct_counts_<v>`` (+ ``log1p_`` versions), as scanpy.
+    Parameters
+    ----------
+    counts : cells x genes raw counts.
+    features : gene names (needed when ``qc_vars`` values are gene lists).
+    qc_vars : ``{"mt": boolean mask or list of genes, ...}``.
+    percent_top : top-N gene counts for ``pct_counts_in_top_<N>_genes`` (default ``(20,)``).
+    log1p : add ``log1p_`` versions (default True).
+
+    Returns
+    -------
+    DataFrame, one row per cell: ``n_genes_by_counts, total_counts, pct_counts_in_top_<n>_genes,
+    total_counts_<v>, pct_counts_<v>`` (+ ``log1p_*``), as scanpy.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> qc = sx.qc_metrics(ds.X("RNA", "counts"), genes, qc_vars={"mt": genes.str.startswith("MT-")})
+    >>> keep = (qc["n_genes_by_counts"] >= 20) & (qc["pct_counts_mt"] < 20)
+    >>> "pct_counts_mt" in qc.columns
+    True
     """
     C = as_csr(counts)
     n_genes = np.diff(C.indptr).astype(np.int64)
@@ -525,11 +702,33 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
     """``sc.pp.neighbors`` (``method="umap"``): kNN + UMAP fuzzy-simplicial-set connectivities.
 
     Uses arsc's *exact* kNN (scanpy uses exact kNN below 4,096 cells and approximate pynndescent above, so
-    graphs agree exactly only for small data; ``method="pynndescent"`` reproduces the large-n route).
-    As scanpy, ``n_neighbors`` counts the cell itself (n_neighbors-1 real neighbours).
-    metric : ``"euclidean"`` | ``"cosine"``. Returns ``{"connectivities", "distances", "indices"}``.
-    random_state : seed (default 0, as scanpy) passed to the kNN; matters only for ``method="pynndescent"``
-        (the exact kNN and the fuzzy-simplicial-set step are deterministic).
+    graphs agree exactly only for small data; ``method="pynndescent"`` reproduces the large-n route). As
+    scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbours).
+
+    Parameters
+    ----------
+    emb : cells x d embedding (e.g. PCA or Harmony).
+    n_neighbors : neighbourhood size including the cell itself (default 15).
+    metric : ``"euclidean"`` or ``"cosine"``.
+    method : ``"exact"`` (default) or ``"pynndescent"``.
+    random_state : integer seed (default 0) passed to the kNN; matters only for ``"pynndescent"``.
+
+    Returns
+    -------
+    dict ``{"connectivities", "distances", "indices"}`` (sparse cells x cells graphs and the kNN index array).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> sorted(nn)
+    ['connectivities', 'distances', 'indices']
     """
     random_state = check_seed(random_state, "random_state")
     from umap.umap_ import fuzzy_simplicial_set
@@ -557,13 +756,40 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
 
 def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_iterations: int = -1,
            directed: bool = True, use_weights: bool = True, flavor: str = "leidenalg") -> np.ndarray:
-    """``sc.tl.leiden`` on a connectivities graph (default scanpy 1.11 settings: leidenalg, directed graph,
-    ``n_iterations=-1``, ``RBConfigurationVertexPartition``). Same graph + seed -> identical labels.
+    """``sc.tl.leiden`` on a connectivities graph (scanpy 1.11 defaults); same graph + seed -> identical labels.
 
-    Returns integer labels exactly as leidenalg numbers them (scanpy stores these as strings).
-    ``random_state`` (default 0, as scanpy) is leidenalg's ``seed``; for ``flavor="igraph"`` a private
-    ``random.Random(random_state)`` is installed as igraph's RNG for the call and igraph's default RNG
-    restored afterwards (Python's global ``random`` state is never touched).
+    Default settings: leidenalg, directed graph, ``n_iterations=-1``, ``RBConfigurationVertexPartition``.
+    Labels are integers exactly as leidenalg numbers them (scanpy stores them as strings). For
+    ``flavor="igraph"`` a private ``random.Random(random_state)`` is installed as igraph's RNG for the call and
+    igraph's default RNG restored afterwards (Python's global ``random`` state is never touched).
+
+    Parameters
+    ----------
+    connectivities : cells x cells weighted graph (``neighbors(...)["connectivities"]``).
+    resolution : resolution parameter (default 1.0; higher = more clusters).
+    random_state : integer seed (default 0).
+    n_iterations : leidenalg iterations (-1 = until stable).
+    directed : build a directed igraph graph (scanpy default True for leidenalg).
+    use_weights : use edge weights.
+    flavor : ``"leidenalg"`` (default) or ``"igraph"`` (modularity, undirected).
+
+    Returns
+    -------
+    numpy integer array of cluster labels, one per cell.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> labels = sx.leiden(nn["connectivities"], resolution=0.5)
+    >>> labels.shape
+    (600,)
     """
     import igraph as ig
 
@@ -600,13 +826,41 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
 def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: float = 1.0, n_components: int = 2,
                              maxiter: int | None = None, alpha: float = 1.0, gamma: float = 1.0,
                              negative_sample_rate: int = 5, init_pos: str = "spectral", random_state: int = 0) -> np.ndarray:
-    """``sc.tl.umap``: layout optimisation on the scanpy connectivities graph (not on raw X).
+    """``sc.tl.umap``: UMAP layout optimisation on the scanpy connectivities graph (not on raw X).
 
     Same call path as scanpy (``umap.umap_.simplicial_set_embedding`` with ``a, b = find_ab_params``).
-    scanpy defaults: ``min_dist=0.5``; Ming used ``min_dist=0.4, spread=1.0`` for the final figures.
-    ``random_state`` (default 0, as scanpy) seeds the spectral-init noise and the SGD layout through a local
-    ``RandomState``; umap-learn then runs the layout single-threaded, so same graph + seed -> bit-identical
-    coordinates. Pass other integers for alternative layouts; ``None`` is rejected.
+    ``random_state`` seeds the spectral-init noise and the SGD layout through a local ``RandomState``;
+    umap-learn then runs the layout single-threaded, so same graph + seed -> bit-identical coordinates.
+
+    Parameters
+    ----------
+    connectivities : cells x cells graph from :func:`neighbors`.
+    min_dist : minimum distance (scanpy default 0.5).
+    spread : effective scale of embedded points (default 1.0).
+    n_components : output dimensions (default 2).
+    maxiter : number of epochs (default: 500 up to 10,000 cells, else 200, as scanpy).
+    alpha : initial learning rate.
+    gamma : repulsion strength.
+    negative_sample_rate : negative samples per positive edge.
+    init_pos : ``"spectral"`` (default) or ``"random"``.
+    random_state : integer seed (default 0); ``None`` is rejected.
+
+    Returns
+    -------
+    numpy array, cells x ``n_components`` coordinates.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> sx.umap_from_connectivities(nn["connectivities"], maxiter=50).shape
+    (600, 2)
     """
     from sklearn.utils import check_random_state
     from umap.umap_ import find_ab_params, simplicial_set_embedding
@@ -629,11 +883,32 @@ def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: f
 
 # --------------------------------------------------------------------------- diffmap / dpt
 def diffmap(connectivities, n_comps: int = 15, *, random_state: int = 0) -> dict:
-    """``sc.tl.diffmap`` on a scanpy connectivities graph (symmetric, ``transitions_sym`` eigendecomposition).
+    """``sc.tl.diffmap`` on a scanpy connectivities graph (symmetric ``transitions_sym`` eigendecomposition).
 
-    Returns ``evals`` (n_comps) and ``X_diffmap`` (cells x n_comps; column 0 is the stationary component,
-    as scanpy), plus the transition matrix pieces needed by :func:`dpt`.
-    ``random_state`` (default 0, as scanpy) seeds the ARPACK start vector (local ``RandomState``).
+    Parameters
+    ----------
+    connectivities : cells x cells graph from :func:`neighbors`.
+    n_comps : number of diffusion components (default 15).
+    random_state : integer seed (default 0) for the ARPACK start vector (local ``RandomState``).
+
+    Returns
+    -------
+    dict with ``evals`` (n_comps), ``X_diffmap`` (cells x n_comps; column 0 is the stationary component, as
+    scanpy) and the transition matrix pieces (``Tsym``, ``q``) needed by :func:`dpt`.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> dm = sx.diffmap(nn["connectivities"], n_comps=10)
+    >>> dm["X_diffmap"].shape
+    (600, 10)
     """
     random_state = check_seed(random_state, "random_state")
     from scipy.sparse.linalg import eigsh
@@ -653,11 +928,37 @@ def diffmap(connectivities, n_comps: int = 15, *, random_state: int = 0) -> dict
 
 
 def dpt(dm: dict, root: int, n_dcs: int = 10, *, thresh: float = 0.9994) -> np.ndarray:
-    """``sc.tl.dpt`` pseudotime (``n_branchings=0``) from :func:`diffmap` output; ``root`` = cell index.
+    """``sc.tl.dpt`` diffusion pseudotime (``n_branchings=0``) from :func:`diffmap` output.
 
-    Distance to the root in diffusion space (Haghverdi 2016 with the Wolf 2019 stationary-state term):
-    sum over the first ``n_dcs`` components of ``(l/(1-l) (psi_i - psi_root))^2`` for l < ``thresh``, plus the
-    plain squared difference for l >= ``thresh``; then sqrt and divide by the maximum. Connected graph assumed.
+    Distance to the root in diffusion space (Haghverdi 2016 with the Wolf 2019 stationary-state term): sum over
+    the first ``n_dcs`` components of ``(l / (1 - l) (psi_i - psi_root))^2`` for l < ``thresh``, plus the plain
+    squared difference for l >= ``thresh``; then sqrt and divide by the maximum. A connected graph is assumed.
+
+    Parameters
+    ----------
+    dm : output of :func:`diffmap`.
+    root : index (position) of the root cell.
+    n_dcs : number of diffusion components used (default 10).
+    thresh : eigenvalue threshold of the stationary-state term (default 0.9994).
+
+    Returns
+    -------
+    numpy array, pseudotime per cell in [0, 1] (0 at the root).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> dm = sx.diffmap(nn["connectivities"], n_comps=10)
+    >>> t = sx.dpt(dm, root=0)
+    >>> float(t[0])
+    0.0
     """
     w = np.asarray(dm["evals"][:n_dcs], dtype=np.float32).astype(np.float64)
     V = np.asarray(dm["X_diffmap"][:, :n_dcs], dtype=np.float32).astype(np.float64)
@@ -675,11 +976,37 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
     """``palantir.utils.run_diffusion_maps`` (adaptive anisotropic kernel, Setty 2019).
 
     kNN (self excluded, ``knn - 1`` neighbours as scanpy's distance matrix), adaptive bandwidth = distance to
-    the ``floor(knn/3)``-th neighbour, kernel ``exp(-d / sigma_i)`` symmetrized as ``W + W^T``, row-normalized
-    transition ``T``, ``eigs`` with palantir's tolerance and start vector (``default_rng(seed).random``).
-    Returns ``kernel, T, EigenVectors (cells x n_components), EigenValues`` (descending; vectors unit norm).
-    Exact kNN here vs scanpy's approximate kNN for > 4,096 cells in palantir: identical below that size.
-    ``seed`` (default 0, as palantir) seeds the ARPACK start vector and the kNN (``method="pynndescent"``).
+    the ``floor(knn / 3)``-th neighbour, kernel ``exp(-d / sigma_i)`` symmetrized as ``W + W^T``, row-normalized
+    transition ``T``, ``eigs`` with palantir's tolerance and start vector (``default_rng(seed).random``). Exact
+    kNN here vs scanpy's approximate kNN for > 4,096 cells in palantir: identical below that size.
+
+    Parameters
+    ----------
+    emb : cells x d embedding (e.g. PCA / Harmony).
+    n_components : number of eigenvectors (default 10).
+    knn : neighbourhood size (default 30).
+    alpha : anisotropy (default 0).
+    seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN (pynndescent).
+    method : kNN method, ``"exact"`` (default) or ``"pynndescent"``.
+
+    Returns
+    -------
+    dict with ``kernel``, ``T`` (sparse cells x cells), ``EigenVectors`` (cells x n_components, unit norm) and
+    ``EigenValues`` (descending).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> dm = sx.palantir_diffusion_maps(pcs, n_components=10)
+    >>> dm["EigenVectors"].shape
+    (600, 10)
     """
     seed = check_seed(seed)
     from scipy.sparse.linalg import eigs
@@ -713,8 +1040,31 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
 
 
 def palantir_multiscale_space(dm: dict, n_eigs: int | None = None) -> np.ndarray:
-    """``palantir.utils.determine_multiscale_space``: eigenvectors 1..n_eigs-1 scaled by ``l / (1 - l)``;
-    ``n_eigs`` defaults to palantir's eigen-gap rule (at least 3)."""
+    """``palantir.utils.determine_multiscale_space``: eigenvectors 1..n_eigs-1 scaled by ``l / (1 - l)``.
+
+    Parameters
+    ----------
+    dm : output of :func:`palantir_diffusion_maps`.
+    n_eigs : number of eigenvectors to use (default: palantir's eigen-gap rule, at least 3).
+
+    Returns
+    -------
+    numpy array, cells x (n_eigs - 1) multiscale space.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> dm = sx.palantir_diffusion_maps(pcs, n_components=10)
+    >>> sx.palantir_multiscale_space(dm, n_eigs=4).shape
+    (600, 3)
+    """
     vals = np.ravel(dm["EigenValues"])
     if n_eigs is None:
         gap = vals[:-1] - vals[1:]
@@ -731,8 +1081,36 @@ def palantir_multiscale_space(dm: dict, n_eigs: int | None = None) -> np.ndarray
 def magic_impute(X, T, n_steps: int = 3, clip_threshold: float = 1e-2, dtype=np.float32, chunk: int = 500):
     """``palantir.utils.run_magic_imputation``: ``T^n_steps @ X``, values below ``clip_threshold`` set to 0.
 
-    X: cells x genes (sparse or dense). Applies ``T`` ``n_steps`` times to dense gene chunks instead of forming
-    the denser ``T^n_steps`` (same result up to float32 rounding, ~1e-6 relative). Returns CSR.
+    Applies ``T`` ``n_steps`` times to dense gene chunks instead of forming the denser ``T^n_steps`` (same
+    result up to float32 rounding, ~1e-6 relative). Imputed values are smoothed over neighbours: use them for
+    visualisation, not as independent observations in tests.
+
+    Parameters
+    ----------
+    X : cells x genes (sparse or dense), e.g. log-normalized data of the genes of interest.
+    T : cells x cells row-stochastic transition matrix (``palantir_diffusion_maps(...)["T"]``).
+    n_steps : diffusion steps (default 3).
+    clip_threshold : values below this are set to 0 (default 0.01).
+    dtype : computation dtype (default float32).
+    chunk : genes per dense chunk (default 500).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix, cells x genes.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import scanpy_extra as sx
+    >>> ds = arsc.datasets.toy(n_cells=600)
+    >>> genes = ds.features("RNA")
+    >>> L = sx.normalize_total_log1p(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> nn = sx.neighbors(pcs, n_neighbors=15)
+    >>> dm = sx.palantir_diffusion_maps(pcs, n_components=10)
+    >>> sx.magic_impute(L[:, :20], dm["T"]).shape
+    (600, 20)
     """
     Tn = sp.csr_matrix(T).astype(dtype)
     out = []

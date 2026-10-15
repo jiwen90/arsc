@@ -1,5 +1,5 @@
 {
-  "store": "E:/autoresearch/scratch/arsc/exp_pbmc",
+  "store": "$ARSC_SCRATCH/exp_pbmc (PBMC CITE-seq store, 259,899 cells)",
   "rna_counts_GB": 2.734518311917782,
   "runs": [
     {

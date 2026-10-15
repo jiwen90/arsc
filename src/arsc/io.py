@@ -6,7 +6,7 @@ Workflow::
     st = arsc.open("store/")            # lazy, zero-copy: nothing is read yet
     st.obs                              # metadata (parquet)
     st.get_features(["CD8A", "GZMB"])   # touches only those genes' bytes (CSC)
-    sub = st.subset(st.obs.sample == "ALQ13912")   # materializes only those cells
+    sub = st.subset(st.obs["sample"] == "P1_pre")   # materializes only those cells
     X = st.X("RNA", "counts")           # full CSR backed by the page cache (no copy)
 
 Every array is an NPY file opened with ``np.load(mmap_mode="r")`` and wrapped
@@ -47,13 +47,44 @@ __all__ = [
 
 
 def exporter_script() -> Path:
-    """Path of the bundled R exporter (``Rscript <path> <obj.rds|.qs> <out_dir>``)."""
+    """Path of the bundled R exporter (``Rscript <path> <obj.rds|.qs> <out_dir>``).
+
+    Returns
+    -------
+    pathlib.Path of ``export_seurat.R`` inside the installed package.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> arsc.exporter_script().name
+    'export_seurat.R'
+    """
     return Path(__file__).with_name("R") / "export_seurat.R"
 
 
 def export_seurat(obj_path, out_dir, *, assays=None, layers=("counts",), graphs: bool = True,
                   reductions: bool = True, rscript: str = "Rscript", threads: int = 16) -> Path:
-    """Run the R exporter on a ``.rds``/``.qs`` Seurat object (v4 or v5); returns ``out_dir``."""
+    """Run the R exporter on a ``.rds``/``.qs`` Seurat object (v4 or v5); prefer :func:`arsc.read_seurat`.
+
+    Parameters
+    ----------
+    obj_path : ``.rds`` or ``.qs`` file.
+    out_dir : store directory to write.
+    assays : assays to export (default all).
+    layers : layers to export (``"counts"``, ``"data"``, ``"scale.data"``).
+    graphs, reductions : export graphs / reductions.
+    rscript : path of ``Rscript``.
+    threads : R threads.
+
+    Returns
+    -------
+    pathlib.Path ``out_dir`` (open it with :func:`open`). Needs R with SeuratObject (and qs).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> arsc.export_seurat("obj.qs", "stores/obj", layers=("counts", "data"))   # doctest: +SKIP
+    """
     cmd = [rscript, str(exporter_script()), str(obj_path), str(out_dir),
            "--layers", ",".join(layers), "--threads", str(threads)]
     if assays:
@@ -69,7 +100,24 @@ def export_seurat(obj_path, out_dir, *, assays=None, layers=("counts",), graphs:
 # --------------------------------------------------------------------------- containers
 @dataclass
 class Assay:
-    """One modality. Every layer is a cells x features ``scipy.sparse.csr_matrix``."""
+    """One modality (RNA, ADT, ...). Every layer is a cells x features ``scipy.sparse.csr_matrix``.
+
+    Attributes
+    ----------
+    name : assay name.
+    features : feature names.
+    layers : ``{layer: csr_matrix}`` (e.g. ``counts``, ``data``).
+    variable_features : variable features recorded at import.
+    var : optional per-feature annotations.
+    varm : per-feature matrices.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> a = arsc.datasets.toy()["ADT"]
+    >>> a.name, len(a.features), list(a.layers)
+    ('ADT', 6, ['counts'])
+    """
 
     name: str
     features: pd.Index
@@ -82,7 +130,14 @@ class Assay:
         return self.layers[layer]
 
     def var_frame(self) -> pd.DataFrame:
-        """Per-feature annotations (empty frame indexed by feature names if none were imported)."""
+        """Per-feature annotations (empty frame indexed by feature names if none were imported).
+
+        Examples
+        --------
+        >>> import arsc
+        >>> arsc.datasets.toy()["RNA"].var_frame().shape
+        (300, 0)
+        """
         if self.var is None:
             return pd.DataFrame(index=pd.Index(self.features, dtype=object))
         v = self.var.copy()
@@ -96,7 +151,23 @@ class Assay:
 
 @dataclass
 class Reduction:
-    """Cell embedding (cells x k), optional feature loadings and stdev."""
+    """Cell embedding (cells x k), optional feature loadings and stdev.
+
+    Attributes
+    ----------
+    embedding : cells x k array.
+    columns : column names (e.g. ``PC_1``...).
+    loadings : optional features x k DataFrame.
+    stdev : optional per-component s.d.
+    assay : assay the reduction was computed from.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> r = arsc.Reduction(np.zeros((5, 2)), ["PC_1", "PC_2"])
+    >>> r.to_frame().shape
+    (5, 2)
+    """
 
     embedding: np.ndarray
     columns: list
@@ -105,6 +176,7 @@ class Reduction:
     assay: str | None = None
 
     def to_frame(self, index=None) -> pd.DataFrame:
+        """Embedding as a DataFrame (``index`` = cell barcodes, e.g. ``ds.cells``)."""
         return pd.DataFrame(np.asarray(self.embedding), index=index, columns=self.columns)
 
     def __repr__(self) -> str:
@@ -113,7 +185,30 @@ class Reduction:
 
 @dataclass
 class Dataset:
-    """In-memory (or mmap-backed) container: ``obs``, ``assays``, ``reductions``, ``graphs``."""
+    """In-memory (or mmap-backed) container: ``obs``, ``assays``, ``reductions``, ``graphs``.
+
+    Returned by :func:`arsc.read` (no ``store=``), :meth:`Store.subset` and :func:`arsc.datasets.toy`.
+    Every matrix is cells x features (CSR).
+
+    Attributes
+    ----------
+    obs : per-cell metadata (index = barcodes).
+    assays : ``{name: Assay}``; ``ds.X(assay, layer)`` returns a matrix.
+    reductions : ``{name: Reduction}``; ``ds.embedding(name)``.
+    graphs : ``{name: csr_matrix}``.
+    manifest : store manifest (provenance).
+    uns : unstructured metadata.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> ds.n_cells, list(ds.assays), ds.layers("RNA")
+    (3000, ['RNA', 'ADT'], ['counts'])
+    >>> cd8 = ds.subset((ds.obs["cell_type"] == "CD8 T").to_numpy())
+    >>> cd8.X("RNA", "counts").shape[1]
+    300
+    """
 
     obs: pd.DataFrame
     assays: dict = field(default_factory=dict)
@@ -126,13 +221,16 @@ class Dataset:
         return self.assays[assay]
 
     def features(self, assay: str = "RNA") -> pd.Index:
-        return self.assays[assay].features
+        """Feature (gene) names of an assay."""
+        return self._assay_or_raise(assay).features
 
     def var(self, assay: str = "RNA") -> pd.DataFrame:
-        return self.assays[assay].var_frame()
+        """Per-feature annotations of an assay."""
+        return self._assay_or_raise(assay).var_frame()
 
     def layers(self, assay: str = "RNA") -> list:
-        return list(self.assays[assay].layers)
+        """Layer names of an assay."""
+        return list(self._assay_or_raise(assay).layers)
 
     def to_anndata(self, cells=None, genes=None, **kw):
         """In-memory ``anndata.AnnData`` (see :func:`arsc.to_anndata`)."""
@@ -146,23 +244,75 @@ class Dataset:
 
     @property
     def n_cells(self) -> int:
+        """Number of cells."""
         return len(self.obs)
 
     @property
     def cells(self) -> pd.Index:
+        """Cell barcodes (``obs.index``)."""
         return self.obs.index
 
     def X(self, assay: str = "RNA", layer: str | None = None) -> sp.csr_matrix:
-        """Cells x features matrix for ``assay``/``layer`` (default: counts, else first layer)."""
-        a = self.assays[assay]
-        return a.layers[layer or _default_layer(a.layers)]
+        """Cells x features matrix for ``assay``/``layer`` (default: counts, else first layer).
+
+        Examples
+        --------
+        >>> import arsc
+        >>> arsc.datasets.toy().X("ADT", "counts").shape
+        (3000, 6)
+        """
+        a = self._assay_or_raise(assay)
+        layer = layer or _default_layer(a.layers)
+        if layer not in a.layers:
+            raise KeyError(f"layer {layer!r} not in assay {assay!r} (has {list(a.layers)})")
+        return a.layers[layer]
+
+    def get_features(self, features, assay: str = "RNA", layer: str | None = None, dense: bool = True):
+        """Values of selected features for all cells (mirrors :meth:`Store.get_features`).
+
+        Returns a cells x features DataFrame (``dense=True``) or a CSC matrix.
+        Unknown names raise ``KeyError``.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> ds = arsc.datasets.toy()
+        >>> df = ds.get_features(["CD8A", "MS4A1"])
+        >>> list(df.columns), len(df) == ds.n_cells
+        (['CD8A', 'MS4A1'], True)
+        """
+        names = [features] if isinstance(features, str) else list(features)
+        fidx = self.features(assay).get_indexer(names)
+        if (fidx < 0).any():
+            raise KeyError(f"not in {assay}: {[n for n, i in zip(names, fidx) if i < 0]} (gene symbols are "
+                           "case-sensitive; check ds.features(assay))")
+        sub = sp.csc_matrix(self.X(assay, layer)[:, fidx])
+        if not dense:
+            return sub
+        return pd.DataFrame(sub.toarray(), index=self.cells, columns=names)
+
+    def _assay_or_raise(self, assay: str) -> "Assay":
+        if assay not in self.assays:
+            raise KeyError(f"assay {assay!r} not in dataset (has {list(self.assays)})")
+        return self.assays[assay]
 
     def embedding(self, name: str, dims=None) -> np.ndarray:
+        """Cells x k embedding of reduction ``name`` (optionally only columns ``dims``)."""
+        if name not in self.reductions:
+            raise KeyError(f"reduction {name!r} not found (has {list(self.reductions)})")
         e = self.reductions[name].embedding
         return np.asarray(e if dims is None else e[:, list(dims)])
 
     def subset(self, cells) -> "Dataset":
-        """Row subset (boolean mask, positions or barcodes); copies only the selected rows."""
+        """Row subset (boolean mask, positions or barcodes); copies only the selected rows.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> ds = arsc.datasets.toy()
+        >>> ds.subset((ds.obs["timepoint"] == "pre").to_numpy()).n_cells < ds.n_cells
+        True
+        """
         idx = _as_positions(cells, self.obs.index)
         assays = {k: Assay(a.name, a.features, {l: _take_rows(m, idx) for l, m in a.layers.items()},
                            list(a.variable_features), a.var, dict(a.varm)) for k, a in self.assays.items()}
@@ -194,15 +344,21 @@ def _as_positions(cells, index: pd.Index) -> np.ndarray:
     if isinstance(cells, pd.Series):
         cells = cells.to_numpy()
     cells = np.asarray(cells)
+    if cells.dtype == object and cells.size and all(isinstance(v, (bool, np.bool_)) or v is pd.NA for v in cells[:100]):
+        raise TypeError("cells looks like a nullable boolean mask (object/'boolean' dtype); convert it with "
+                        "mask.fillna(False).to_numpy(dtype=bool)")
     if cells.dtype == bool:
         if cells.size != len(index):
-            raise ValueError("boolean mask has wrong length")
+            raise ValueError(f"boolean mask has length {cells.size} but there are {len(index)} cells; build the mask "
+                             "from this object's obs (e.g. (st.obs['cell_type'] == 'B').to_numpy())")
         return np.flatnonzero(cells)
     if np.issubdtype(cells.dtype, np.integer):
         return cells.astype(np.int64)
     pos = index.get_indexer(cells)
     if (pos < 0).any():
-        raise KeyError(f"{int((pos < 0).sum())} barcodes not found")
+        bad = [c for c, p in zip(cells[:1000], pos[:1000]) if p < 0][:3]
+        raise KeyError(f"{int((pos < 0).sum())} barcodes not found (e.g. {bad}); pass a boolean mask, integer "
+                       "positions, or barcodes present in obs.index")
     return pos.astype(np.int64)
 
 
@@ -379,13 +535,40 @@ class _Lock:
 
 
 class Store:
-    """Lazy, memory-mapped handle on an arsc store directory (see :func:`open`)."""
+    """Lazy, memory-mapped handle on an arsc store directory (see :func:`open`).
+
+    Nothing is read until asked for: ``st.obs`` reads the metadata, ``st.X(assay, layer)`` returns a
+    zero-copy CSR backed by the OS page cache (shared by all processes), ``st.get_features`` reads
+    only the requested genes, ``st.subset(mask)`` materializes only those cells.
+
+    Parameters
+    ----------
+    path : store directory (contains ``manifest.json``).
+    finalize : build the one-time ``obs.parquet`` / CSC copies if missing.
+    build_csc : build per-feature CSC copies (needed by ``get_features``).
+
+    Attributes
+    ----------
+    path : the store directory.
+    manifest : parsed ``manifest.json``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> st = arsc.datasets.toy(store="toy_store_cls")   # writes a memory-mapped store
+    >>> st.n_cells, st.assays
+    (3000, ['RNA', 'ADT'])
+    >>> X = st.X("RNA", "counts")                     # memory-mapped, no copy
+    >>> st.get_features(["CD8A", "GZMK"]).shape       # reads only these genes
+    (3000, 2)
+    """
 
     def __init__(self, path, finalize: bool = True, build_csc: bool = True):
         self.path = Path(path)
         mf = self.path / "manifest.json"
         if not mf.exists():
-            hint = " (use arsc.read(path, store=dir) to convert a file)" if self.path.is_file() else ""
+            hint = (" (use arsc.read(path, store=dir) to convert a file)" if self.path.is_file() else
+                    "" if self.path.exists() else " (the directory does not exist; check the path)")
             raise FileNotFoundError(f"{path} is not an arsc store: no manifest.json{hint}")
         self.manifest = json.loads(mf.read_text(encoding="utf-8"))
         if self.manifest.get("format") != "arsc-store":
@@ -430,6 +613,15 @@ class Store:
     # -- metadata ---------------------------------------------------------------
     @property
     def obs(self) -> pd.DataFrame:
+        """Per-cell metadata (read once from ``obs.parquet`` and cached).
+
+        Examples
+        --------
+        >>> import arsc
+        >>> st = arsc.datasets.toy(store="toy_store_obs")
+        >>> list(st.obs.columns)
+        ['patient', 'timepoint', 'response', 'sample', 'cell_type', 'clone_id']
+        """
         if self._obs is None:
             if (self.path / "obs.parquet").exists():
                 self._obs = pd.read_parquet(self.path / "obs.parquet")
@@ -445,20 +637,31 @@ class Store:
 
     @property
     def cells(self) -> pd.Index:
+        """Cell barcodes (``obs.index``)."""
         return self.obs.index
 
     @property
     def n_cells(self) -> int:
+        """Number of cells."""
         return int(self.manifest["n_cells"])
 
     @property
     def assays(self) -> list:
+        """Assay names."""
         return list(self.manifest.get("assays") or {})
 
     def layers(self, assay: str) -> list:
+        """Layer names of an assay."""
+        self._check_assay(assay)
         return list(self.manifest["assays"][assay].get("layers") or {})
 
+    def _check_assay(self, assay: str) -> None:
+        if assay not in (self.manifest.get("assays") or {}):
+            raise KeyError(f"assay {assay!r} not in store (has {self.assays})")
+
     def features(self, assay: str = "RNA") -> pd.Index:
+        """Feature (gene) names of an assay."""
+        self._check_assay(assay)
         if assay not in self._features:
             txt = (self.path / "assays" / assay / "features.txt").read_text(encoding="utf-8")
             self._features[assay] = pd.Index(txt.splitlines())
@@ -492,6 +695,7 @@ class Store:
         return self._uns
 
     def variable_features(self, assay: str = "RNA") -> list:
+        """Variable features recorded at import (Seurat ``VariableFeatures`` / ``var.highly_variable``)."""
         p = self.path / "assays" / assay / "variable_features.txt"
         return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
 
@@ -506,7 +710,15 @@ class Store:
 
     # -- matrices (zero-copy) ---------------------------------------------------------
     def X(self, assay: str = "RNA", layer: str | None = None) -> sp.csr_matrix:
-        """Cells x features CSR backed by memory maps (no copy)."""
+        """Cells x features CSR backed by memory maps (no copy).
+
+        Examples
+        --------
+        >>> import arsc
+        >>> st = arsc.datasets.toy(store="toy_store_x")
+        >>> st.X("RNA", "counts").shape
+        (3000, 300)
+        """
         layer, info = self._layer(assay, layer)
         return _mmap_sparse(str(self.path / "assays" / assay / f"{layer}.csr"), info["shape"], "csr")
 
@@ -523,11 +735,20 @@ class Store:
 
         Returns a cells x features DataFrame (``dense=True``) or a CSC matrix.
         Unknown names raise ``KeyError``.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> st = arsc.datasets.toy(store="toy_store_gf")
+        >>> df = st.get_features(["CD8A", "MS4A1"], layer="counts")
+        >>> list(df.columns), len(df) == st.n_cells
+        (['CD8A', 'MS4A1'], True)
         """
         names = [features] if isinstance(features, str) else list(features)
         fidx = self.features(assay).get_indexer(names)
         if (fidx < 0).any():
-            raise KeyError(f"not in {assay}: {[n for n, i in zip(names, fidx) if i < 0]}")
+            raise KeyError(f"not in {assay}: {[n for n, i in zip(names, fidx) if i < 0]} (gene symbols are "
+                           "case-sensitive; check st.features(assay))")
         C = self.X_csc(assay, layer)
         indptr = np.asarray(C.indptr)
         parts_i, parts_x, ptr = [], [], [0]
@@ -545,10 +766,15 @@ class Store:
 
     def embedding(self, name: str, dims=None) -> np.ndarray:
         """Cells x k embedding (memory-mapped, read-only)."""
+        if name not in self.reductions:
+            raise KeyError(f"reduction {name!r} not in store (has {self.reductions})")
         e = np.load(self.path / "reductions" / f"{name}.npy", mmap_mode="r")
         return e if dims is None else np.asarray(e[:, list(dims)])
 
     def reduction(self, name: str) -> Reduction:
+        """Reduction ``name`` with embedding, loadings and stdev."""
+        if name not in self.reductions:
+            raise KeyError(f"reduction {name!r} not in store (has {self.reductions})")
         e = self.manifest["reductions"][name]
         rd = self.path / "reductions"
         loadings = None
@@ -561,10 +787,12 @@ class Store:
 
     @property
     def reductions(self) -> list:
+        """Names of the stored reductions."""
         return list(self.manifest.get("reductions") or {})
 
     @property
     def graphs(self) -> list:
+        """Names of the stored graphs."""
         return list(self.manifest.get("graphs") or {})
 
     def graph(self, name: str):
@@ -592,7 +820,16 @@ class Store:
         return Assay(a, self.features(a), layers, self.variable_features(a), var, varm)
 
     def subset(self, cells, assays=None, layers=None, reductions: bool = True, graphs: bool = False) -> Dataset:
-        """Materialize only the selected cells (mask / positions / barcodes) as an in-memory Dataset."""
+        """Materialize only the selected cells (mask / positions / barcodes) as an in-memory Dataset.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> st = arsc.datasets.toy(store="toy_store_sub")
+        >>> cd8 = st.subset((st.obs["cell_type"] == "CD8 T").to_numpy(), assays=["RNA"])
+        >>> list(cd8.assays), cd8.n_cells < st.n_cells
+        (['RNA'], True)
+        """
         idx = _as_positions(cells, self.cells)
         out_assays = {}
         for a in self.assays:
@@ -642,20 +879,72 @@ def open(path, finalize: bool = True, build_csc: bool = True) -> Store:  # noqa:
     The first open of a fresh export writes ``obs.parquet`` and the per-feature
     CSC copies (one-time; concurrent first opens wait on a lock instead of
     duplicating work). Pass ``finalize=False`` for strictly read-only use.
+
+    Parameters
+    ----------
+    path : store directory.
+    finalize : build missing one-time files.
+    build_csc : build per-feature CSC copies.
+
+    Returns
+    -------
+    arsc.Store.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> _ = arsc.datasets.toy(store="toy_store_open")
+    >>> st = arsc.open("toy_store_open")
+    >>> st.n_cells
+    3000
     """
     return Store(path, finalize=finalize, build_csc=build_csc)
 
 
 def read_seurat_export(path, *, assays=None, layers=None, graphs: bool = True, reductions: bool = True) -> Dataset:
-    """Load an arsc store as a :class:`Dataset` (memory-mapped arrays; nothing is copied)."""
+    """Load an arsc store as a :class:`Dataset` (memory-mapped arrays; nothing is copied).
+
+    Parameters
+    ----------
+    path : store directory.
+    assays, layers : restrict to these assays / layers.
+    graphs, reductions : include graphs / reductions.
+
+    Returns
+    -------
+    arsc.Dataset.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> _ = arsc.datasets.toy(store="toy_store_rse")
+    >>> arsc.read_seurat_export("toy_store_rse", assays=["RNA"]).n_cells
+    3000
+    """
     return open(path).to_dataset(assays=assays, layers=layers, reductions=reductions, graphs=graphs)
 
 
 # --------------------------------------------------------------------------- tidy outputs
 def write_table(df: pd.DataFrame, path, index: bool | None = None) -> Path:
-    """Write a tidy table for the R plotting side; format from the extension (.parquet/.csv/.tsv).
+    """Write a tidy table (e.g. for plotting in R); format from the extension (.parquet/.csv/.tsv).
 
-    Read in R with ``arrow::read_parquet`` or ``data.table::fread``.
+    Read in R with ``arrow::read_parquet`` or ``data.table::fread``. Parent directories are created.
+
+    Parameters
+    ----------
+    df : the table.
+    path : output path ending in ``.parquet``, ``.csv`` or ``.tsv``.
+    index : write the index (default: only if it is not a RangeIndex).
+
+    Returns
+    -------
+    pathlib.Path of the written file.
+
+    Examples
+    --------
+    >>> import arsc, pandas as pd
+    >>> arsc.write_table(pd.DataFrame({"a": [1, 2]}), "out/table.csv").name
+    'table.csv'
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -666,7 +955,7 @@ def write_table(df: pd.DataFrame, path, index: bool | None = None) -> Path:
     elif p.suffix in (".csv", ".tsv"):
         df.to_csv(p, sep="\t" if p.suffix == ".tsv" else ",", index=index)
     else:
-        raise ValueError(f"unsupported extension {p.suffix!r}")
+        raise ValueError(f"unsupported extension {p.suffix!r}; use .parquet, .csv or .tsv")
     return p
 
 
@@ -683,6 +972,28 @@ def from_anndata(h5ad, out_dir, *, layers=("counts",), assay: str = "RNA", use_r
     disk in chunks (memory-safe; ``chunk`` is accepted for backward compatibility and ignored).
     ``obsm`` embeddings become reductions. Idempotent: if ``out_dir`` already holds a store, it is
     returned untouched.
+
+    Parameters
+    ----------
+    h5ad : input ``.h5ad``.
+    out_dir : store directory.
+    layers : AnnData layers to export.
+    assay : assay name.
+    use_raw_for : name for ``.raw.X``.
+    obsm : export embeddings.
+    chunk : ignored (backward compatibility).
+    obsp : export graphs.
+
+    Returns
+    -------
+    pathlib.Path ``out_dir``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> f = arsc.datasets.toy_h5ad("toy_fa.h5ad", n_cells=300)
+    >>> arsc.open(arsc.from_anndata(f, "toy_fa_store", layers=("X",))).n_cells
+    300
     """
     from .formats import ArscFormatError, read_h5ad
 

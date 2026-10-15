@@ -62,8 +62,24 @@ def _r_sort(values) -> list:
 def encode_clones(clones, levels: Sequence[str] | None = None) -> tuple[np.ndarray, list]:
     """Clone labels -> integer codes (``-1`` = missing) and the level order.
 
-    R's ``as.factor`` orders levels in the session locale. Pass ``levels`` to reproduce a
-    specific R run exactly; the default is code-point (C locale) order.
+    R's ``as.factor`` orders levels in the session locale. Pass ``levels`` to reproduce a specific R run
+    exactly; the default is code-point (C locale) order.
+
+    Parameters
+    ----------
+    clones : one label per cell (``None`` / NaN = no clone).
+    levels : explicit level order (labels not in it become ``-1``).
+
+    Returns
+    -------
+    tuple ``(codes, levels)``: int64 array per cell and the list of levels.
+
+    Examples
+    --------
+    >>> from arsc import clonotrace as ct
+    >>> codes, levels = ct.encode_clones(["b", None, "a", "b"])
+    >>> codes.tolist(), levels
+    ([1, -1, 0, 1], ['a', 'b'])
     """
     s = pd.Series(list(clones), dtype=object)
     miss = s.isna().to_numpy()
@@ -132,9 +148,31 @@ def _symmetrize_long(n1, n2, val, *extra):
 def knn_connectivity(embedding, k: int = 30, *, self_loops: bool = False, mode: str = "connectivity") -> sp.csr_matrix:
     """Symmetrized kNN graph with Gaussian kernel weights (R ``embedding2knn``).
 
-    Edges are the union of the kNN relations. With ``sigma_i`` the mean distance over node *i*'s
-    edges, the weight is ``K_ij = exp(-d_ij^2 / (sigma_i sigma_j))``. ``mode="dist"`` returns the
-    distances instead. ``self_loops`` adds ``(i, i, 0)`` edges after symmetrization (R ``if_self``).
+    Edges are the union of the kNN relations. With ``sigma_i`` the mean distance over node *i*'s edges, the
+    weight is ``K_ij = exp(-d_ij^2 / (sigma_i sigma_j))``.
+
+    Parameters
+    ----------
+    embedding : cells x dims array.
+    k : neighbours per cell (default 30).
+    self_loops : add ``(i, i, 0)`` edges after symmetrization (R ``if_self``).
+    mode : ``"connectivity"`` (kernel weights, default) or ``"dist"`` (the distances).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix, cells x cells, symmetric.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> ct.knn_connectivity(pcs, k=15).shape
+    (1597, 1597)
     """
     X = np.ascontiguousarray(embedding, dtype=np.float64)
     n = X.shape[0]
@@ -158,7 +196,30 @@ def knn_connectivity(embedding, k: int = 30, *, self_loops: bool = False, mode: 
 
 
 def cell_transition(embedding, k: int = 30) -> sp.csr_matrix:
-    """Double-normalized transition ``T = Z D^-1 K D^-1 Z`` of the kNN kernel (R ``compute_transition``)."""
+    """Double-normalized transition matrix ``T = Z D^-1 K D^-1 Z`` of the kNN kernel (R ``compute_transition``).
+
+    Parameters
+    ----------
+    embedding : cells x dims array (e.g. 15 PCs).
+    k : neighbours per cell for :func:`knn_connectivity` (default 30).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix, cells x cells (CloneTrace step 1).
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> T = ct.cell_transition(pcs, k=15)
+    >>> T.shape
+    (1597, 1597)
+    """
     K = knn_connectivity(embedding, k)
     return _compute_transition(K)
 
@@ -204,11 +265,39 @@ def label_spreading(adj, labels: np.ndarray, n_classes: int | None = None, *, al
                     _P: sp.csr_matrix | None = None) -> np.ndarray:
     """Label spreading ``F <- alpha P F + (1 - alpha) Y`` from ``F = 0`` (R ``label_spreading_blocked``).
 
-    ``labels``: integer class codes per cell, ``-1`` = unlabeled. ``P`` is ``adj`` row-normalized.
-    ``Y[i, c] = log2(n_c)/n_c`` for labeled cells, ``epsilon / C`` for unlabeled cells. Classes are
-    processed in blocks of ``block_size``; each block iterates until the max-abs change is
-    ``< tol``, exactly as in R (so the block size changes the result slightly). Returns a
-    cells x classes dense array (unnormalized).
+    ``P`` is ``adj`` row-normalized. ``Y[i, c] = log2(n_c) / n_c`` for labeled cells, ``epsilon / C`` for
+    unlabeled cells. Classes are processed in blocks of ``block_size``; each block iterates until the max-abs
+    change is ``< tol``, exactly as in R (so the block size changes the result slightly).
+
+    Parameters
+    ----------
+    adj : cells x cells graph (ignored when ``_P`` is given).
+    labels : integer class codes per cell, ``-1`` = unlabeled (see :func:`encode_clones`).
+    n_classes : number of classes (default ``labels.max() + 1``).
+    alpha : propagation weight (default 0.9; CloneTrace uses 0.6).
+    max_iter : iterations per block (default 100).
+    tol : convergence tolerance on the max-abs change (default 1e-3).
+    block_size : classes per block (default 128).
+    epsilon : prior mass of unlabeled cells (default 0).
+    _P : internal: a precomputed row-normalized ``adj``.
+
+    Returns
+    -------
+    dense numpy array, cells x classes (unnormalized).
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> codes, levels = ct.encode_clones(clones)
+    >>> F = ct.label_spreading(ct.cell_transition(pcs, 15), codes, alpha=0.6)
+    >>> F.shape == (len(clones), len(levels))
+    True
     """
     labs = np.asarray(labels, dtype=np.int64)
     C = int(n_classes if n_classes is not None else labs.max() + 1)
@@ -251,13 +340,54 @@ def _normalize_rows_eps(F: np.ndarray) -> np.ndarray:
 
 @dataclass
 class CloneProb:
-    """Output of :func:`propagate_clones`."""
+    """Output of :func:`propagate_clones`.
+
+    Attributes
+    ----------
+    prob : cells x clones array of propagated clone probabilities (rows sum to 1).
+    deviance : per-cell bootstrap deviance (mean L1 distance from the full-label reference; NaN without
+        bootstraps).
+    clones : clone names (columns of ``prob``).
+    cells : cell names (rows of ``prob``).
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> cp.frame().shape == (len(cp.cells), len(cp.clones))
+    True
+    """
     prob: np.ndarray          # cells x clones, rows normalized (reference spreading with all labels)
     deviance: np.ndarray      # per-cell bootstrap deviance (nan if n_boot == 0)
     clones: list              # column names (clone ids)
     cells: pd.Index           # row names
 
     def frame(self) -> pd.DataFrame:
+        """Probabilities as a cells x clones DataFrame.
+
+        Returns
+        -------
+        pandas.DataFrame indexed by ``cells`` with one column per clone.
+
+        Examples
+        --------
+        >>> import arsc, numpy as np
+        >>> from arsc import clonotrace as ct
+        >>> ds = arsc.datasets.toy()
+        >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+        >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+        >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+        >>> clones = t.obs["clone_id"].to_numpy()
+        >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+        >>> list(cp.frame().index[:2]) == list(t.obs.index[:2])
+        True
+        """
         return pd.DataFrame(self.prob, index=self.cells, columns=self.clones)
 
 
@@ -267,24 +397,55 @@ def propagate_clones(adj, clones, *, min_size: int = 10, alpha: float = 0.6, sam
                      cells=None) -> CloneProb:
     """Spread expanded-clone labels over the cell graph, with a bootstrap deviance (CloneTrace step 2).
 
-    ``adj``: a cell graph, normally :func:`cell_transition`. ``clones``: one label per cell (``None``
-    or NaN = no clone). Clones with fewer than ``min_size`` cells are treated as unlabeled; the
-    vignette uses ``>= 10``. Defaults follow the published vignette: ``alpha=0.6``, 48 bootstraps
-    at ``sample_rate=0.8``. For each bootstrap, a random ``round(0.8 n_labeled)`` subset keeps its
-    labels and the spreading is rerun. The per-cell deviance is the mean L1 distance from the
-    full-label reference, over the bootstraps where the cell's labeled/unlabeled status is
-    unchanged. Bootstrap draws use numpy's RNG (``seed``), not R's, so the deviances agree with R
-    only statistically. ``seed`` (default 0) seeds a local ``np.random.default_rng``; the spreading
-    itself is deterministic, so same input + seed -> identical deviances.
+    Clones with fewer than ``min_size`` cells are treated as unlabeled. Defaults follow the published vignette:
+    ``alpha=0.6``, 48 bootstraps at ``sample_rate=0.8``. For each bootstrap, a random ``round(0.8 n_labeled)``
+    subset keeps its labels and the spreading is rerun. The per-cell deviance is the mean L1 distance from the
+    full-label reference, over the bootstraps where the cell's labeled/unlabeled status is unchanged. Bootstrap
+    draws use numpy's RNG, not R's, so the deviances agree with R only statistically; the spreading itself is
+    deterministic, so same input + seed -> identical deviances.
+
+    Parameters
+    ----------
+    adj : cell graph, normally :func:`cell_transition`.
+    clones : one label per cell (``None`` / NaN = no clone).
+    min_size : minimum cells of a clone to be propagated (default 10, as the vignette).
+    alpha : propagation weight (default 0.6).
+    sample_rate : fraction of labeled cells kept per bootstrap (default 0.8).
+    n_boot : number of bootstraps (default 48; 0 = no deviance).
+    block_size, tol, max_iter, epsilon : passed to :func:`label_spreading`.
+    seed : integer seed of a local ``np.random.default_rng`` (default 0).
+    levels : explicit clone level order (see :func:`encode_clones`).
+    cells : cell names for the rows (default ``0..n-1``); pass them to join results back to ``obs``.
+
+    Returns
+    -------
+    :class:`CloneProb`.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> len(cp.clones)
+    21
     """
     seed = check_seed(seed)
     s = pd.Series(list(clones), dtype=object)
+    if adj is not None and len(s) != adj.shape[0]:
+        raise ValueError(f"propagate_clones: {len(s)} clone labels for a {adj.shape[0]}-cell graph; pass one label "
+                         "per graph node (same cell order as the embedding)")
     vc = s.dropna().astype(str).value_counts()
     big = set(vc.index[vc >= min_size])
     lab = s.where(s.astype(str).isin(big) & s.notna(), None)
     codes, lv = encode_clones(lab, levels)
     if not lv:
-        raise ValueError(f"no clone has >= {min_size} cells")
+        raise ValueError(f"no clone has >= {min_size} cells (largest: {int(vc.max()) if len(vc) else 0}); "
+                         "lower min_size or check the clone column")
     P = _row_normalize(adj)
     C = len(lv)
     kw = dict(alpha=alpha, max_iter=max_iter, tol=tol, block_size=block_size, epsilon=epsilon, _P=P)
@@ -330,10 +491,26 @@ def _mass_filter_rows(M: np.ndarray, thresh: float) -> np.ndarray:
 def sparsify(mat, row_mass: float = 0.9, col_mass: float = 0.9) -> np.ndarray:
     """Keep the top ``row_mass`` of each row, then of each column (R ``mat_sparsify``; dense in, dense out).
 
-    Per vector: sort the normalized masses in decreasing order. ``lwr`` is the smallest mass whose
-    cumulative sum is still ``< thresh``. Entries below ``lwr`` are zeroed, so ties are kept and the
-    entry that crosses ``thresh`` is dropped. Rows are filtered first; columns are then filtered on
-    the result.
+    Per vector: sort the normalized masses in decreasing order. ``lwr`` is the smallest mass whose cumulative
+    sum is still ``< thresh``. Entries below ``lwr`` are zeroed, so ties are kept and the entry that crosses
+    ``thresh`` is dropped. Rows are filtered first; columns are then filtered on the result.
+
+    Parameters
+    ----------
+    mat : dense cells x clones array.
+    row_mass : mass kept per row (default 0.9).
+    col_mass : mass kept per column (default 0.9).
+
+    Returns
+    -------
+    dense numpy array of the same shape (not renormalized).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ct.sparsify(np.array([[0.6, 0.3, 0.1], [0.2, 0.2, 0.6]])).tolist()
+    [[0.6, 0.0, 0.0], [0.0, 0.2, 0.6]]
     """
     M = np.asarray(mat.toarray() if sp.issparse(mat) else mat, dtype=np.float64)
     M = _mass_filter_rows(M, row_mass)
@@ -342,8 +519,33 @@ def sparsify(mat, row_mass: float = 0.9, col_mass: float = 0.9) -> np.ndarray:
 
 def filter_and_sparsify(cp: CloneProb, max_deviance: float = 0.3, row_mass: float = 0.9,
                         col_mass: float = 0.9) -> pd.DataFrame:
-    """Vignette post-processing: drop cells with deviance ``>= max_deviance``, renormalize, sparsify,
-    renormalize. Returns ``Q`` as a cells x clones DataFrame; empty rows and columns are dropped."""
+    """Vignette post-processing of :func:`propagate_clones`: deviance filter, renormalize, sparsify, renormalize.
+
+    Parameters
+    ----------
+    cp : a :class:`CloneProb`.
+    max_deviance : drop cells with deviance ``>= max_deviance`` (default 0.3).
+    row_mass, col_mass : passed to :func:`sparsify` (default 0.9 each).
+
+    Returns
+    -------
+    ``Q``: cells x clones DataFrame, rows summing to 1; empty rows and columns are dropped.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> bool(np.allclose(Q.sum(1), 1))
+    True
+    """
     keep = cp.deviance < max_deviance if np.isfinite(cp.deviance).any() else np.ones(len(cp.cells), bool)
     Q = cp.prob[keep]
     Q = Q / Q.sum(1, keepdims=True)
@@ -359,8 +561,29 @@ def filter_and_sparsify(cp: CloneProb, max_deviance: float = 0.3, row_mass: floa
 def snn_cost_graph(embedding, k: int = 10) -> sp.csr_matrix:
     """Shared-nearest-neighbour cost graph (``bluster::makeSNNGraph(type="number")`` + ``exp(-w)``).
 
-    ``w_ij = |({i} + kNN_i) & ({j} + kNN_j)|``, i.e. the off-diagonal of ``(I + A)(I + A)^T``. There
-    is an edge for every pair with ``w >= 1``, and its cost is ``exp(-w_ij)``.
+    ``w_ij = |({i} + kNN_i) & ({j} + kNN_j)|``, i.e. the off-diagonal of ``(I + A)(I + A)^T``. There is an edge
+    for every pair with ``w >= 1``, and its cost is ``exp(-w_ij)``.
+
+    Parameters
+    ----------
+    embedding : cells x dims array.
+    k : neighbours per cell (default 10).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix of edge costs, cells x cells.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> ct.snn_cost_graph(pcs, k=10).shape
+    (1597, 1597)
     """
     X = np.ascontiguousarray(embedding, dtype=np.float64)
     n = X.shape[0]
@@ -449,7 +672,30 @@ def _dijkstra_rows(indptr, indices, w, sources, out):
 
 
 def shortest_paths(graph: sp.csr_matrix, sources) -> np.ndarray:
-    """Weighted shortest-path distances from ``sources`` to all nodes (numba Dijkstra, parallel)."""
+    """Weighted shortest-path distances from ``sources`` to all nodes (numba Dijkstra, parallel).
+
+    Parameters
+    ----------
+    graph : cells x cells sparse graph of non-negative edge costs (e.g. :func:`snn_cost_graph`).
+    sources : node indices to start from.
+
+    Returns
+    -------
+    numpy array, len(sources) x n_nodes (``inf`` = unreachable).
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> d = ct.shortest_paths(ct.snn_cost_graph(pcs, 10), [0, 1])
+    >>> d.shape, float(d[0, 0])
+    ((2, 1597), 0.0)
+    """
     G = sp.csr_matrix(graph)
     src = np.asarray(sources, dtype=np.int64)
     out = np.empty((src.size, G.shape[0]))
@@ -503,22 +749,45 @@ def clone_distance(embedding, Q, *, method: str = "nn", graph_k: int = 10, prob_
                    k: int = 2, graph: sp.csr_matrix | None = None, square: bool = True):
     """Clone x clone distance on the SNN cost graph (R ``clone_disance`` with ``revised=FALSE``).
 
-    ``embedding``: cells x dims, with rows aligned to ``Q`` (cells x clones; a DataFrame keeps the
-    clone names). The graph is :func:`snn_cost_graph`\\ ``(embedding, graph_k)``.
+    The graph is :func:`snn_cost_graph` ``(embedding, graph_k)``. ``method="nn"`` (default; ``graph_clone_nn``):
+    cells with ``Q >= prob_thresh`` (default 0.1) belong to the clone. The distance between clones *i* and *j*
+    is the average of (mean over *i*'s cells of the mean of the ``k`` smallest path lengths to *j*'s cells)
+    and the same from *j* to *i*; a single-cell clone uses the plain mean. ``method="exact"``: the
+    Wasserstein-1 distance between the thresholded (default 0.05), renormalized clone distributions, with
+    shortest-path ground costs (``clone_2_ot``); solved with POT (``ot.emd2``) when installed, else HiGHS. It is
+    slow for many clones.
 
-    ``method="nn"`` (default; ``graph_clone_nn``): cells with ``Q >= prob_thresh`` (default 0.1)
-    belong to the clone. The distance between clones *i* and *j* is the average of (mean over
-    *i*'s cells of the mean of the ``k`` smallest path lengths to *j*'s cells) and the same from
-    *j* to *i*. If a clone has a single cell, it is the plain mean. Every cell's Dijkstra runs
-    once, in parallel; R runs one per clone pair block.
+    Parameters
+    ----------
+    embedding : cells x dims, rows aligned to ``Q``.
+    Q : cells x clones (DataFrame keeps the clone names), e.g. :func:`filter_and_sparsify`.
+    method : ``"nn"`` (default) or ``"exact"``.
+    graph_k : neighbours of the SNN cost graph (default 10).
+    prob_thresh : membership threshold (default 0.1 for ``"nn"``, 0.05 for ``"exact"``).
+    k : number of smallest path lengths averaged (``"nn"``; default 2).
+    graph : a precomputed cost graph (skips :func:`snn_cost_graph`).
+    square : return a square DataFrame (default) or the long table.
 
-    ``method="exact"``: the Wasserstein-1 distance between the thresholded (``Q >= prob_thresh``,
-    default 0.05), renormalized clone distributions, with shortest-path ground costs (``clone_2_ot``).
-    It is solved exactly with POT (``ot.emd2``) when installed, else with HiGHS (scipy ``linprog``).
-    It is slow for many clones.
+    Returns
+    -------
+    square clone x clone DataFrame, or the long table ``group1, group2, dis`` with 1-based clone indices
+    like R.
 
-    Returns a square DataFrame (``square=True``), or the long table ``group1, group2, dis`` with
-    1-based clone indices like R.
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> D.shape
+    (21, 21)
     """
     X = np.ascontiguousarray(embedding, dtype=np.float64)
     Qc, names, _ = _as_Q(Q)
@@ -631,14 +900,47 @@ def revise_distance(D, embedding, Q, *, clusters: pd.DataFrame | np.ndarray | No
                     cluster_k: int = 15, mean_weight: float | None = None, s_grid=None, seed: int = 0):
     """Blend the CloneTrace distance with a centroid distance (R ``revise_clone_distance``; default in 1.2.x).
 
-    Both distances are divided by their median over clone pairs (only same-``sample`` pairs when
-    ``sample`` gives a group per clone). The blend weight ``s`` maximizes the Spearman correlation
-    between blended pair distances and the total-variation distance of the clones' cell-cluster
-    compositions. It is chosen per clustering, and the median over clusterings is used.
-    ``clusters``: cells x resolutions labels; give it for reproducible results. The default builds a
-    Leiden ladder on a UMAP kNN graph at ``resolutions``, like R, but the partitions are not
-    identical to R's. ``seed`` (default 0) is the leidenalg seed of that ladder (unused when
-    ``clusters`` or ``mean_weight`` is given). Returns ``(D_revised DataFrame, info dict)``.
+    Both distances are divided by their median over clone pairs (only same-``sample`` pairs when ``sample``
+    gives a group per clone). The blend weight ``s`` maximizes the Spearman correlation between blended pair
+    distances and the total-variation distance of the clones' cell-cluster compositions. It is chosen per
+    clustering, and the median over clusterings is used.
+
+    Parameters
+    ----------
+    D : clone x clone distance from :func:`clone_distance`.
+    embedding : cells x dims, rows aligned to ``Q``.
+    Q : cells x clones probabilities.
+    clusters : cells x resolutions labels (give it for reproducible results). Default: a Leiden ladder on a
+        UMAP kNN graph at ``resolutions``, like R (partitions are not identical to R's).
+    sample : optional group per clone; only same-group pairs set the medians.
+    local_rescale : rescale distances by local density (R ``local_rescale``).
+    local_k : neighbours for the local rescaling (default 7).
+    resolutions : Leiden resolutions of the default ladder.
+    cluster_k : neighbours of the default ladder's kNN graph (default 15).
+    mean_weight : fix the blend weight instead of selecting it.
+    s_grid : grid of candidate blend weights.
+    seed : leidenalg seed of the default ladder (default 0; unused with ``clusters`` or ``mean_weight``).
+
+    Returns
+    -------
+    tuple ``(D_revised DataFrame, info dict)`` with ``mean_weight``, ``picks``, ``selection_correlations``.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> Dr, info = ct.revise_distance(D, Xq, Q, mean_weight=0.5)
+    >>> Dr.shape, sorted(info)
+    ((21, 21), ['mean_weight', 'picks', 'selection_correlations'])
     """
     seed = check_seed(seed)
     Dm, names = _square(D)
@@ -738,14 +1040,43 @@ def cluster_clones(D, k: int = 10, resolution: float = 1.0, *, prune: float = 0.
                    seed: int = 0, n_iterations: int = 2) -> pd.Series:
     """Leiden communities of clones from their distance matrix (R ``leiden_dis``, ``if_umap=FALSE``).
 
-    Each clone gets its ``k`` nearest clones (ties go to the lower index). Edge weight = Jaccard of
-    the two kNN sets, ``shared / (2k - shared)``, or the distance with ``weight="dis"``. The graph
-    is undirected and keeps both directions as parallel edges, as igraph does in R. Leiden
-    optimizes modularity (igraph ``community_leiden``, beta 0.01). The RNG differs from R's, so
-    expect a high ARI, not identical labels. Labels are 1-based like R.
-    ``seed`` (default 0): a private ``random.Random(seed)`` is installed as igraph's RNG for the call
-    and igraph's default restored afterwards (Python's global ``random`` state is not touched; the
-    stream is the same one ``random.seed(seed)`` would give, so labels match earlier arsc versions).
+    Each clone gets its ``k`` nearest clones (ties go to the lower index). Edge weight = Jaccard of the two kNN
+    sets, ``shared / (2k - shared)``, or the distance with ``weight="dis"``. The graph is undirected and keeps
+    both directions as parallel edges, as igraph does in R. Leiden optimizes modularity (igraph
+    ``community_leiden``, beta 0.01). The RNG differs from R's, so expect a high ARI, not identical labels.
+    A private ``random.Random(seed)`` is installed as igraph's RNG for the call and igraph's default restored
+    afterwards (Python's global ``random`` state is not touched).
+
+    Parameters
+    ----------
+    D : clone x clone distance DataFrame.
+    k : nearest clones per clone (default 10).
+    resolution : Leiden resolution (default 1.0).
+    prune : drop edges with weight below this (default 0).
+    weight : ``"jaccard"`` (default) or ``"dis"``.
+    seed : integer seed (default 0).
+    n_iterations : Leiden iterations (default 2).
+
+    Returns
+    -------
+    pandas.Series of 1-based cluster labels indexed by clone (the clone "fate profiles").
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> prof = ct.cluster_clones(D, k=5)
+    >>> int(prof.min())
+    1
     """
     import random
 
@@ -777,7 +1108,33 @@ def cluster_clones(D, k: int = 10, resolution: float = 1.0, *, prune: float = 0.
 
 
 def cmdscale(D, k: int = 2) -> pd.DataFrame:
-    """Classical (Torgerson) MDS, as R ``cmdscale`` (column signs may differ)."""
+    """Classical (Torgerson) MDS, as R ``cmdscale`` (column signs may differ).
+
+    Parameters
+    ----------
+    D : square distance DataFrame (or array).
+    k : number of dimensions (default 2).
+
+    Returns
+    -------
+    DataFrame, clones x k, columns ``mds_1..mds_k``.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> list(ct.cmdscale(D, 2).columns)
+    ['mds_1', 'mds_2']
+    """
     Dm, names = _square(D)
     n = Dm.shape[0]
     x = Dm ** 2
@@ -815,10 +1172,38 @@ def _pava(y: np.ndarray) -> np.ndarray:
 def isomds(D, k: int = 2, *, maxit: int = 200, tol: float = 1e-6, init=None) -> tuple[pd.DataFrame, float]:
     """Kruskal non-metric MDS initialized at :func:`cmdscale` (like ``MASS::isoMDS``).
 
-    This minimizes Kruskal stress-1 with L-BFGS, taking the isotonic regression of configuration
-    distances on the dissimilarity order. The optimizer is not the one ``MASS`` uses, so the
-    configurations differ slightly from R. Stress (in percent, as R reports it) is close.
-    Returns ``(points, stress)``.
+    Minimizes Kruskal stress-1 with L-BFGS, taking the isotonic regression of configuration distances on the
+    dissimilarity order. The optimizer is not the one ``MASS`` uses, so the configurations differ slightly from
+    R; the stress (in percent, as R reports it) is close.
+
+    Parameters
+    ----------
+    D : square distance DataFrame (or array).
+    k : number of dimensions (default 2).
+    maxit : maximum optimizer iterations (default 200).
+    tol : convergence tolerance (default 1e-6).
+    init : starting configuration (default :func:`cmdscale`).
+
+    Returns
+    -------
+    tuple ``(points DataFrame, stress in percent)``.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> pts, stress = ct.isomds(D, 2)
+    >>> pts.shape
+    (21, 2)
     """
     from scipy.optimize import minimize
     from scipy.spatial.distance import pdist
@@ -855,7 +1240,38 @@ def isomds(D, k: int = 2, *, maxit: int = 200, tol: float = 1e-6, init=None) -> 
 
 
 def clone_root(clone_names: Sequence[str], cell_clones, cell_clusters, start_cluster) -> str:
-    """Root clone: the highest fraction of its cells in ``start_cluster``, ties broken by size (R ``clone_root``)."""
+    """Root clone for pseudotime: highest fraction of its cells in ``start_cluster``, ties broken by size.
+
+    Port of R ``clone_root``.
+
+    Parameters
+    ----------
+    clone_names : candidate clones (e.g. ``D.index``).
+    cell_clones : clone label per cell.
+    cell_clusters : cell cluster / type per cell.
+    start_cluster : the cluster where trajectories start (e.g. naive cells).
+
+    Returns
+    -------
+    str, the root clone name.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> root = ct.clone_root(list(D.index), clones, t.obs["cell_type"].astype(str).to_numpy(), "CD8 T")
+    >>> root in D.index
+    True
+    """
     df = pd.DataFrame({"clone": pd.Series(list(cell_clones), dtype=object), "cl": pd.Series(list(cell_clusters))})
     df = df[df.clone.isin(set(map(str, clone_names)))]
     df["clone"] = df.clone.astype(str)
@@ -867,13 +1283,40 @@ def clone_root(clone_names: Sequence[str], cell_clones, cell_clusters, start_clu
 
 
 def clone_dpt(clone_embedding, root, *, k: int = 10, dpt_k: int = 30) -> pd.Series:
-    """Diffusion pseudotime of clones (R ``clone_dpt``/``dpt``) on a kNN graph of the clone embedding.
+    """Diffusion pseudotime of clones (R ``clone_dpt`` / ``dpt``) on a kNN graph of the clone embedding.
 
-    ``T`` = row-normalized :func:`knn_connectivity`\\ ``(clone_embedding, k)``. The top ``dpt_k``
-    eigenpairs by magnitude are taken, and those with ``lambda >= 0.9999`` dropped. The kept
-    eigenvectors are scaled by ``lambda / (1 - lambda)``; pseudotime is the Euclidean distance to
-    the root, divided by its maximum. ``T`` is similar to a symmetric matrix, so the eigenvectors
-    come from ``eigh`` (real, unit norm). ``root`` is a clone name or a row position.
+    ``T`` = row-normalized :func:`knn_connectivity` ``(clone_embedding, k)``. The top ``dpt_k`` eigenpairs by
+    magnitude are taken, and those with ``lambda >= 0.9999`` dropped. The kept eigenvectors are scaled by
+    ``lambda / (1 - lambda)``; pseudotime is the Euclidean distance to the root, divided by its maximum.
+
+    Parameters
+    ----------
+    clone_embedding : clones x dims DataFrame (e.g. :func:`cmdscale` / :func:`isomds`).
+    root : clone name or row position of the root.
+    k : neighbours of the clone kNN graph (default 10).
+    dpt_k : number of eigenpairs (default 30; capped by the number of clones).
+
+    Returns
+    -------
+    pandas.Series of pseudotime in [0, 1] indexed by clone (0 at the root).
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> E = ct.cmdscale(D, 4)
+    >>> tt = ct.clone_dpt(E, E.index[0], k=5, dpt_k=4)
+    >>> float(tt.iloc[0])
+    0.0
     """
     E = clone_embedding
     names = [str(x) for x in E.index] if isinstance(E, pd.DataFrame) else None
@@ -898,14 +1341,41 @@ def clone_dpt(clone_embedding, root, *, k: int = 10, dpt_k: int = 30) -> pd.Seri
 
 # =========================================================================== 5. profiles, enrichment, genes
 def cell_profiles(Q: pd.DataFrame, clone_cluster: pd.Series, min_prob: float = 0.5):
-    """Cell x profile probabilities ``Q P`` (P = one-hot clone -> profile) and a hard label.
+    """Cell x profile probabilities ``Q P`` (P = one-hot clone -> profile) and a hard label per cell.
 
-    The hard label is the argmax profile where its probability is ``> min_prob``, else NA.
-    Returns ``(prob DataFrame, label Series)``.
+    Parameters
+    ----------
+    Q : cells x clones probabilities.
+    clone_cluster : profile per clone (Series indexed by clone name, e.g. :func:`cluster_clones`).
+    min_prob : the hard label is the argmax profile when its probability is ``> min_prob``, else NA
+        (default 0.5).
+
+    Returns
+    -------
+    tuple ``(prob DataFrame cells x profiles, label Series)``.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> prob, label = ct.cell_profiles(Q, ct.cluster_clones(D, k=5))
+    >>> prob.shape[0] == Q.shape[0]
+    True
     """
     cc = clone_cluster.reindex([str(c) for c in Q.columns])
     if cc.isna().any():
-        raise KeyError("clone_cluster misses clones of Q")
+        miss = [str(c) for c, v in zip(Q.columns, cc.isna()) if v][:10]
+        raise KeyError(f"clone_cluster misses clones of Q, e.g. {miss}; pass a Series indexed by clone name "
+                       "(e.g. cluster_clones(D)) covering every column of Q")
     prof = pd.Index(sorted(cc.unique(), key=lambda x: (str(type(x)), x)))
     Pm = sp.csr_matrix((np.ones(len(cc)), (np.arange(len(cc)), prof.get_indexer(cc))), shape=(len(cc), len(prof)))
     prob = np.asarray(sp.csr_matrix(Q.to_numpy()) @ Pm.toarray())
@@ -915,9 +1385,48 @@ def cell_profiles(Q: pd.DataFrame, clone_cluster: pd.Series, min_prob: float = 0
     return df, lab
 
 
+def _check_cell_labels(lab, n: int, fn: str) -> None:
+    lab = pd.Series(np.asarray(lab, dtype=object))
+    if len(lab) != n:
+        raise ValueError(f"{fn}: {len(lab)} cluster labels for {n} cells; pass one label per row of "
+                         "cell_profile_prob (same order, e.g. obs['cluster'].reindex(prob.index))")
+    if lab.isna().any():
+        raise ValueError(f"{fn}: {int(lab.isna().sum())} cluster labels are missing; if you reindexed by cell "
+                         "names, check that cell_profile_prob.index holds the same names (pass cells= upstream)")
+
+
 def profile_mass(cell_profile_prob: pd.DataFrame, cluster_label) -> pd.DataFrame:
-    """Summed profile probability per cell cluster (R ``cluster_profile_mass``; rows sorted)."""
+    """Summed profile probability per cell cluster (R ``cluster_profile_mass``; rows sorted).
+
+    Parameters
+    ----------
+    cell_profile_prob : cells x profiles DataFrame (from :func:`cell_profiles`).
+    cluster_label : cell cluster per row of ``cell_profile_prob`` (same order; no missing values).
+
+    Returns
+    -------
+    DataFrame, clusters x profiles.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> prob, label = ct.cell_profiles(Q, ct.cluster_clones(D, k=5))
+    >>> cell_type = t.obs["cell_type"].astype(str).reindex(Q.index).to_numpy()
+    >>> sorted(ct.profile_mass(prob, cell_type).index)
+    ['CD4 T', 'CD8 T']
+    """
     df = pd.DataFrame(np.asarray(cell_profile_prob), columns=cell_profile_prob.columns)
+    _check_cell_labels(cluster_label, len(df), "profile_mass")
     df["__cl"] = np.asarray(cluster_label)
     return df.groupby("__cl", sort=True).sum()
 
@@ -925,12 +1434,41 @@ def profile_mass(cell_profile_prob: pd.DataFrame, cluster_label) -> pd.DataFrame
 def profile_enrichment(cell_profile_prob: pd.DataFrame, cluster_label, n_perm: int = 300, seed: int = 0):
     """Cluster x profile mass and a one-sided permutation p-value (R ``cluster_profile_enrich``).
 
-    The cluster labels are permuted ``n_perm`` times. ``p = mean(perm >= observed)``, with no
-    ``+1``, as in R. ``seed`` (default 0) seeds a local ``np.random.default_rng``.
-    Returns ``(mass, pval)`` DataFrames.
+    The cluster labels are permuted ``n_perm`` times; ``p = mean(perm >= observed)``, with no ``+1``, as in R.
+
+    Parameters
+    ----------
+    cell_profile_prob : cells x profiles DataFrame.
+    cluster_label : cell cluster per row (same order; no missing values).
+    n_perm : number of permutations (default 300).
+    seed : integer seed of a local ``np.random.default_rng`` (default 0).
+
+    Returns
+    -------
+    tuple ``(mass, pval)`` DataFrames, clusters x profiles.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> prob, label = ct.cell_profiles(Q, ct.cluster_clones(D, k=5))
+    >>> cell_type = t.obs["cell_type"].astype(str).reindex(Q.index).to_numpy()
+    >>> mass, pval = ct.profile_enrichment(prob, cell_type, n_perm=50)
+    >>> mass.shape == pval.shape
+    True
     """
     seed = check_seed(seed)
     lab = np.asarray(cluster_label)
+    _check_cell_labels(lab, len(cell_profile_prob), "profile_enrichment")
     truth = profile_mass(cell_profile_prob, lab)
     codes, uniq = pd.factorize(pd.Series(lab), sort=True)
     X = np.asarray(cell_profile_prob, dtype=np.float64)
@@ -947,8 +1485,24 @@ def profile_enrichment(cell_profile_prob: pd.DataFrame, cluster_label, n_perm: i
 def ns_basis(x, df: int) -> np.ndarray:
     """Natural cubic spline basis without intercept (R ``splines::ns(x, df)``; columns up to sign/rotation).
 
-    The ridge fits in :func:`soft_cluster_fit` are invariant to the orthogonal ambiguity of the
-    constraint projection.
+    The ridge fits in :func:`soft_cluster_fit` are invariant to the orthogonal ambiguity of the constraint
+    projection.
+
+    Parameters
+    ----------
+    x : 1-D array (e.g. pseudotime).
+    df : degrees of freedom (number of columns).
+
+    Returns
+    -------
+    numpy array, len(x) x df.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ct.ns_basis(np.linspace(0, 1, 50), 3).shape
+    (50, 3)
     """
     from scipy.interpolate import BSpline
     x = np.asarray(x, dtype=np.float64)
@@ -981,13 +1535,46 @@ def _ridge(X, G, lam):
 
 
 def soft_cluster_fit(G, t, P, *, df: int = 5, lam: float = 1e-4, test: str = "F") -> pd.DataFrame:
-    """Does expression along pseudotime differ between soft groups? (R ``soft_cluster_gam_fit``)
+    """Test whether expression along pseudotime differs between soft groups (R ``soft_cluster_gam_fit``).
 
-    ``G``: cells x genes (dense or sparse). ``t``: pseudotime per cell. ``P``: cells x m soft
-    assignment (two columns, target and control, for the Cohen's d). The null is a shared
-    ``[1, ns(t, df)]`` curve; the full model has one curve per group (design ``B * P[:, k]``).
-    Both are ridge fits (``lam``). ``test="F"`` gives ``F = ((RSS0 - RSS1)/df1) / (RSS1/df2)``;
-    ``"LRT"`` gives the Gaussian likelihood ratio. Returns ``stat, pval, mean_diff, cohen`` per gene.
+    The null is a shared ``[1, ns(t, df)]`` curve; the full model has one curve per group (design
+    ``B * P[:, k]``). Both are ridge fits (``lam``). ``test="F"`` gives
+    ``F = ((RSS0 - RSS1) / df1) / (RSS1 / df2)``; ``"LRT"`` gives the Gaussian likelihood ratio. Cells are the
+    observations here: use it to rank genes, and confirm across patients before claiming an effect.
+
+    Parameters
+    ----------
+    G : cells x genes expression (dense or sparse).
+    t : pseudotime per cell.
+    P : cells x m soft assignment (two columns, target and control, for Cohen's d).
+    df : spline degrees of freedom (default 5).
+    lam : ridge penalty (default 1e-4).
+    test : ``"F"`` (default) or ``"LRT"``.
+
+    Returns
+    -------
+    DataFrame per gene: ``stat``, ``pval``, ``mean_diff``, ``cohen``.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> prob, label = ct.cell_profiles(Q, ct.cluster_clones(D, k=5))
+    >>> cell_type = t.obs["cell_type"].astype(str).reindex(Q.index).to_numpy()
+    >>> pos = t.obs.index.get_indexer(Q.index)
+    >>> w = prob.iloc[:, 0].to_numpy()
+    >>> fit = ct.soft_cluster_fit(L[pos][:, :10], np.linspace(0, 1, len(pos)), np.c_[w, 1 - w], df=3)
+    >>> list(fit.columns)
+    ['stat', 'pval', 'mean_diff', 'cohen']
     """
     Gd = np.asarray(G.toarray() if sp.issparse(G) else G, dtype=np.float64)
     t = np.asarray(t, dtype=np.float64)
@@ -1017,8 +1604,27 @@ def soft_cluster_fit(G, t, P, *, df: int = 5, lam: float = 1e-4, test: str = "F"
 def bin_filter(mass, time, thresh: float = 5, binsize: float = 0.005) -> np.ndarray:
     """Cells in pseudotime bins where both target and control mass exceed ``thresh`` (R ``bin_filter_profile_mass``).
 
-    This mirrors R's ``cut(time, seq(min, max, by))``: right-closed bins. Times at the minimum, or
-    above the last break, fall into an NA bin, which is kept only if that NA bin itself passes.
+    Mirrors R's ``cut(time, seq(min, max, by))``: right-closed bins. Times at the minimum, or above the last
+    break, fall into an NA bin, which is kept only if that NA bin itself passes.
+
+    Parameters
+    ----------
+    mass : cells x 2 array (target mass, control mass).
+    time : pseudotime per cell.
+    thresh : minimum summed mass of each column per bin (default 5).
+    binsize : bin width in pseudotime units (default 0.005).
+
+    Returns
+    -------
+    boolean numpy array, one per cell (True = kept).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> keep = ct.bin_filter(np.ones((100, 2)), np.linspace(0, 1, 100), thresh=2, binsize=0.1)
+    >>> keep.dtype.name, int(keep.sum())
+    ('bool', 99)
     """
     M = np.asarray(mass, dtype=np.float64)
     tt = np.asarray(time, dtype=np.float64)
@@ -1043,13 +1649,51 @@ def fate_genes(profile, cluster, X, genes: Sequence[str], cell_cluster, cell_t, 
                binsize: float = 0.005) -> pd.DataFrame | None:
     """Fate-associated genes of ``profile`` inside cell ``cluster`` (R ``profile_cluster_DEG``).
 
-    ``X``: cells x genes expression aligned to ``cell_profile_prob`` rows. ``cell_cluster`` and
-    ``cell_t`` are per-cell arrays in the same order. Target mass = summed probability of
-    ``profile`` (one or several); control = the rest. The steps: bin filter
-    (:func:`bin_filter`); genes with ``> min_cells`` non-zero cells; :func:`soft_cluster_fit`
-    with ``df=1``; calibrate each p-value against all genes' p-values under ``n_perm`` label
-    permutations (rows shuffled, then shuffled within each row); then BH. Returns None if fewer
-    than 5 cells pass, as R does. ``seed`` (default 0) seeds a local ``np.random.default_rng``.
+    Target mass = summed probability of ``profile`` (one or several); control = the rest. Steps: bin filter
+    (:func:`bin_filter`); genes with ``> min_cells`` non-zero cells; :func:`soft_cluster_fit` with ``df=1``;
+    calibrate each p-value against all genes' p-values under ``n_perm`` label permutations (rows shuffled,
+    then shuffled within each row); then BH.
+
+    Parameters
+    ----------
+    profile : profile label (or list of labels) of interest.
+    cluster : cell cluster in which genes are tested.
+    X : cells x genes expression aligned to ``cell_profile_prob`` rows.
+    genes : gene names (columns of ``X``).
+    cell_cluster : cluster per cell (same order).
+    cell_t : pseudotime per cell (same order).
+    cell_profile_prob : cells x profiles DataFrame (:func:`cell_profiles`).
+    n_perm : number of permutations (default 50).
+    seed : integer seed of a local ``np.random.default_rng`` (default 0).
+    min_cells : minimum non-zero cells per gene (default 30).
+    mass_thresh : ``thresh`` of :func:`bin_filter` (default 3).
+    binsize : ``binsize`` of :func:`bin_filter` (default 0.005).
+
+    Returns
+    -------
+    DataFrame per gene (``stat, pval, mean_diff, cohen, pcali, padj``), or None if fewer than 5 cells pass, as
+    R does.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> prob, label = ct.cell_profiles(Q, ct.cluster_clones(D, k=5))
+    >>> cell_type = t.obs["cell_type"].astype(str).reindex(Q.index).to_numpy()
+    >>> pos = t.obs.index.get_indexer(Q.index)
+    >>> fg = ct.fate_genes(prob.columns[0], "CD8 T", L[pos], list(t.features("RNA")), cell_type,
+    ...                    np.linspace(0, 1, len(pos)), prob, n_perm=5, mass_thresh=1, binsize=0.1)
+    >>> list(fg.columns)
+    ['stat', 'pval', 'mean_diff', 'cohen', 'pcali', 'padj']
     """
     seed = check_seed(seed)
     from .clones import p_adjust_bh
@@ -1088,11 +1732,40 @@ def coembed_graph(cell_embedding, clone_embedding, Q, *, cell_k: int = 30, clone
                   min_weight: float = 0.1, n_keep: int = 20) -> sp.csr_matrix:
     """Clone-weighted cell kNN distances (R ``cell_clone_coembed``), for UMAP with a precomputed metric.
 
-    For each cell kNN pair (self included), ``w_ij = Q_i V Q_j^T``, where V is the binary clone kNN
-    graph (``clone_k``, self included). Pairs with ``w > min_weight`` get distance ``d_ij / w_ij``.
-    Each cell keeps its ``n_keep`` smallest (ties kept), then the graph is symmetrized and the
-    diagonal dropped. ``Q`` rows must align with ``cell_embedding`` and its columns with
-    ``clone_embedding`` rows.
+    For each cell kNN pair (self included), ``w_ij = Q_i V Q_j^T``, where V is the binary clone kNN graph
+    (``clone_k``, self included). Pairs with ``w > min_weight`` get distance ``d_ij / w_ij``. Each cell keeps
+    its ``n_keep`` smallest (ties kept), then the graph is symmetrized and the diagonal dropped.
+
+    Parameters
+    ----------
+    cell_embedding : cells x dims, rows aligned to ``Q``.
+    clone_embedding : clones x dims, rows aligned to ``Q``'s columns.
+    Q : cells x clones probabilities.
+    cell_k : cell neighbours (default 30).
+    clone_k : clone neighbours (default 15).
+    min_weight : minimum clone weight of a kept pair (default 0.1).
+    n_keep : distances kept per cell (default 20).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix of distances, cells x cells.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> cp = ct.propagate_clones(ct.cell_transition(pcs, 15), clones, min_size=5, n_boot=8, cells=t.obs.index)
+    >>> Q = ct.filter_and_sparsify(cp)
+    >>> Xq = pcs[t.obs.index.get_indexer(Q.index)]
+    >>> D = ct.clone_distance(Xq, Q)
+    >>> G = ct.coembed_graph(Xq, ct.cmdscale(D, 2), Q, cell_k=10, clone_k=3)
+    >>> G.shape == (len(Q), len(Q))
+    True
     """
     Xc = np.ascontiguousarray(cell_embedding, dtype=np.float64)
     Xk = np.ascontiguousarray(clone_embedding, dtype=np.float64)
@@ -1137,7 +1810,35 @@ def coembed_graph(cell_embedding, clone_embedding, Q, *, cell_k: int = 30, clone
 # =========================================================================== pipeline + tables
 @dataclass
 class CloneTrace:
-    """Result of :func:`run`."""
+    """Result of :func:`run`.
+
+    Attributes
+    ----------
+    Q : cells x clones propagated probabilities (after the deviance filter and sparsification).
+    deviance : per-cell bootstrap deviance.
+    distance : clone x clone distance used downstream (revised when ``revised=True``).
+    raw_distance : the unrevised :func:`clone_distance`.
+    clusters : fate profile per clone (:func:`cluster_clones`).
+    embedding : clone MDS embedding.
+    clone_t : pseudotime per clone (:func:`clone_dpt`).
+    cell_t : pseudotime per cell (Q-weighted clone pseudotime).
+    cell_profile_prob : cells x profiles probabilities; cell_profile : hard profile per cell.
+    params : the arguments used.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> res = ct.run(pcs, clones, cells=t.obs.index, cell_clusters=t.obs["cell_type"].astype(str).to_numpy(),
+    ...              start_cluster="CD8 T", min_size=5, n_boot=8, n_mds=5, cluster_k=5, dpt_k=10, dpt_nn=5)
+    >>> res.Q.shape[1] == res.distance.shape[0]
+    True
+    """
     Q: pd.DataFrame                      # cells x clones (filtered, sparsified, rows sum to 1)
     deviance: pd.Series                  # per input cell
     distance: pd.DataFrame               # clone x clone (revised if requested)
@@ -1151,6 +1852,31 @@ class CloneTrace:
     params: dict = field(default_factory=dict)
 
     def table(self, cyclone=None, clone_col: str | None = None) -> pd.DataFrame:
+        """One row per clone; see :func:`clone_table`.
+
+        Parameters
+        ----------
+        cyclone : optional :class:`arsc.clones.Cyclone` result to join (trajectory ``k``, patient).
+        clone_col : Cyclone clone column (default: the Cyclone ``clone_col``).
+
+        Returns
+        -------
+        DataFrame, one row per clone.
+
+        Examples
+        --------
+        >>> import arsc, numpy as np
+        >>> from arsc import clonotrace as ct
+        >>> ds = arsc.datasets.toy()
+        >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+        >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+        >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+        >>> clones = t.obs["clone_id"].to_numpy()
+        >>> res = ct.run(pcs, clones, cells=t.obs.index, cell_clusters=t.obs["cell_type"].astype(str).to_numpy(),
+        ...              start_cluster="CD8 T", min_size=5, n_boot=8, n_mds=5, cluster_k=5, dpt_k=10, dpt_nn=5)
+        >>> list(res.table().columns)
+        ['clone', 'mass', 'n_cells', 'profile', 'clone_t']
+        """
         return clone_table(self, cyclone, clone_col=clone_col)
 
     def __repr__(self) -> str:
@@ -1165,15 +1891,58 @@ def run(embedding, clones, *, cells=None, cell_clusters=None, start_cluster=None
         seed: int = 0) -> CloneTrace:
     """Run CloneTrace steps 1-4 with the published vignette defaults.
 
-    ``embedding``: cells x dims (e.g. 15 PCs). ``clones``: label per cell (NaN = none).
-    ``cell_clusters`` and ``start_cluster`` choose the pseudotime root; without them the root is
-    the first clone. ``revised=False`` reproduces the published figures; ``True`` is the
-    package's 1.2.x default. ``seed`` (default 0) is the single seed of the whole pipeline: it is
-    passed unchanged to every stochastic step (bootstrap of :func:`propagate_clones`, the Leiden
-    ladder of :func:`revise_distance`, :func:`cluster_clones`); the other steps are deterministic.
+    ``revised=False`` reproduces the published figures; ``True`` is the package's 1.2.x default. ``seed`` is the
+    single seed of the whole pipeline: it is passed unchanged to every stochastic step (bootstrap of
+    :func:`propagate_clones`, the Leiden ladder of :func:`revise_distance`, :func:`cluster_clones`); the other
+    steps are deterministic.
+
+    Parameters
+    ----------
+    embedding : cells x dims (e.g. 15 PCs).
+    clones : clone label per cell (NaN = none).
+    cells : cell names (default: the DataFrame index or ``0..n-1``).
+    cell_clusters : cell cluster per cell; with ``start_cluster`` it picks the pseudotime root (default: the
+        first clone).
+    start_cluster : the cluster where trajectories start.
+    k : neighbours of :func:`cell_transition` (default 30).
+    min_size : minimum cells per propagated clone (default 10).
+    alpha : propagation weight (default 0.6).
+    n_boot : bootstraps for the deviance (default 48).
+    max_deviance : deviance filter (default 0.3).
+    distance : ``"nn"`` (default) or ``"exact"`` (:func:`clone_distance`).
+    graph_k : neighbours of the SNN cost graph (default 10).
+    revised : apply :func:`revise_distance` (default False).
+    revise_clusters : cells x resolutions labels for :func:`revise_distance`.
+    n_mds : dimensions of the clone MDS (default 30; capped by the number of clones).
+    cluster_k : neighbours for :func:`cluster_clones` (default 20).
+    resolution : Leiden resolution for :func:`cluster_clones` (default 0.5).
+    dpt_k : eigenpairs for :func:`clone_dpt` (default 30).
+    dpt_nn : neighbours for :func:`clone_dpt` (default 10).
+    seed : integer seed of the whole pipeline (default 0).
+
+    Returns
+    -------
+    :class:`CloneTrace`.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> res = ct.run(pcs, clones, cells=t.obs.index, cell_clusters=t.obs["cell_type"].astype(str).to_numpy(),
+    ...              start_cluster="CD8 T", min_size=5, n_boot=8, n_mds=5, cluster_k=5, dpt_k=10, dpt_nn=5)
+    >>> res.clusters.index.equals(res.distance.index)
+    True
     """
     seed = check_seed(seed)
     X = np.ascontiguousarray(embedding, dtype=np.float64)
+    if X.ndim != 2 or len(clones) != X.shape[0]:
+        raise ValueError(f"clonotrace.run: embedding has shape {X.shape} but there are {len(clones)} clone labels; "
+                         "pass a cells x dims embedding and one clone label per row")
     cells = pd.Index(cells if cells is not None else (embedding.index if isinstance(embedding, pd.DataFrame)
                                                        else range(X.shape[0])))
     T = cell_transition(X, k)
@@ -1205,10 +1974,34 @@ def run(embedding, clones, *, cells=None, cell_clusters=None, start_cluster=None
 def clone_table(ct: CloneTrace, cyclone=None, *, clone_col: str | None = None) -> pd.DataFrame:
     """One row per CloneTrace clone: mass, cell count, profile, pseudotime (+ Cyclone trajectory).
 
-    Pass a :class:`arsc.clones.Cyclone` result to add its trajectory assignment (``k``) and patient
-    for clones whose id matches. ``clone_col`` defaults to the Cyclone clone column. Typically the
-    CloneTrace clone is the TCR clonotype; when it is clonotype x timepoint, map it to the
-    clonotype before joining.
+    Pass a :class:`arsc.clones.Cyclone` result to add its trajectory assignment (``cyclone_k``) and patient for
+    clones whose id matches. Typically the CloneTrace clone is the TCR clonotype; when it is clonotype x
+    timepoint, map it to the clonotype before joining.
+
+    Parameters
+    ----------
+    ct : a :class:`CloneTrace` result.
+    cyclone : optional :class:`arsc.clones.Cyclone` result.
+    clone_col : Cyclone clone column (default: the Cyclone ``clone_col``).
+
+    Returns
+    -------
+    DataFrame: ``clone, mass, n_cells, profile, clone_t`` (+ ``cyclone_k`` and the patient column).
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> from arsc import clonotrace as ct
+    >>> ds = arsc.datasets.toy()
+    >>> t = ds.subset(ds.obs["cell_type"].isin(["CD8 T", "CD4 T"]).to_numpy())
+    >>> L = arsc.pp.log_normalize(t.X("RNA", "counts"))
+    >>> pcs = arsc.pp.pca(arsc.pp.scale(L.toarray())[0], n_comps=10).embedding
+    >>> clones = t.obs["clone_id"].to_numpy()
+    >>> res = ct.run(pcs, clones, cells=t.obs.index, cell_clusters=t.obs["cell_type"].astype(str).to_numpy(),
+    ...              start_cluster="CD8 T", min_size=5, n_boot=8, n_mds=5, cluster_k=5, dpt_k=10, dpt_nn=5)
+    >>> cy = arsc.clones.cyclone(ds.obs, patient_col="patient", n_clust=2, n_max_min=3, verbose=False)
+    >>> list(ct.clone_table(res, cy).columns)
+    ['clone', 'mass', 'n_cells', 'profile', 'clone_t', 'cyclone_k', 'patient']
     """
     Q = ct.Q
     out = pd.DataFrame({"clone": list(Q.columns), "mass": Q.sum(0).to_numpy(), "n_cells": (Q > 0).sum(0).to_numpy(),

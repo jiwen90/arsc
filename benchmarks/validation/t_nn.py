@@ -1,5 +1,5 @@
 import sys, time, numpy as np, pandas as pd, scipy.sparse as sp
-sys.path.insert(0, "E:/autoresearch/vendor/arsc/benchmarks")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
 from refutil import *
 import arsc
 pcs = read_dense(REF_GD/"pca_embeddings").values

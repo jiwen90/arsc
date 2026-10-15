@@ -1,4 +1,4 @@
-"""Seurat functions used by the research scripts that are not covered by the other arsc modules.
+"""Seurat 4.3 functions not covered by the other arsc modules (markers, averages, cell cycle, scaling, helpers).
 
 Every function takes plain matrices / DataFrames (cells x features, arsc convention) and mirrors the
 numerics of Seurat 4.3 / SeuratObject 5.0 (validated in ``tests/test_seurat_extra.py``; see SEURAT_PARITY.md).
@@ -43,7 +43,7 @@ __all__ = ["find_markers", "find_all_markers", "fold_change", "average_expressio
            "scale_data", "normalize_data", "add_metadata", "which_cells", "split_object", "rename_idents",
            "cc_genes", "cc_genes_updated_2019"]
 
-cc_genes = CC_GENES  # Seurat::cc.genes (what the research scripts use)
+cc_genes = CC_GENES  # Seurat::cc.genes (Tirosh 2015; the Seurat CellCycleScoring default)
 cc_genes_updated_2019 = CC_GENES_UPDATED_2019  # Seurat::cc.genes.updated.2019
 
 
@@ -75,6 +75,30 @@ def fold_change(X, mask1, mask2, *, norm_method: str | None = "LogNormalize", sl
     for log-normalized data); any other ``norm_method`` (e.g. ``'CLR'``) or ``slot='counts'`` averages the raw
     values; ``slot='scale.data'`` returns the plain mean difference (``avg_diff``). ``pct`` is rounded to 3
     digits like Seurat.
+
+    Parameters
+    ----------
+    X : cells x features matrix (``slot`` says what it holds).
+    mask1, mask2 : boolean masks of the two cell groups.
+    norm_method : ``"LogNormalize"`` (average ``expm1(x)``) or another method name (average ``x``).
+    slot : ``"data"``, ``"counts"`` or ``"scale.data"``.
+    pseudocount : added before the log.
+    base : log base (2 -> ``avg_log2FC``).
+    features : feature names (index of the result).
+
+    Returns
+    -------
+    DataFrame indexed by feature: ``avg_log2FC`` (or ``avg_diff`` / ``avg_log{base}FC``), ``pct.1``, ``pct.2``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> b = (ds.obs["cell_type"] == "B").to_numpy()
+    >>> fc = arsc.fold_change(L, b, ~b, features=ds.features("RNA"))
+    >>> list(fc.columns), fc["avg_log2FC"].idxmax() in ("MS4A1", "CD79A", "CD19")
+    (['avg_log2FC', 'pct.1', 'pct.2'], True)
     """
     X = as_csr(X)
     n1, n2 = int(np.sum(mask1)), int(np.sum(mask2))
@@ -316,29 +340,65 @@ def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, c
     ----------
     X : cells x features matrix (Seurat ``data`` slot: log-normalized RNA, CLR ADT, ...).
     groups, ident_1, ident_2 : identity per cell and the two identities (``ident_1`` may be a list;
-        ``ident_2=None`` = all other cells). Alternatively pass boolean masks ``cells_1`` / ``cells_2``.
-    features : feature names for ``X`` columns. ``test_features`` restricts the tested set (Seurat ``features=``).
+        ``ident_2=None`` = all other cells).
+    cells_1, cells_2 : alternatively, boolean masks of the two groups (``cells_2=None`` = all other cells).
+    features : feature names for ``X`` columns.
+    test_features : restricts the tested set (Seurat ``features=``).
     test_use : ``"wilcox"`` (limma rank-sum, as Seurat), ``"LR"`` (needs ``latent_vars``), ``"t"``.
         (``MAST``, ``DESeq2``, ``negbinom``, ``poisson``, ``roc``, ``bimod`` are not ported; use ``arsc.pseudobulk``
         + an external DE tool for sample-level DESeq2.)
     norm_method : ``"LogNormalize"`` => fold change from ``log(mean(expm1(x)) + 1)``; anything else (``"CLR"``)
         => ``log(mean(x) + 1)`` (what Seurat does for ADT).
+    slot : what ``X`` holds: ``"data"`` (default), ``"counts"`` or ``"scale.data"``.
+    logfc_threshold, min_pct, min_diff_pct, only_pos : Seurat's gene pre-filters.
+    max_cells_per_ident : downsample each group to at most this many cells.
+    latent_vars : per-cell covariates (DataFrame) for ``test_use="LR"``.
+    min_cells_group : minimum cells per group.
+    pseudocount_use, base : fold-change pseudocount and log base.
     n_features_total : number of features in the assay (Bonferroni multiplier; default ``X.shape[1]``).
     random_seed : R ``set.seed`` value (default 1 = Seurat ``random.seed = 1``) for the
         ``max_cells_per_ident`` downsampling, drawn with the R-compatible RNG (identical cells to R).
         Unused when ``max_cells_per_ident`` is infinite (the default).
 
+    Cell-level p-values rank markers; they are not evidence for a difference between conditions
+    (for that, pseudobulk per patient and use :func:`arsc.de.voom` / :func:`arsc.de.deseq2`).
+
     Returns
     -------
     DataFrame indexed by feature: ``p_val, avg_log2FC, pct.1, pct.2, p_val_adj``, ordered by
     ``(p_val, -avg_log2FC)`` like Seurat.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> mk = arsc.find_markers(L, ds.obs["cell_type"], ident_1="B", features=ds.features("RNA"), only_pos=True)
+    >>> list(mk.columns)
+    ['p_val', 'avg_log2FC', 'pct.1', 'pct.2', 'p_val_adj']
+    >>> mk.index[0] in ("MS4A1", "CD79A", "CD19")
+    True
     """
     random_seed = check_seed(random_seed, "random_seed", r_seed=True)
     X = as_csr(X)
     N, P = X.shape
     names = _names(features, P)
+    if features is not None and len(features) != P:
+        raise ValueError(f"features has {len(features)} names but X has {P} columns")
     if cells_1 is None:
+        if groups is None or ident_1 is None:
+            raise ValueError("pass groups= (one identity per cell) and ident_1=, or boolean masks cells_1= / cells_2=")
         g = groups
+        if len(g) != N:
+            raise ValueError(f"groups has {len(g)} labels but X has {N} rows (cells); they must be row-aligned")
+        lv = set(pd.Series(np.asarray(g)).dropna().astype(str))
+        for nm, idt in (("ident_1", ident_1), ("ident_2", ident_2)):
+            if idt is None:
+                continue
+            ids = list(idt) if isinstance(idt, (list, tuple, set, np.ndarray, pd.Index)) else [idt]
+            absent = [i for i in ids if str(i) not in lv]
+            if absent:
+                raise ValueError(f"{nm} {absent} not found in groups; available identities: {sorted(lv)[:30]}")
         m1 = _mask(g, ident_1)
         m2 = ~m1 if ident_2 is None else _mask(g, ident_2)
         if ident_2 is None:
@@ -349,7 +409,8 @@ def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, c
     if m1.sum() < min_cells_group or m2.sum() < min_cells_group:
         raise ValueError(f"Cell group 1 ({m1.sum()}) or 2 ({m2.sum()}) has fewer than {min_cells_group} cells")
     if test_use not in ("wilcox", "LR", "t"):
-        raise NotImplementedError(f"test_use={test_use!r} is not ported (wilcox, LR, t are)")
+        raise NotImplementedError(f"test_use={test_use!r} is not ported (wilcox, LR, t are); for sample-level DE "
+                                  "use arsc.pseudobulk + arsc.de.deseq2 / arsc.de.voom")
     if latent_vars is not None and test_use != "LR":
         latent_vars = None
     if test_use == "LR" and latent_vars is not None and len(latent_vars) != N:
@@ -416,6 +477,31 @@ def find_all_markers(X, groups, *, features=None, test_use: str = "wilcox", logf
     ``min_cells_group`` cells are skipped (Seurat reports an error message and continues).
     ``random_seed`` is passed unchanged to every per-cluster :func:`find_markers` call (as Seurat).
     For ``test_use="wilcox"`` without cell downsampling every cluster is tested from a single rank pass.
+
+    Parameters
+    ----------
+    X : cells x features matrix (Seurat ``data`` slot).
+    groups : identity per cell (e.g. cluster labels).
+    features : feature names for ``X`` columns.
+    test_use, logfc_threshold, min_pct, min_diff_pct, only_pos, max_cells_per_ident, random_seed, latent_vars,
+        min_cells_group, pseudocount_use, base, norm_method, slot : as in :func:`find_markers`.
+    return_thresh : keep rows with raw ``p_val < return_thresh``.
+    levels : order in which identities are visited (and reported).
+
+    Returns
+    -------
+    DataFrame with the :func:`find_markers` columns plus ``cluster`` and ``gene``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> allm = arsc.find_all_markers(L, ds.obs["cell_type"], features=ds.features("RNA"), only_pos=True)
+    >>> sorted(allm.cluster.unique())
+    ['B', 'CD4 T', 'CD8 T', 'Mono', 'NK']
+    >>> allm.groupby("cluster", observed=True).head(1).set_index("cluster").gene["Mono"] in ("LYZ", "CD14", "S100A8", "FCGR3A")
+    True
     """
     random_seed = check_seed(random_seed, "random_seed", r_seed=True)
     X = as_csr(X)
@@ -494,7 +580,31 @@ def average_expression(X, obs: pd.DataFrame | None = None, group_by=None, *, fea
     grouping variable are dropped; grouping variables with a single level are ignored (Seurat); if none
     remain the single group ``"all"`` is returned.
 
-    Returns features x groups (Seurat orientation); ``transpose=True`` gives groups x features.
+    Parameters
+    ----------
+    X : cells x features matrix.
+    obs : cell metadata (needed when ``group_by`` names columns).
+    group_by : column name, list of column names, or per-cell labels.
+    features : feature names.
+    layer : ``"data"`` (average ``expm1``), ``"counts"`` or ``"scale.data"``.
+    method : ``"average"`` or ``"aggregate"`` (sums).
+    transpose : return groups x features.
+    sep : separator of combined group labels.
+
+    Returns
+    -------
+    DataFrame, features x groups (Seurat orientation); ``transpose=True`` gives groups x features.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> av = arsc.average_expression(L, ds.obs, "cell_type", features=ds.features("RNA"))
+    >>> av.shape
+    (300, 5)
+    >>> av.loc["MS4A1"].idxmax()
+    'B'
     """
     X = as_csr(X) if sp.issparse(X) else np.asarray(X, dtype=np.float64)
     N, P = X.shape
@@ -535,6 +645,32 @@ def cell_cycle_scoring(X, features, s_features=None, g2m_features=None, *, ctrl:
     ``ctrl`` defaults to the size of the smaller input set (as Seurat). Phase: both scores < 0 -> ``G1``;
     equal maxima -> ``Undecided``; else the larger of ``S`` / ``G2M``.
     ``seed`` (default 1, as Seurat) is the ``AddModuleScore`` R seed; both scores share one RNG stream.
+
+    Parameters
+    ----------
+    X : cells x features log-normalized matrix.
+    features : feature names.
+    s_features, g2m_features : S and G2M gene lists (default ``cc_genes``).
+    ctrl : control genes per signature gene (default: the smaller set size, as Seurat).
+    nbin : expression bins.
+    seed : R seed.
+    cells : index of the output.
+    pool : control-gene pool.
+
+    Returns
+    -------
+    DataFrame with ``S.Score``, ``G2M.Score`` and ``Phase`` (``G1`` / ``S`` / ``G2M`` / ``Undecided``).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> cc = arsc.cell_cycle_scoring(L, ds.features("RNA"), ctrl=5, cells=ds.cells)
+    >>> list(cc.columns)
+    ['S.Score', 'G2M.Score', 'Phase']
+    >>> set(cc.Phase) <= {"G1", "S", "G2M", "Undecided"}
+    True
     """
     from .scores import add_module_score
 
@@ -585,17 +721,38 @@ def scale_data(X, features=None, *, select=None, vars_to_regress=None, latent_da
 
     Parameters
     ----------
-    X : cells x features log-normalized matrix. ``features`` = its feature names; ``select`` = names to scale
-        (Seurat ``features=``; default all).
+    X : cells x features log-normalized matrix.
+    features : feature names of ``X``.
+    select : names to scale (Seurat ``features=``; default all; unknown names are ignored).
     vars_to_regress : columns of ``latent_data`` and / or feature names in ``X`` regressed out per gene with
         ``lm`` (``model_use='linear'``; residuals are then centered/scaled). ``poisson`` / ``negbinom`` are
         not ported.
+    latent_data : per-cell covariates (row-aligned with ``X``).
     split_by : per-cell labels; regression and scaling are done separately within each split.
+    model_use : only ``"linear"``.
+    do_scale, do_center : divide by s.d. / subtract the mean.
+    scale_max : upper clip.
+    block_size : genes per block.
+    dtype : output dtype.
 
-    Returns ``(Z, feature_names)``; clipping at ``scale_max`` is upper-tail only, like Seurat.
+    Returns
+    -------
+    tuple ``(Z, feature_names)``: dense cells x selected-features array (clipping at ``scale_max`` is
+    upper-tail only, like Seurat) and the names of its columns.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> obs = ds.obs.assign(nUMI=ds.X("RNA", "counts").sum(axis=1).A1)
+    >>> Z, names = arsc.scale_data(L, ds.features("RNA"), select=["CD8A", "GZMK"],
+    ...                            vars_to_regress=["nUMI"], latent_data=obs)
+    >>> Z.shape, list(names)
+    ((3000, 2), ['CD8A', 'GZMK'])
     """
     if model_use != "linear":
-        raise NotImplementedError("only model_use='linear' regression is ported")
+        raise NotImplementedError(f"only model_use='linear' regression is ported (got {model_use!r})")
     X = as_csr(X) if sp.issparse(X) else np.asarray(X)
     N, P = X.shape
     names = _names(features, P)
@@ -616,7 +773,8 @@ def scale_data(X, features=None, *, select=None, vars_to_regress=None, latent_da
                 col = X[:, names.get_loc(v)]
                 parts[v] = pd.Series(col.toarray().ravel() if sp.issparse(col) else np.asarray(col).ravel())
         if not parts:
-            raise ValueError("None of the requested variables to regress are present")
+            raise ValueError(f"None of the requested variables to regress {vars_to_regress} are present: pass them "
+                             "as columns of latent_data= (row-aligned with X) or as feature names of X")
         lat = pd.DataFrame(parts)
     splits = [np.arange(N)] if split_by is None else [np.flatnonzero(np.asarray(split_by) == s)
                                                      for s in pd.unique(pd.Series(np.asarray(split_by)))]
@@ -650,6 +808,25 @@ def normalize_data(X, method: str = "LogNormalize", scale_factor: float = 1e4, m
 
     ``margin`` follows Seurat's CLR convention: ``margin=1`` normalizes each *feature* across cells (Seurat's
     default), ``margin=2`` each *cell* across features (the recommended setting for ADT / HTO).
+
+    Parameters
+    ----------
+    X : cells x features counts.
+    method : ``"LogNormalize"``, ``"CLR"`` or ``"RC"``.
+    scale_factor : scale factor (LogNormalize, RC).
+    margin : CLR margin (see above).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix, cells x features.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> adt = arsc.normalize_data(ds.X("ADT", "counts"), method="CLR", margin=2)
+    >>> adt.shape
+    (3000, 6)
     """
     if method == "LogNormalize":
         return pp.log_normalize(X, scale_factor=scale_factor)
@@ -662,7 +839,7 @@ def normalize_data(X, method: str = "LogNormalize", scale_factor: float = 1e4, m
         with np.errstate(divide="ignore", invalid="ignore"):
             out.data = out.data / np.repeat(tot, np.diff(Xc.indptr)) * scale_factor
         return out
-    raise ValueError("method must be LogNormalize, CLR or RC")
+    raise ValueError(f"method must be 'LogNormalize', 'CLR' or 'RC'; got {method!r}")
 
 
 # ============================================================================ metadata / subsetting helpers
@@ -670,6 +847,24 @@ def add_metadata(obs: pd.DataFrame, metadata, col_name: str | None = None) -> pd
     """Seurat ``AddMetaData``: align ``metadata`` (DataFrame / Series indexed by cell barcode, or a dict) to
     ``obs`` by index and return a new ``obs`` with the columns added (missing cells -> NA). Existing columns are
     overwritten, like Seurat.
+
+    Parameters
+    ----------
+    obs : cell metadata.
+    metadata : DataFrame / Series indexed by barcode, or a dict of columns.
+    col_name : column name for a Series or single-column frame.
+
+    Returns
+    -------
+    DataFrame, a new ``obs`` with the added columns.
+
+    Examples
+    --------
+    >>> import arsc, pandas as pd
+    >>> ds = arsc.datasets.toy()
+    >>> obs = arsc.add_metadata(ds.obs, pd.Series(1.0, index=ds.cells[:10]), col_name="flag")
+    >>> int(obs["flag"].notna().sum())
+    10
     """
     if isinstance(metadata, dict):
         metadata = pd.DataFrame(metadata)
@@ -685,10 +880,35 @@ def which_cells(obs: pd.DataFrame, expression: str | None = None, *, idents=None
                 cells=None, invert: bool = False) -> np.ndarray:
     """Seurat ``WhichCells`` / the row selection of ``subset``: boolean mask over ``obs``.
 
-    ``expression`` is a pandas ``eval`` string on ``obs`` columns (e.g. ``"timepoint == 'Baseline' and
+    ``expression`` is a pandas ``eval`` string on ``obs`` columns (e.g. ``"timepoint == 'pre' and
     nCount_RNA > 1000"``; use backticks for names with dots, e.g. ``"`percent.mt` < 10"``). ``idents`` selects
     values of ``ident_col``; ``cells`` restricts to barcodes. Conditions are AND-ed.
+
+    Parameters
+    ----------
+    obs : cell metadata.
+    expression : pandas ``eval`` condition on ``obs`` columns.
+    idents : identities to keep (values of ``ident_col``).
+    ident_col : column holding the identities.
+    cells : barcodes to keep.
+    invert : return the complement.
+
+    Returns
+    -------
+    numpy.ndarray of bool, one per row of ``obs``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> m = arsc.which_cells(ds.obs, "timepoint == 'post'", idents=["CD8 T"], ident_col="cell_type")
+    >>> sub = ds.subset(m)
+    >>> sorted(sub.obs.cell_type.unique())
+    ['CD8 T']
     """
+    if idents is not None and (ident_col is None or ident_col not in obs.columns):
+        raise KeyError(f"idents= needs ident_col= naming an obs column (got {ident_col!r}); "
+                       f"available: {list(obs.columns)}")
     m = np.ones(len(obs), dtype=bool)
     if expression is not None:
         m &= obs.eval(expression).fillna(False).to_numpy(dtype=bool)
@@ -700,13 +920,51 @@ def which_cells(obs: pd.DataFrame, expression: str | None = None, *, idents=None
 
 
 def split_object(ds, by: str) -> dict:
-    """Seurat ``SplitObject``: ``{level: Dataset}`` split by an ``obs`` column (uses ``Dataset.subset``)."""
+    """Seurat ``SplitObject``: ``{level: Dataset}`` split by an ``obs`` column (uses ``Dataset.subset``).
+
+    Parameters
+    ----------
+    ds : arsc.Dataset or arsc.Store.
+    by : ``obs`` column to split by.
+
+    Returns
+    -------
+    dict ``{level: Dataset}`` (levels without cells are omitted).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> parts = arsc.split_object(ds, "timepoint")
+    >>> list(parts), parts["pre"].n_cells + parts["post"].n_cells
+    (['pre', 'post'], 3000)
+    """
+    if by not in ds.obs.columns:
+        raise KeyError(f"column {by!r} not in obs; available: {list(ds.obs.columns)}")
     s = ds.obs[by]
     levels = s.cat.categories if isinstance(s.dtype, pd.CategoricalDtype) else sorted(s.dropna().unique())
     return {l: ds.subset((s == l).to_numpy()) for l in levels if (s == l).any()}
 
 
 def rename_idents(labels, mapping: dict) -> pd.Series:
-    """Seurat ``RenameIdents``: map identity labels (unmapped labels kept; several old levels may merge)."""
+    """Seurat ``RenameIdents``: map identity labels (unmapped labels kept; several old levels may merge).
+
+    Parameters
+    ----------
+    labels : per-cell labels.
+    mapping : ``{old: new}``.
+
+    Returns
+    -------
+    pandas.Series (categorical) of renamed labels.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> lab = arsc.rename_idents(ds.obs["cell_type"], {"CD8 T": "T", "CD4 T": "T"})
+    >>> sorted(lab.cat.categories)
+    ['B', 'Mono', 'NK', 'T']
+    """
     s = labels if isinstance(labels, pd.Series) else pd.Series(np.asarray(labels))
     return s.astype(object).map(lambda v: mapping.get(v, v)).astype("category")

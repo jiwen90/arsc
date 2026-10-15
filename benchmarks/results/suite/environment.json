@@ -1,0 +1,39 @@
+{
+ "os": "Windows 11 (10.0.26200)",
+ "cpu": "AMD Ryzen Threadripper PRO 5955WX 16-Cores",
+ "logical_cpus": 32,
+ "physical_cpus": 16,
+ "ram_gb": 511.9,
+ "python": "3.11.5",
+ "python_packages": {
+  "numpy": "2.4.6",
+  "scipy": "1.17.1",
+  "pandas": "2.3.3",
+  "numba": "0.68.0",
+  "scikit-learn": "1.9.1",
+  "anndata": "0.12.19",
+  "scanpy": "1.11.5",
+  "pydeseq2": "0.5.2",
+  "igraph": "1.0.0",
+  "leidenalg": "0.12.0",
+  "pynndescent": "0.6.0",
+  "umap-learn": "0.5.12",
+  "h5py": "3.16.0",
+  "psutil": "7.2.2",
+  "arsc": "0.2.0"
+ },
+ "r_packages": {
+  "R": "R version 4.3.1 (2023-06-16 ucrt)",
+  "Seurat": "4.3.0",
+  "SeuratObject": "5.0.2",
+  "presto": "1.0.0",
+  "DESeq2": "1.42.1",
+  "limma": "3.58.1",
+  "edgeR": "4.0.16",
+  "UCell": "2.6.2",
+  "Matrix": "1.6.5"
+ },
+ "threads_note": "default threading for every tool (arsc/numba and scanpy use all cores; most Seurat steps are single-threaded R)",
+ "warmup_note": "Python steps are first run untimed on a 12,000-cell dataset in the same process, so one-off JIT compilation (numba, pynndescent) is not counted",
+ "date": "2026-10-15"
+}

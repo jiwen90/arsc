@@ -1,5 +1,5 @@
 import sys, time, json, numpy as np, pandas as pd
-sys.path.insert(0, "E:/autoresearch/vendor/arsc/benchmarks")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
 from refutil import *
 import arsc
 from arsc.harmony import run_harmony
@@ -13,5 +13,5 @@ a = run_harmony(pcs, ds.obs, "n10x_lane_name", init_centroids=Y0.T, seed=0)
 b = run_harmony(pcs, ds.obs, "n10x_lane_name", init_centroids=Y0.T, seed=1)
 print("py seed0 vs seed1 (same init): min r", mr(a,b))
 import cProfile, pstats
-cProfile.run('run_harmony(pcs, ds.obs, "n10x_lane_name", seed=3)', 'E:/autoresearch/scratch/arsc/h.prof')
-pstats.Stats('E:/autoresearch/scratch/arsc/h.prof').sort_stats('cumtime').print_stats(14)
+cProfile.run('run_harmony(pcs, ds.obs, "n10x_lane_name", seed=3)', str(SCRATCH / 'h.prof'))
+pstats.Stats(str(SCRATCH / 'h.prof')).sort_stats('cumtime').print_stats(14)

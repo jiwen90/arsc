@@ -42,7 +42,7 @@ def _group_sums(indptr, indices, data, order, starts, n_features, expm1):
 
 @dataclass
 class Pseudobulk:
-    """Result of :func:`pseudobulk`.
+    """Result of :func:`pseudobulk`: one aggregated profile per group (e.g. per patient x timepoint).
 
     Attributes
     ----------
@@ -52,6 +52,22 @@ class Pseudobulk:
     features : feature names.
     n_detected : (n_groups, n_features) number of cells with a nonzero value.
     dropped : groups removed by the ``min_cells`` floor (same columns as ``groups``).
+
+    Note: the grouping columns of ``groups`` are plain strings (object dtype). For DE, set the
+    reference level explicitly, e.g. ``cd["timepoint"] = pd.Categorical(cd["timepoint"], ["pre", "post"])``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> pb = arsc.pseudobulk(ds.X("RNA", "counts"), ds.obs, ["patient", "timepoint"],
+    ...                      features=ds.features("RNA"), min_cells=10)
+    >>> pb.X.shape
+    (12, 300)
+    >>> list(pb.groups.columns)
+    ['patient', 'timepoint', 'n_cells']
+    >>> pb.to_frame().shape                  # genes x samples, the DESeq2 orientation
+    (300, 12)
     """
 
     X: np.ndarray
@@ -61,17 +77,44 @@ class Pseudobulk:
     dropped: pd.DataFrame
 
     def to_frame(self) -> pd.DataFrame:
-        """Wide features x groups table (the orientation DESeq2 expects)."""
+        """Wide features x groups table (the orientation DESeq2 expects).
+
+        Examples
+        --------
+        >>> import arsc
+        >>> ds = arsc.datasets.toy()
+        >>> pb = arsc.pseudobulk(ds.X("RNA", "counts"), ds.obs, "sample", features=ds.features("RNA"))
+        >>> pb.to_frame().loc["CD8A"].shape
+        (12,)
+        """
         return pd.DataFrame(self.X.T, index=self.features, columns=self.groups.index)
 
     def to_long(self, min_value: float = 0.0) -> pd.DataFrame:
-        """Tidy (group, feature, value, n_detected) rows with value > ``min_value``."""
+        """Tidy (group, feature, value, n_detected) rows with value > ``min_value``.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> ds = arsc.datasets.toy()
+        >>> pb = arsc.pseudobulk(ds.X("RNA", "counts"), ds.obs, "sample", features=ds.features("RNA"))
+        >>> list(pb.to_long().columns)
+        ['group', 'feature', 'value', 'n_detected']
+        """
         gi, fi = np.nonzero(self.X > min_value)
         return pd.DataFrame({"group": self.groups.index.to_numpy()[gi], "feature": self.features.to_numpy()[fi],
                              "value": self.X[gi, fi], "n_detected": self.n_detected[gi, fi]})
 
     def write(self, out_dir) -> Path:
-        """Write ``counts.parquet`` (features x groups, first column ``feature``) and ``groups.parquet``."""
+        """Write ``counts.parquet`` (features x groups, first column ``feature``) and ``groups.parquet``.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> ds = arsc.datasets.toy()
+        >>> pb = arsc.pseudobulk(ds.X("RNA", "counts"), ds.obs, "sample", features=ds.features("RNA"))
+        >>> sorted(p.name for p in pb.write("pb_out").iterdir())
+        ['counts.parquet', 'groups.parquet']
+        """
         d = Path(out_dir)
         d.mkdir(parents=True, exist_ok=True)
         wide = self.to_frame()
@@ -85,7 +128,10 @@ class Pseudobulk:
 
 def pseudobulk(X, obs: pd.DataFrame | None, by, *, features=None, min_cells: int = 0,
                method: str = "sum", expm1: bool = False) -> Pseudobulk:
-    """Aggregate cells into groups.
+    """Aggregate cells into groups (pseudobulk; Seurat ``AggregateExpression``), exact integer sums.
+
+    The patient (sample) is the unit of inference for condition comparisons: aggregate counts per
+    patient x condition (x cell type), then test with :func:`arsc.de.deseq2` or :func:`arsc.de.voom`.
 
     Parameters
     ----------
@@ -100,7 +146,18 @@ def pseudobulk(X, obs: pd.DataFrame | None, by, *, features=None, min_cells: int
 
     Returns
     -------
-    Pseudobulk
+    Pseudobulk with ``X`` (groups x features), ``groups`` (one row per group with ``n_cells``),
+    ``features``, ``n_detected`` and ``dropped``; ``.to_frame()`` gives features x groups.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> cd8 = (ds.obs["cell_type"] == "CD8 T").to_numpy()
+    >>> pb = arsc.pseudobulk(ds.X("RNA", "counts")[cd8], ds.obs[cd8], ["patient", "timepoint"],
+    ...                      features=ds.features("RNA"), min_cells=10)
+    >>> pb.groups.index[:2].tolist()
+    ['P1_pre', 'P1_post']
     """
     X = as_csr(X)
     n, p = X.shape
@@ -116,6 +173,8 @@ def pseudobulk(X, obs: pd.DataFrame | None, by, *, features=None, min_cells: int
     if method == "mean":
         S = S / counts[:, None]
     elif method != "sum":
-        raise ValueError("method must be 'sum' or 'mean'")
+        raise ValueError(f"method must be 'sum' (AggregateExpression) or 'mean' (AverageExpression); got {method!r}")
     feats = pd.Index(features) if features is not None else pd.RangeIndex(p)
+    if len(feats) != p:
+        raise ValueError(f"features has {len(feats)} names but X has {p} columns")
     return Pseudobulk(S[ok], groups[ok], feats, nnz[ok], groups[~ok])

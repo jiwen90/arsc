@@ -16,7 +16,7 @@ from scipy import stats as sps
 
 from arsc import de, stats
 
-REF = Path(os.environ.get("ARSC_SCRATCH", "E:/autoresearch/scratch/arsc")) / "stats_parity"
+REF = Path(os.environ.get("ARSC_SCRATCH", "__unset__")) / "stats_parity"
 have_ref = pytest.mark.skipif(not (REF / "R_ct_voom.csv").exists(), reason="R reference outputs not built")
 GENESETS = de.GENESET_CACHE / "Homo_sapiens__H__all.csv.gz"
 

@@ -27,7 +27,26 @@ _limiter = None
 
 
 def set_threads(n: int) -> int:
-    """Set the number of compute threads (numba and BLAS) for this process. Returns the value used."""
+    """Set the number of compute threads (numba and BLAS) for this process.
+
+    The environment variable ``AR_THREADS`` sets the same cap at import time.
+
+    Parameters
+    ----------
+    n : requested threads (clipped to 1 .. the numba maximum).
+
+    Returns
+    -------
+    int, the number of threads actually used.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> n0 = arsc.get_threads()
+    >>> arsc.set_threads(1)
+    1
+    >>> _ = arsc.set_threads(n0)
+    """
     global _limiter
     import numba
     n = max(1, min(int(n), numba.config.NUMBA_NUM_THREADS))
@@ -41,5 +60,17 @@ def set_threads(n: int) -> int:
 
 
 def get_threads() -> int:
+    """Number of compute threads currently used by numba kernels.
+
+    Returns
+    -------
+    int.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> arsc.get_threads() >= 1
+    True
+    """
     import numba
     return numba.get_num_threads()

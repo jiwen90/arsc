@@ -1,7 +1,7 @@
 """Numerical agreement with the R reference implementations (Seurat 4.3, harmony 1.2, presto, UCell).
 
-References are produced by benchmarks/r_reference_gd.R into $ARSC_SCRATCH/ref_gd; the Seurat export of gdT_1
-(38,440 cells) lives in $ARSC_SCRATCH/exp_gd. Tests skip when those are absent.
+References are produced by benchmarks/r_reference_gd.R into $ARSC_SCRATCH/ref_gd; the Seurat export of the
+38,440-cell reference dataset lives in $ARSC_SCRATCH/exp_gd. Tests skip when those are absent.
 Run: .venv/Scripts/python.exe -m pytest -q tests
 """
 import sys

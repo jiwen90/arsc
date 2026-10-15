@@ -20,7 +20,22 @@ __all__ = ["score_ucell", "add_module_score", "parse_signature"]
 
 # --------------------------------------------------------------------------- UCell
 def parse_signature(genes) -> tuple[list, list]:
-    """Split UCell-style genes into (positive, negative): trailing ``-`` = negative, ``+`` stripped."""
+    """Split UCell-style genes into (positive, negative): trailing ``-`` = negative, ``+`` stripped.
+
+    Parameters
+    ----------
+    genes : iterable of gene names, optionally suffixed ``+`` / ``-``.
+
+    Returns
+    -------
+    tuple ``(positive, negative)`` of gene-name lists.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> arsc.scores.parse_signature(["CD8A", "GZMK+", "CD4-"])
+    (['CD8A', 'GZMK'], ['CD4'])
+    """
     genes = list(genes)
     neg = [g[:-1] for g in genes if g.endswith("-")]
     pos = [g[:-1] if g.endswith("+") else g for g in genes if not g.endswith("-")]
@@ -95,15 +110,37 @@ def score_ucell(X, features, signatures: dict, *, max_rank: int = 1500, w_neg: f
     signatures : ``{name: [genes]}``; ``"GENE-"`` marks a negative gene, ``"GENE+"``
         is the same as ``"GENE"``. Score = max(0, U_pos - w_neg * U_neg).
     max_rank : rank cap (``maxRank``); lowered to the number of genes if larger.
+    w_neg : weight of the negative genes.
+    suffix : appended to each signature name in the output columns.
+    cells : index of the output (e.g. ``ds.cells``); default a RangeIndex.
+
+    Returns
+    -------
+    DataFrame, cells x signatures, columns ``f"{name}{suffix}"``; scores in [0, 1].
 
     Notes
     -----
     Faithful to UCell 2.6 quirks: genes missing from the data (union across all
     signatures) are appended as rows of ``min(X)`` before ranking, which enlarges
     the zero-tie block; duplicated genes within a signature count twice.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> sc = arsc.score_ucell(ds.X("RNA", "counts"), ds.features("RNA"),
+    ...                       {"cyto": ["GZMK", "GZMB", "PRF1", "NKG7"]}, cells=ds.cells)
+    >>> list(sc.columns)
+    ['cyto_UCell']
+    >>> sc.groupby(ds.obs["cell_type"], observed=True)["cyto_UCell"].mean().idxmax()
+    'NK'
     """
+    if not isinstance(signatures, dict):
+        raise TypeError("signatures must be a dict {name: [genes]}, e.g. {'cyto': ['GZMB', 'PRF1']}")
     X = as_csr(X)
     feats = pd.Index(features)
+    if len(feats) != X.shape[1]:
+        raise ValueError(f"features has {len(feats)} names but X has {X.shape[1]} columns")
     sigs = {k: parse_signature(v) for k, v in signatures.items()}
     all_genes = []
     for pos, neg in sigs.values():
@@ -114,7 +151,8 @@ def score_ucell(X, features, signatures: dict, *, max_rank: int = 1500, w_neg: f
     max_rank = int(min(max_rank, n_total))
     for name, (pos, neg) in sigs.items():
         if len(pos) + len(neg) > max_rank:
-            raise ValueError(f"signature {name} has more genes than maxRank")
+            raise ValueError(f"signature {name} has {len(pos) + len(neg)} genes, more than max_rank={max_rank}; "
+                             "raise max_rank or shorten the signature")
     fill = 0.0
     if n_missing:
         has_zero = X.nnz < X.shape[0] * X.shape[1]
@@ -169,17 +207,32 @@ def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl
     features : gene names.
     signatures : list of gene lists, or dict ``{name: genes}`` (dict keys become
         column names; otherwise ``f"{name}{i}"`` like Seurat).
-    pool, nbin, ctrl : as in Seurat (genes binned by mean into ``nbin`` bins;
-        ``ctrl`` random genes drawn from each signature gene's bin).
+    pool : genes to draw controls from (default all features).
+    nbin : number of expression bins (Seurat ``nbin``).
+    ctrl : random control genes drawn from each signature gene's bin (Seurat ``ctrl``); must not
+        exceed the genes per bin (about ``len(pool) / nbin``).
     seed : R ``set.seed`` value; ``seed=1`` (Seurat's default) reproduces R exactly. The
         tie-breaking noise and control-gene draws use a private R-compatible RNG
         (``_rrng.RRandom``), so any integer reproduces R's ``AddModuleScore(seed = s)``.
         ``None`` (Seurat: do not reseed) is rejected.
+    name : column prefix when ``signatures`` is a list (Seurat ``name``).
+    cells : index of the output (e.g. ``ds.cells``).
+    return_controls : also return the control-gene lists.
 
     Returns
     -------
     DataFrame (cells x signatures); with ``return_controls`` also the list of
     control-gene lists.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> ms = arsc.add_module_score(L, ds.features("RNA"), {"Bcell": ["MS4A1", "CD79A", "CD19"]},
+    ...                            ctrl=5, cells=ds.cells)
+    >>> ms.groupby(ds.obs["cell_type"], observed=True)["Bcell"].mean().idxmax()
+    'B'
     """
     import scipy.sparse as sp
 
@@ -192,7 +245,7 @@ def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl
     gene_lists = [list(dict.fromkeys(g for g in gl if g in feats)) for gl in gene_lists]
     for nm, gl in zip(names, gene_lists):
         if not gl:
-            raise ValueError(f"no features of {nm} present in the data")
+            raise ValueError(f"no features of {nm} present in the data (check gene symbols / case)")
     rr = RRandom(check_seed(seed, r_seed=True))
     Xc = as_csr(X) if sp.issparse(X) else np.asarray(X)
     pool_idx = np.arange(len(feats)) if pool is None else feats.get_indexer(list(pool))
@@ -215,6 +268,10 @@ def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl
         for g in gl:
             b = bin_of.loc[g]
             cand = np.flatnonzero(cut == b)  # in sorted order, like which(data.cut == ...)
+            if ctrl > cand.size:
+                raise ValueError(f"ctrl={ctrl} control genes requested, but the expression bin of {g!r} holds only "
+                                 f"{cand.size} genes ({len(pool_idx)} pool genes / nbin={nbin}); lower ctrl "
+                                 f"(e.g. ctrl={max(1, cand.size // 2)}) or nbin, or use a larger gene pool")
             idx = rr.sample_int(cand.size, ctrl)
             picked += list(sorted_genes[cand[idx]])
         ctrl_lists.append(list(dict.fromkeys(picked)))

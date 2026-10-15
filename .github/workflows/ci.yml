@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: tests (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.11", "3.12"]
+    env:
+      # small thread count keeps numba/BLAS memory use predictable on shared runners
+      AR_THREADS: "2"
+      NUMBA_CACHE_DIR: ${{ github.workspace }}/.numba_cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,clonotrace]"
+      - name: Docstring and documentation-snippet tests
+        run: python -m pytest -q tests/test_docstrings.py tests/test_docs_snippets.py
+      - name: Test suite (fast; R-reference parity tests skip without reference outputs)
+        run: python -m pytest -q -m "not slow" tests
+
+  build:
+    name: build sdist and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - name: Smoke-test the wheel
+        run: |
+          python -m pip install dist/*.whl
+          cd /tmp && python -c "import arsc; ds = arsc.datasets.toy(n_cells=500); print(arsc.__version__, ds.n_cells)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

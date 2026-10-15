@@ -1,0 +1,72 @@
+arsc
+Copyright (c) 2026 Kevin Wang. Licensed under the MIT License (see LICENSE).
+
+arsc reimplements published single-cell methods in Python so that their numerical output can be
+checked against the reference software (see the *_PARITY.md files). The methods belong to their
+authors. If you use a method through arsc, please cite the original paper as well as arsc.
+
+Method credits
+--------------
+Normalisation, variable features, scaling, PCA, kNN/SNN graphs, WNN, FindMarkers/FindAllMarkers,
+AverageExpression, CellCycleScoring, AddModuleScore (arsc.pp, arsc.neighbors, arsc.seurat_extra,
+arsc.scores.add_module_score). Reference software: Seurat (MIT).
+  - Satija R, et al. Spatial reconstruction of single-cell gene expression data. Nat Biotechnol (2015).
+  - Stuart T, et al. Comprehensive integration of single-cell data. Cell (2019).
+  - Hao Y, et al. Integrated analysis of multimodal single-cell data. Cell (2021).
+  - Hao Y, et al. Dictionary learning for integrative, multimodal and scalable single-cell analysis.
+    Nat Biotechnol (2024).
+  - Cell-cycle gene lists: Tirosh I, et al. Science (2016).
+
+Harmony integration (arsc.run_harmony). Reference software: harmony (R, GPL-3).
+  - Korsunsky I, et al. Fast, sensitive and accurate integration of single-cell data with Harmony.
+    Nat Methods (2019).
+
+Fast Wilcoxon / AUC markers (arsc.wilcoxauc). Reference software: presto (R, GPL-3).
+  - Korsunsky I, Nathan A, Millard N, Raychaudhuri S. Presto scales Wilcoxon and auROC analyses to
+    millions of observations. bioRxiv (2019).
+
+UCell signature scores (arsc.score_ucell). Reference software: UCell (R, GPL-3).
+  - Andreatta M, Carmona SJ. UCell: Robust and scalable single-cell gene signature scoring.
+    Comput Struct Biotechnol J (2021).
+
+Pseudobulk differential expression (arsc.de).
+  - DESeq2: Love MI, Huber W, Anders S. Genome Biol (2014). arsc calls pydeseq2 (MIT), an independent
+    Python implementation, as an optional dependency.
+  - limma: Ritchie ME, et al. Nucleic Acids Res (2015). voom: Law CW, et al. Genome Biol (2014).
+  - edgeR: Robinson MD, McCarthy DJ, Smyth GK. Bioinformatics (2010). TMM normalisation:
+    Robinson MD, Oshlack A. Genome Biol (2010).
+  - fgsea: Korotkevich G, et al. Fast gene set enrichment analysis. bioRxiv (2021). (fgsea is MIT.)
+
+scanpy-parity functions (arsc.scanpy_extra). Reference software: scanpy (BSD-3-Clause).
+  - Wolf FA, Angerer P, Theis FJ. SCANPY: large-scale single-cell gene expression data analysis.
+    Genome Biol (2018).
+  - Leiden: Traag VA, Waltman L, van Eck NJ. From Louvain to Leiden. Sci Rep (2019).
+  - UMAP: McInnes L, Healy J, Melville J. arXiv (2018).
+  - Diffusion pseudotime: Haghverdi L, et al. Nat Methods (2016).
+  - Palantir diffusion maps: Setty M, et al. Nat Biotechnol (2019).
+  - MAGIC imputation: van Dijk D, et al. Cell (2018).
+
+Clonal analysis (arsc.clones, arsc.clonotrace).
+  - STARTRAC indices: Zhang L, et al. Lineage tracking reveals dynamic relationships of T cells in
+    colorectal cancer. Nature (2018).
+  - Cyclone clone-trajectory clustering: reimplements the published cyclone_find_trajectories
+    algorithm (Cancer Cell, 2024); see the clones.cyclone docstring and CLONES_PARITY.md.
+  - CloneTrace: Fu Y, et al. Deciphering Cell Fate and Clonal Dynamics via Integrative Single-Cell
+    Lineage Modeling. bioRxiv 2025.09.01.673503 (Clonotrace R package, MIT, v1.2.1).
+
+R-compatible components.
+  - arsc._loess reproduces R's stats::loess default fit (based on the netlib dloess code of
+    Cleveland, Grosse and Shyu).
+  - arsc._rrng reproduces R's default random number generator (Mersenne Twister, Matsumoto and
+    Nishimura 1998; R's seeding and inversion scheme) so that seeded R functions can be matched.
+
+Third-party optional dependencies
+---------------------------------
+arsc does not bundle third-party code. Some optional extras install packages under other licences;
+the most restrictive are:
+  - leidenalg (GPL-3.0-or-later) and python-igraph (GPL-2.0-or-later), in the "graph" extra,
+    used by arsc.cluster and arsc.scanpy_extra.leiden.
+  - pydeseq2 (MIT), statsmodels (BSD-3-Clause), patsy (BSD-2-Clause), in the "stats" extra.
+  - POT (MIT), in the "clonotrace" extra.
+The optional R bridge (arsc/R/export_seurat.R) runs under the user's own R installation with
+SeuratObject (MIT) and, optionally, qs.

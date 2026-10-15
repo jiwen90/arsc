@@ -1,17 +1,17 @@
 #!/usr/bin/env Rscript
-# Scale reference on pbmc_wnn (259,899 cells, RNA + 49 ADT): timings for the
+# Scale reference on a PBMC CITE-seq WNN object (259,899 cells, RNA + 49 ADT): timings for the
 # R ecosystem plus WNN outputs (stored weighted.nn from the original analysis
 # and a fresh FindMultiModalNeighbors rerun = R-vs-R Annoy noise floor).
 #
 # Usage: Rscript benchmarks/r_reference_pbmc.R [qs] [out_dir]
 suppressPackageStartupMessages({
-  .libPaths(c("E:/autoresearch/.Rlib", .libPaths()))
+  if (nzchar(Sys.getenv("ARSC_RLIB"))) .libPaths(c(Sys.getenv("ARSC_RLIB"), .libPaths()))
   library(Matrix); library(Seurat); library(harmony); library(presto)
   library(UCell); library(data.table); library(jsonlite)
 })
 args <- commandArgs(trailingOnly = TRUE)
-src <- if (length(args) >= 1) args[1] else "E:/autoresearch/.cache/objects/autoresearch_data_2023_0129_V3_pbmc_wnn_RDS.qs"
-out <- if (length(args) >= 2) args[2] else "E:/autoresearch/scratch/arsc/ref_pbmc"
+src <- if (length(args) >= 1) args[1] else stop("usage: Rscript r_reference_pbmc.R <object.qs> [out_dir]")
+out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_pbmc")
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 options(future.globals.maxSize = 64 * 1024^3)
 source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "r_common.R"))
@@ -60,7 +60,7 @@ tm("presto_wilcoxauc", mk <- wilcoxauc(X, obj$wsnn_res.0.2))
 fwrite(mk, file.path(out, "presto_wsnn_res02.csv"))
 rm(mk, X); gc()
 
-sigs <- jsonlite::read_json("E:/autoresearch/scratch/arsc/ref_gd/signatures.json", simplifyVector = TRUE)
+sigs <- jsonlite::read_json(file.path(dirname(out), "ref_gd", "signatures.json"), simplifyVector = TRUE)
 C <- GetAssayData(obj, slot = "counts")
 tm("UCell", uc <- ScoreSignatures_UCell(C, features = sigs, ncores = 1))
 fwrite(data.table(cell = rownames(uc), uc), file.path(out, "ucell.csv"))

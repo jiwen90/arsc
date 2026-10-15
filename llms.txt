@@ -1,0 +1,38 @@
+# arsc
+
+> Fast, validated single-cell analysis in Python. arsc reproduces Seurat, scanpy, presto, UCell, harmony,
+> DESeq2/limma-voom, fgsea and published TCR-clone methods numerically (parity tables with measured agreement),
+> on memory-mapped stores shared by many processes. Functions take arrays and return arrays or tidy pandas
+> tables; there is no plotting. Patient-level statistics are built in.
+
+Start with AGENTS.md: the mental model, an "I want to... -> call" task map, runnable recipes for common biology
+questions (markers, pseudobulk DE with the patient as unit, composition, GSEA, clone expansion), statistics rules
+and gotchas. In Python, `arsc.help()` prints the task map and `arsc.recipes("<question>")` prints a matching recipe;
+`arsc.datasets.toy()` is a synthetic dataset with planted effects for trying any of them.
+
+## Docs
+
+- [AGENTS.md](AGENTS.md): complete guide for AI agents (read first)
+- [README.md](README.md): overview, install, quickstart, benchmarks, validation summary
+- [docs/getting-started.md](docs/getting-started.md): tutorial on the toy dataset, from loading to DE and clones
+- [docs/recipes.md](docs/recipes.md): every recipe (generated from src/arsc/_recipes.py)
+- [docs/api.md](docs/api.md): API reference for every public function (generated from docstrings)
+- [docs/from-scanpy.md](docs/from-scanpy.md): scanpy -> arsc mapping
+- [docs/from-seurat.md](docs/from-seurat.md): Seurat -> arsc mapping
+
+## Validation
+
+- [SEURAT_PARITY.md](SEURAT_PARITY.md): FindMarkers, FindAllMarkers, AverageExpression, CellCycleScoring, ScaleData vs Seurat 4.3
+- [SCANPY_PARITY.md](SCANPY_PARITY.md): scanpy/palantir functions vs scanpy 1.11
+- [STATS_PARITY.md](STATS_PARITY.md): DESeq2, limma-voom, fgsea, Wilcoxon, permutation, GLMM vs R
+- [CLONES_PARITY.md](CLONES_PARITY.md): Cyclone, STARTRAC, clone dynamics/diversity vs R
+- [CLONOTRACE_PARITY.md](CLONOTRACE_PARITY.md): CloneTrace port
+- [SEEDS.md](SEEDS.md): seeds and determinism of every stochastic function
+- [benchmarks/README.md](benchmarks/README.md): reproducible speed / memory / agreement benchmarks vs scanpy and Seurat
+
+## Optional
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): development, tests, docstring and parity rules
+- [CHANGELOG.md](CHANGELOG.md)
+- [ROADMAP.md](ROADMAP.md)
+- [NOTICE](NOTICE): methods credited and dependency licences

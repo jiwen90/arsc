@@ -33,6 +33,14 @@ def factorize_groups(obs: pd.DataFrame | None, by, n: int | None = None, sep: st
     groups : DataFrame with one row per observed group (in sorted level order),
         columns = grouping variables, index = combined label.
     """
+    if isinstance(by, str) and (obs is None or by not in obs.columns):
+        where = "obs is None" if obs is None else f"obs has columns {list(obs.columns)}"
+        raise KeyError(f"grouping column {by!r} not found ({where}); pass obs= and an existing column name, "
+                       "or pass the labels themselves (an array/Series with one label per cell)")
+    if (isinstance(by, (list, tuple)) and by and all(isinstance(b, str) for b in by) and obs is not None
+            and any(b in obs.columns for b in by) and not all(b in obs.columns for b in by)):
+        raise KeyError(f"grouping columns {[b for b in by if b not in obs.columns]} not in obs; "
+                       f"available: {list(obs.columns)}")
     if isinstance(by, str) or (isinstance(by, (list, tuple)) and all(isinstance(b, str) for b in by)
                                and obs is not None and all(b in obs.columns for b in by)):
         cols = [by] if isinstance(by, str) else list(by)
@@ -42,7 +50,8 @@ def factorize_groups(obs: pd.DataFrame | None, by, n: int | None = None, sep: st
         cols = [arr.name if arr.name is not None else "group"]
         frame = pd.DataFrame({cols[0]: arr.to_numpy()})
     if n is not None and len(frame) != n:
-        raise ValueError(f"grouping has {len(frame)} entries, expected {n}")
+        raise ValueError(f"grouping has {len(frame)} entries but the matrix has {n} rows (cells); obs/labels "
+                         "must be row-aligned with X (subset both with the same mask)")
     cats, mats = [], []
     valid = np.ones(len(frame), dtype=bool)
     for c in cols:

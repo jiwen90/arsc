@@ -1,9 +1,10 @@
-"""arsc.scanpy_extra vs scanpy 1.11.5 on a 20,000-cell subsample of the 02619 CD8 store.
+"""arsc.scanpy_extra vs scanpy 1.11.5 on a 20,000-cell subsample of a CD8 T-cell store ($ARSC_TEST_SCANPY_STORE).
 
 Run: .venv/Scripts/python.exe -m pytest -q vendor/arsc/tests/test_scanpy_extra.py
 Skipped when the store is missing. seurat_v3 needs scikit-misc and the palantir test needs palantir
-(neither is in the venv; they were pip-installed with --target into scratch/arsc_scanpy/pkgs for validation).
+(neither is in the venv; point ARSC_TEST_EXTRA_PKGS at a --target install of them).
 """
+import os
 import sys
 import time
 import warnings
@@ -15,15 +16,15 @@ import pytest
 import scipy.sparse as sp
 
 warnings.filterwarnings("ignore")
-STORE = Path("E:/autoresearch/data/02619_neoadj/stores/cd8_final")
-PKGS = Path("E:/autoresearch/scratch/arsc_scanpy/pkgs")
+STORE = Path(os.environ.get("ARSC_TEST_SCANPY_STORE", "__unset__"))
+PKGS = Path(os.environ.get("ARSC_TEST_EXTRA_PKGS", "__unset__"))
 if PKGS.exists():
     sys.path.append(str(PKGS))  # appended: never shadows the venv packages
 
 import arsc  # noqa: E402
 from arsc import scanpy_extra as sx  # noqa: E402
 
-pytestmark = pytest.mark.skipif(not STORE.exists(), reason="02619 cd8_final store not available")
+pytestmark = pytest.mark.skipif(not STORE.exists(), reason="ARSC_TEST_SCANPY_STORE not set or missing")
 sc = pytest.importorskip("scanpy")
 ad = pytest.importorskip("anndata")
 

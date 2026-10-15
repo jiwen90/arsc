@@ -1,8 +1,8 @@
 # arsc.clones / arsc.genesets: parity with R
 
-Python port of the TCR / clonal methods in `tools/R/ar_methods.R` (+ clone helpers of `tools/R/ar.R`). No plotting.
-Data: CD8 FORCYCLONE meta (83,287 cells, 18 patients, 32,080 clones; `cache/cd8_nn_labeled_FORCYCLONE_FINAL_cyclone.meta.csv.gz`).
-R references: `scratch/arsc/clones_ref.R` -> `scratch/arsc/clones_ref/`. Tests: `tests/test_clones.py` (23 pass, ~13 s).
+Python versions of an in-house R library of TCR / clonal methods (the R functions are named `ar_*` below). No plotting.
+Data: cell metadata of a longitudinal clinical CD8 T-cell TCR dataset (83,287 cells, 18 patients, 32,080 clones) with a
+published Cyclone trajectory assignment. R references: an R script that runs the `ar_*` functions (not yet in the repo). Tests: `tests/test_clones.py` (23 pass, ~13 s).
 Timing: `benchmarks/bench_clones.py`.
 
 | Python | R reference | Agreement |
@@ -16,7 +16,7 @@ Timing: `benchmarks/bench_clones.py`.
 | `clone_dynamics` | `ar_clone_dynamics` | exact (1,466 clones: p 1e-11, fdr 6e-12, lfc 4e-14, class identical) |
 | `clone_diversity` | `ar_clone_diversity` | Monte-Carlo (20 draws, exact multivariate-hypergeometric rarefaction vs R `sample`); same depth 203 and samples (70/72); Pearson > 0.998 for all 5 metrics, median relative diff 0.06-2.9%. |
 | `clone_tissue_matrix`, `clone_tissue_entropy` | new (no R twin) | unit-tested on toy data (bits entropy, normalised entropy, breadth, dominant tissue) |
-| `genesets.read_genesets / load_v3 / cycling_fraction` | `ar_read_genesets`, `ar_cycling_fraction` | jo_pathways 4 sets, pathways / jo_pathways_subsets 19, hotspot modules 832/882/754/234, CPDB 4,589 (174 curated); cycling_fraction logit_cc 5e-15 vs R (519 rows) |
+| `genesets.read_genesets / load_v3 / cycling_fraction` | `ar_read_genesets`, `ar_cycling_fraction` | in-house gene-set files read identically (collections of 4, 19 and 19 sets; module files of 832/882/754/234 genes), CellPhoneDB 4,589 (174 curated); cycling_fraction logit_cc 5e-15 vs R (519 rows) |
 
 ## Method notes / deviations
 * Cyclone numbering: R `cutree` numbers clusters by first observation (sorted `clone_id` order); implemented identically
@@ -25,7 +25,7 @@ Timing: `benchmarks/bench_clones.py`.
 * `delta_fc` 0/0 -> NaN -> 1 and `delta_c` NA -> 0 exactly as the original; Inf kept.
 * Random downsampling cannot be bitwise-identical to R's Mersenne Twister; the deterministic core (tests, chi, p, BH) is.
 * MSigDB: no local data (R `msigdbr` 26.1 is installed without `msigdbdf`, no network). `genesets.msigdb()` reads local GMTs
-  (`$ARSC_MSIGDB_DIR`, `scratch/arsc/msigdb`, `data/msigdb`); `export_msigdb_gmt()` fills the cache via R when data are available.
+  (`$ARSC_MSIGDB_DIR` or the default cache directories); `export_msigdb_gmt()` fills the cache via R when data are available.
   Untested against real MSigDB files (unit-tested with a synthetic GMT).
 
 ## Speed (R 4.3 / data.table vs Python, same machine)
@@ -37,8 +37,8 @@ Timing: `benchmarks/bench_clones.py`.
 | clone_dynamics 0->3 | 0.86 | 0.18 | 4.9x |
 | clone_diversity (reps=20) | 1.80 | 0.18 | 9.9x |
 
-## Exports to add to `arsc/__init__.py` (not edited)
-`from . import clones, genesets` (public names: `clones.cyclone, cyclone_patient_table, cyclone_states, read_10x_clonotypes,
+## Exports
+`arsc.clones` and `arsc.genesets` are submodules (public names: `clones.cyclone, cyclone_patient_table, cyclone_states, read_10x_clonotypes,
 clone_expansion_null, startrac, clone_table, clone_diversity, clone_dynamics, clone_tissue_matrix, clone_tissue_entropy,
 ari, p_adjust_bh, fisher_exact_2x2, pam, Cyclone`; `genesets.read_genesets, load_v3, V3_SETS, msigdb, export_msigdb_gmt,
 filter_genesets, cycling_fraction`). `clones.pair_test` is also public (not in `__all__`).

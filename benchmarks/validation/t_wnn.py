@@ -1,5 +1,5 @@
 import sys, time, numpy as np, pandas as pd
-sys.path.insert(0, "E:/autoresearch/vendor/arsc/benchmarks")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
 from refutil import *
 import arsc
 st = arsc.open(EXP_PBMC)

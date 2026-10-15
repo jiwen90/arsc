@@ -391,3 +391,22 @@ def _finish_without_layers():
     b.set_cells(["a"])
     b.add_assay("RNA", ["x"])
     b.finish()
+
+
+def test_dataset_get_features_matches_store(tmp_path):
+    import arsc
+    ds, st = arsc.datasets.toy(n_cells=400), arsc.datasets.toy(n_cells=400, store=tmp_path / "st")
+    assert ds.get_features(["CD8A", "GZMK"]).equals(st.get_features(["CD8A", "GZMK"]))
+    with pytest.raises(KeyError, match="NOPE"):
+        ds.get_features(["NOPE"])
+
+
+def test_write_h5ad_uses_one_index_dtype(tmp_path):
+    """indices and indptr share one dtype (scipy/scanpy in-place ops reject mixed int32/int64)."""
+    ad = pytest.importorskip("anndata")
+    ds = arsc.datasets.toy(n_cells=400)
+    f = ds.write_h5ad(tmp_path / "toy.h5ad", assay="RNA")
+    X = ad.read_h5ad(f).X
+    assert X.indices.dtype == X.indptr.dtype == np.int32
+    X.data[:] = 1.0
+    X += X  # an in-place sparse op that fails on mixed index dtypes in recent scipy

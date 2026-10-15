@@ -1,16 +1,16 @@
 # Patient-level statistics + DE: Python (`arsc.stats`, `arsc.de`) vs R
 
 R references: DESeq2 1.42.1, limma 3.58.1, edgeR 4.0.16, fgsea 1.28.0, lme4 1.1.35.1 / lmerTest, msigdbr 26.1.1 (R 4.3.1).
-Python: pydeseq2 0.5.2, statsmodels 0.15, scipy 1.17. Reproduce: `scratch/arsc/stats_parity/{prep.py,prep2.py,ref.R,ref_small.R,cmp_de.py,cmp_stats.py}`;
+Python: pydeseq2 0.5.2, statsmodels 0.15, scipy 1.17. Reproduce: preparation, R-reference and comparison scripts (`prep.py`, `ref.R`, `ref_small.R`, `cmp_de.py`, `cmp_stats.py`; not yet in the repo);
 tests: `tests/test_stats_de.py` (17 tests, ~110 s; `-m "not slow"` skips DESeq2/GLMM/limma-tp parity).
 
 ## Data
-gdT_1 store (`scratch/arsc/exp_gd`, 38,440 cells), cell_type `gd`, `arsc.pseudobulk` (exact integer sums) with a 20-cell floor.
-* **tp**: patient x timepoint, Baseline vs Follow Up 1. 25 samples; 14 form 7 complete pairs. DESeq2 `~patient+timepoint` on the 7 pairs;
+A 38,440-cell gamma-delta T-cell CITE-seq dataset (clinical, longitudinal), gamma-delta T cells (`gd`), `arsc.pseudobulk` (exact integer sums) with a 20-cell floor.
+* **tp**: patient x timepoint, baseline vs first follow-up. 25 samples; 14 form 7 complete pairs. DESeq2 `~patient+timepoint` on the 7 pairs;
   limma-voom + duplicateCorrelation on all 25 (unbalanced, `~timepoint`, block = patient). Weak biology (0 genes at padj < 0.1 in R) so used for estimate/stat parity.
-* **ct**: gd vs cd8_tem in the same patient x timepoint sample (7 matched pairs, 14 samples): DESeq2 `~pt+cell_type`, voom `~cell_type` block = pt.
-* Composition table: `stats.composition` on all cell types (2,040 rows), GLMM/LMM on gd, cd8_tem, cd4_t_memory (67 samples, 7 timepoints).
-* Gene sets: MSigDB Hallmark (50) and C2:CP:REACTOME (1,839) exported once by msigdbr and cached in `E:/autoresearch/.cache/genesets/`.
+* **ct**: gamma-delta vs CD8 effector-memory T cells in the same patient x timepoint sample (7 matched pairs, 14 samples): DESeq2 `~pt+cell_type`, voom `~cell_type` block = pt.
+* Composition table: `stats.composition` on all cell types (2,040 rows), GLMM/LMM on gamma-delta, CD8 effector-memory and CD4 memory T cells (67 samples, 7 timepoints).
+* Gene sets: MSigDB Hallmark (50) and C2:CP:REACTOME (1,839) exported once by msigdbr and cached locally (see **MSigDB** below).
 
 ## Results (Python vs R)
 
@@ -42,8 +42,8 @@ Other stats (R refs in `R_small.csv`, `R_glmer.csv`, `R_lmer_*.csv`):
 
 ## Implementation notes and differences
 
-**Composition / paired / perm** (`arsc.stats`): moved from `tools/R/ar.R` and `tools/py/arstats.py` (those files are untouched).
-Differences from the old Python: Wilcoxon now follows R exactly (exact for n < 50 *only without ties/zeros*, else normal approximation with tie + continuity correction;
+**Composition / paired / perm** (`arsc.stats`): Python versions of earlier in-house R and Python helpers.
+Differences from the earlier Python helper: Wilcoxon now follows R exactly (exact for n < 50 *only without ties/zeros*, else normal approximation with tie + continuity correction;
 the old code switched at n > 25 and scipy's treatment of zeros differs). Bootstrap CIs use numpy's RNG and so agree with R only within Monte-Carlo error; the exact tests are deterministic.
 `perm_test` is vectorised and takes `stat=None` (median difference, fast path) or any `stat(a, b)`.
 
@@ -54,10 +54,10 @@ the old code switched at n > 25 and scipy's treatment of zeros differs). Bootstr
 are NOT comparable to the conditional glmer ones (and sandwich SEs are anti-conservative with < ~10 patients). Random-slope or correlated random effects are not supported
 (`score ~ time + (1|patient)` via `lmm_score`, statsmodels MixedLM).
 
-**DESeq2** (`de.deseq2`): pydeseq2 with `~patient+time` designs. Same pre-filter and `make.names` handling as `ar_de_deseq2`, `alpha=0.1` (R `results()` default). Known difference fixed here: pydeseq2 0.5.2's
+**DESeq2** (`de.deseq2`): pydeseq2 with `~patient+time` designs. Same pre-filter and `make.names` handling as the earlier R helper, `alpha=0.1` (R `results()` default). Known difference fixed here: pydeseq2 0.5.2's
 parametric dispersion-trend fit (L-BFGS) fails to converge on small designs and silently falls back to a flat mean trend; the ct contrast then gave log2FC r = 0.979 and only 56/100 top genes.
 `de._desq2_dataset()` swaps in DESeq2's own parametricDispersionFit (Gamma-identity GLM on genes with dispersion > 100*minDisp, iterative drop of disp/fit outside (1e-4, 15)), restoring r = 0.9999.
-Residual differences (largest lfcSE gaps in a handful of low-count genes) come from pydeseq2's separate MAP-dispersion/Cook's-refit code paths. Wald test, no LFC shrinkage, as in the R helper.
+Residual differences (largest lfcSE gaps in a handful of low-count genes) come from pydeseq2's separate MAP-dispersion/Cook's-refit code paths. Wald test, no LFC shrinkage, as in the earlier R helper.
 Speed: ~40-55 s for 7-11k genes on 14 samples with `n_cpus=1`.
 
 **limma-voom + duplicateCorrelation** (`de.voom`): own port of filterByExpr (group = NULL branch), calcNormFactors(TMM, upper-quartile reference), voom (lowess span 0.5 via statsmodels, 1/f^4 weights), duplicateCorrelation
@@ -70,13 +70,9 @@ i.e. fgseaSimple: the smallest attainable p is 1/(nperm+1) (default 1e-4), where
 strong Reactome ct case, driven by the floor) and significance calls agree except for borderline sets (2 of 36 in ct/Reactome). Raise `nperm` (1e5 is fast) for finer p; multilevel is not ported. gseapy.prerank was not used: its classic-GSEA permutation
 (phenotype/gene permutation, different NES normalisation) is a different estimator from fgsea.
 
-**MSigDB** (`de.msigdb`): `Rscript src/arsc/R/msigdb_export.R` once per (species, collection, subcollection) -> `E:/autoresearch/.cache/genesets/<species>__<coll>__<sub>.csv.gz` (`gs_name, gene_symbol, ...`);
-afterwards no R is needed. Cached now: H, C2:CP:REACTOME, C5:GO:BP. `refresh=True` re-exports (set `RSCRIPT` env var to override the executable).
+**MSigDB** (`de.msigdb`): `Rscript src/arsc/R/msigdb_export.R` once per (species, collection, subcollection) -> `<cache>/genesets/<species>__<coll>__<sub>.csv.gz` (`gs_name, gene_symbol, ...`);
+afterwards no R is needed. Collections used in this validation: H, C2:CP:REACTOME, C5:GO:BP. `refresh=True` re-exports (set `RSCRIPT` env var to override the executable).
 
-## Exports to add to `arsc/__init__.py` (not edited here)
-```python
-from . import stats, de
-from .stats import composition, paired_test, perm_test, glmm_prop
-from .de import deseq2, voom, fgsea, msigdb
-```
-Name clash note: `arsc.stats` / `arsc.de` as submodules are safe; `deseq2`/`voom`/`fgsea` are new top-level names.
+## Top-level exports
+`arsc.stats` and `arsc.de` are submodules; `composition`, `paired_test`, `perm_test`, `glmm_prop`, `deseq2`, `voom`,
+`fgsea` and `msigdb` are also available as `arsc.<name>`.

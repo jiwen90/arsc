@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-SCRATCH = Path(os.environ.get("ARSC_SCRATCH", "E:/autoresearch/scratch/arsc"))
+# R reference outputs and exported stores live outside the repo; set ARSC_SCRATCH (default: <repo>/../../scratch/arsc)
+SCRATCH = Path(os.environ.get("ARSC_SCRATCH", Path(__file__).resolve().parents[3] / "scratch" / "arsc"))
 REF_GD = SCRATCH / "ref_gd"
 REF_PBMC = SCRATCH / "ref_pbmc"
 EXP_GD = SCRATCH / "exp_gd"

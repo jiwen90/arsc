@@ -1,13 +1,13 @@
 #!/usr/bin/env Rscript
-# R reference outputs + timings for arsc.seurat_extra (Seurat 4.3 / SeuratObject 5.0) on gdT_1 (38,440 cells).
+# R reference outputs + timings for arsc.seurat_extra (Seurat 4.3 / SeuratObject 5.0) on the reference gamma-delta T-cell object (38,440 cells).
 # Usage: Rscript benchmarks/r_reference_seurat_extra.R [rds] [out_dir]
 suppressMessages({
-  .libPaths(c("E:/autoresearch/.Rlib", .libPaths()))
+  if (nzchar(Sys.getenv("ARSC_RLIB"))) .libPaths(c(Sys.getenv("ARSC_RLIB"), .libPaths()))
   library(Matrix); library(Seurat); library(data.table); library(jsonlite)
 })
 args <- commandArgs(trailingOnly = TRUE)
-rds <- if (length(args) >= 1) args[1] else "E:/autoresearch/data/2023 0129 V3/gd/gdT_1.rds"
-out <- if (length(args) >= 2) args[2] else "E:/autoresearch/scratch/arsc/ref_extra"
+rds <- if (length(args) >= 1) args[1] else stop("usage: Rscript r_reference_seurat_extra.R <object.rds> [out_dir]")
+out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_extra")
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 options(future.globals.maxSize = 64 * 1024^3)
 source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "r_common.R"))
@@ -20,7 +20,7 @@ obj <- NormalizeData(obj, verbose = FALSE)
 obj <- NormalizeData(obj, assay = "TRIMMEDCITE", normalization.method = "CLR", margin = 2, verbose = FALSE)
 cat("cells:", ncol(obj), "\n")
 Idents(obj) <- "cell_type"
-hvg <- readLines("E:/autoresearch/scratch/arsc/ref_gd/variable_features.txt")
+hvg <- readLines(file.path(dirname(out), "ref_gd", "variable_features.txt"))
 
 # ---- FindMarkers: wilcox (user pattern: Follow Up 1 vs Baseline within one cell type) -------------------
 gdc <- WhichCells(obj, idents = "gd")

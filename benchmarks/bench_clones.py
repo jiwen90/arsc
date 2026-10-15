@@ -1,18 +1,26 @@
-"""Timing of arsc.clones vs the R timings recorded by scratch/arsc/clones_ref.R (CD8 FORCYCLONE, 83,287 cells)."""
+"""Timing of arsc.clones vs the R timings recorded by the clones R reference script (CD8 T cells, 83,287 cells).
+
+Inputs come from the environment (no data ships with the repo):
+  ARSC_CLONES_META  cell metadata (.csv[.gz]) with patient_alias, timepoint, clone_id, treatment, response,
+                    metaclusters_exh, TRA_chain_cdr3_nt, TRB_chain_cdr3_nt
+  ARSC_CLONES_HD    directory with the healthy-donor clonotype tables "P6 T1 clonotypes.csv", "P6 T2 clonotypes.csv"
+  ARSC_SCRATCH      holds clones_ref/timing.txt (R timings)
+"""
+import os
 import time
 from pathlib import Path
 import pandas as pd
 from arsc import clones as C
 
-ROOT = Path("E:/autoresearch"); REF = ROOT / "scratch/arsc/clones_ref"; V3 = ROOT / "data/2023 0129 V3"
-m = pd.read_csv(ROOT / "projects/cancercell2024-melanoma-icb/cache/cd8_nn_labeled_FORCYCLONE_FINAL_cyclone.meta.csv.gz",
+REF = Path(os.environ.get("ARSC_SCRATCH", "scratch")) / "clones_ref"; HD = Path(os.environ["ARSC_CLONES_HD"])
+m = pd.read_csv(os.environ["ARSC_CLONES_META"],
                 usecols=["patient_alias", "timepoint", "clone_id", "treatment", "response", "metaclusters_exh",
                          "TRA_chain_cdr3_nt", "TRB_chain_cdr3_nt"])
 m["week"] = m.timepoint.astype(str); m["clone_pair"] = m.TRA_chain_cdr3_nt + " " + m.TRB_chain_cdr3_nt
 rt = dict(l.split() for l in (REF / "timing.txt").read_text().splitlines())
 def t(f):
     s = time.perf_counter(); f(); return time.perf_counter() - s
-hd = C.read_10x_clonotypes([V3 / f"tcr/HD/P6 {x} clonotypes.csv" for x in ("T1", "T2")])
+hd = C.read_10x_clonotypes([HD / f"P6 {x} clonotypes.csv" for x in ("T1", "T2")])
 ct = C.clone_table(m, "clone_id")
 rows = [
  ("cyclone (published settings)", rt["cyclone_pub"], t(lambda: C.cyclone(m, timepoints=[0,3,6,9], n_clust=6, custom_order=[4,5,1,6,2,3], outlier_sd=2.5, verbose=False))),

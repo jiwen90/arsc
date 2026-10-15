@@ -51,16 +51,38 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
             n_start: int = 10, group_singletons: bool = True) -> np.ndarray:
     """Cluster a weighted graph (e.g. ``find_neighbors(...)["snn"]`` or ``wnn(...).wsnn``).
 
+    Seurat ``FindClusters``: labels are renumbered by decreasing cluster size (0 = largest) and
+    singletons are merged into their most connected cluster.
+
+    Parameters
+    ----------
+    graph : n x n sparse weighted graph.
     method : ``"leiden"`` (leidenalg, RBConfiguration = modularity with resolution,
         as Seurat ``algorithm = 4``) or ``"louvain"`` (igraph multilevel; best
         modularity over ``n_start`` seeded runs, as Seurat ``algorithm = 1``).
+    resolution : modularity resolution (Seurat ``resolution``; higher = more clusters).
     n_iterations : Leiden iterations (leidenalg default 2; -1 = until stable).
+    n_start : Louvain random starts (Seurat ``n.start``).
+    group_singletons : merge singleton clusters (Seurat ``group.singletons``).
     seed : integer RNG seed (default 0 = Seurat ``FindClusters(random.seed = 0)``). Leiden: leidenalg's
         own seeded RNG. Louvain: start ``s`` uses a private ``random.Random(seed + s)`` installed as
         igraph's RNG for the call (igraph's default RNG is restored afterwards; Python's global
         ``random`` state is never touched). Same graph + seed -> identical labels; vary ``seed`` to
         check a clustering's stability.
-    Returns integer labels, 0 = largest cluster.
+
+    Returns
+    -------
+    numpy.ndarray of integer labels (n,), 0 = largest cluster.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> Z, _, _ = arsc.pp.scale(arsc.pp.log_normalize(ds.X("RNA", "counts")))
+    >>> g = arsc.find_neighbors(arsc.pp.pca(Z, n_comps=10).embedding, k=20)
+    >>> labels = arsc.cluster(g["snn"], resolution=0.5, seed=0)
+    >>> int(labels.min())
+    0
     """
     seed = check_seed(seed)
     g, G = _to_igraph(graph)
@@ -90,7 +112,7 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
             ig.set_random_number_generator(_random)  # igraph's default
         labels = best
     else:
-        raise ValueError(method)
+        raise ValueError(f"unknown method {method!r}; use 'leiden' or 'louvain'")
     labels = _relabel_by_size(labels)
     if group_singletons:
         labels = _relabel_by_size(_group_singletons(labels, G))
@@ -108,6 +130,31 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     single-threaded, so the same input + seed gives bit-identical coordinates. Pass other
     integers to see alternative layouts. ``seed=None`` (multi-threaded, non-reproducible)
     is rejected.
+
+    Parameters
+    ----------
+    emb : (n x d) embedding (PCs, harmony).
+    n_neighbors : neighbours (Seurat ``n.neighbors``).
+    min_dist : layout ``min_dist``.
+    metric : ``"cosine"`` (Seurat default) or ``"euclidean"`` (exact arsc k-NN); others go to umap-learn.
+    seed : integer seed.
+    n_epochs : optimisation epochs (umap-learn default when None).
+    spread : layout ``spread``.
+    init : ``"spectral"`` or ``"random"``.
+    knn : optional precomputed ``(idx, dist)``.
+
+    Returns
+    -------
+    numpy.ndarray (n x 2) coordinates.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> Z, _, _ = arsc.pp.scale(arsc.pp.log_normalize(ds.X("RNA", "counts")))
+    >>> xy = arsc.umap(arsc.pp.pca(Z, n_comps=10).embedding)   # doctest: +SKIP
+    >>> xy.shape                                                # doctest: +SKIP
+    (3000, 2)
     """
     seed = check_seed(seed)
     import umap as umap_learn

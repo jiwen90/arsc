@@ -1,14 +1,14 @@
 # Seurat parity map for `arsc`
 
-Which Seurat / SeuratObject functions the research agents and the user's original scripts actually call, and where each
-lives in `arsc`. Counts are call sites (`name(` outside comments and `$`/`@` accessors) found by
-`scratch/arsc/inv.py` over: `tools/R/*.R` (7 files), `projects/*/experiments/*/code/*.R` (52 files) and
-`E:/2023 0129 V2/**/*.R|*.Rmd` (76 files, read-only). Reference implementation: Seurat 4.3.0 / SeuratObject 5.0.2 /
+Which Seurat / SeuratObject functions a reference workload of R analysis code actually calls, and where each
+lives in `arsc`. Counts are call sites (`name(` outside comments and `$`/`@` accessors) found by a static scan of
+three groups of R code: shared helper scripts (7 files), analysis-pipeline scripts (52 files) and an
+investigator's original analysis scripts (76 `.R`/`.Rmd` files). Reference implementation: Seurat 4.3.0 / SeuratObject 5.0.2 /
 limma 3.58 / presto 1.0 (R 4.3).
 
 ## 1. Inventory
 
-Columns: tools / projects / user = call count in that group; status: **P** = ported and R-validated, **N** = not a
+Columns: tools (helper scripts) / proj. (pipeline scripts) / user (original analysis scripts) = call count in that group; status: **P** = ported and R-validated, **N** = not a
 compute step (object plumbing; the `arsc.Dataset` + pandas equivalent is noted), **S** = skipped (reason).
 
 | Function | tools | proj. | user | Status / where |
@@ -34,12 +34,12 @@ compute step (object plumbing; the `arsc.Dataset` + pandas equivalent is noted),
 | `FindMarkers` | 0 | 0 | 8 | **P** `seurat_extra.find_markers` (wilcox, LR+latent.vars, t; `DESeq2` call (1x) S, see below) |
 | `AverageExpression` / `AggregateExpression` | 0 | 0 | 5 / 1 | **P** `seurat_extra.average_expression` (mean of `expm1(data)`, or counts); `pseudobulk.pseudobulk` for sums |
 | `CellCycleScoring` | 0 | 1 | 3 | **P** `seurat_extra.cell_cycle_scoring` + `cc_genes` |
-| `RunALRA` | 0 | 0 | 4 | S: the user already has `RunALRA.py` (python alra); randomized SVD, not bit-reproducible vs R |
+| `RunALRA` | 0 | 0 | 4 | S: a Python ALRA implementation already exists; randomized SVD, not bit-reproducible vs R |
 | `Misc`, `Assays`, `Layers`, `Reductions`, `Cells`, `LayerData`, `SetAssayData`, `FetchData` | 9 | 1 | 10 | N (object plumbing) |
 | `FindAllMarkers` | 0 | 0 | 2 | **P** `seurat_extra.find_all_markers` |
 | `SCTransform` | 0 | 0 | 2 | S: v2 flavour (2 calls, exploratory); needs glmGamPoi-offset NB fits + kernel regularisation + R-RNG gene/cell subsampling. Not worth a partial port; keep LogNormalize+vst or run in R |
 | `FindMultiModalNeighbors` | 0 | 0 | 2 | **P** `neighbors.wnn` |
-| `Read10X`, `Read10X_h5` | 0 | 0 | 3 | N (`scanpy.read_10x_*` / `arsc.from_anndata`) |
+| `Read10X`, `Read10X_h5` | 0 | 0 | 3 | N (`arsc.read_10x_h5` / `arsc.read_10x_mtx`) |
 | `RunAzimuth`, `FindTransferAnchors`, `MapQuery`, `IntegrateData`, `SelectIntegrationFeatures` | 0 | 0 | 2+1+1+1+1 | S: one-off calls, reference-based (Azimuth) or CCA anchors; no Python equivalent worth validating |
 | `HTODemux` | 0 | 0 | 1 | S: single call |
 | (everything else searched: `FindConservedMarkers`, `RunTSNE`, `RunLSI`, `PrepSCTFindMarkers`, `BuildClusterTree`, `PercentageFeatureSet`, `StashIdent`, `JoinLayers`...) | 0 | 0 | 0 | not used |
@@ -54,7 +54,7 @@ Priority was by call count; every compute-bearing function with >= 1 call is cov
 | `find_all_markers(X, groups, ...)` | `FindAllMarkers` | `return_thresh`, `only_pos`; wilcox path is one rank pass for all clusters. `levels=` sets the cluster order (R `Idents<-"col"` gives first-appearance levels). |
 | `fold_change` | `FoldChange` | pct rounded to 3 digits as Seurat. |
 | `average_expression` | `AverageExpression` | multi-column `group_by` -> `"a_b"`; layer `data`/`counts`/`scale.data`; `method="aggregate"` gives sums. |
-| `cell_cycle_scoring` | `CellCycleScoring` | uses validated `add_module_score`; `cc_genes` (= `Seurat::cc.genes`, what the scripts use) and `cc_genes_updated_2019`. |
+| `cell_cycle_scoring` | `CellCycleScoring` | uses validated `add_module_score`; `cc_genes` (= `Seurat::cc.genes`) and `cc_genes_updated_2019`. |
 | `scale_data` | `ScaleData` | `vars_to_regress` (columns of `latent_data` and/or genes), `split_by`, `do_center`, `do_scale`, `scale_max`; linear model only (`poisson`/`negbinom` raise). |
 | `normalize_data` | `NormalizeData` | LogNormalize, CLR (`margin` 1 or 2), RC. |
 | `add_metadata`, `which_cells`, `split_object`, `rename_idents` | `AddMetaData`, `WhichCells`/`subset`, `SplitObject`, `RenameIdents` | thin pandas helpers. |
@@ -75,21 +75,21 @@ Behaviours worth knowing (all verified against R):
   noise is meaningless in both R and Python (excluded in the test).
 * `Idents(obj) <- "meta_col"` yields factor levels in order of first appearance; `FindAllMarkers` output order follows that.
 
-## 3. Validation (gdT_1, 38,440 cells; `tests/test_seurat_extra.py`, 17 tests, all pass)
+## 3. Validation (a 38,440-cell gamma-delta T-cell CITE-seq dataset; `tests/test_seurat_extra.py`, 17 tests, all pass)
 
-R references: `benchmarks/r_reference_seurat_extra.R` -> `scratch/arsc/ref_extra` (run with
+R references: `benchmarks/r_reference_seurat_extra.R` -> `$ARSC_SCRATCH/ref_extra` (run with
 `Rscript benchmarks/r_reference_seurat_extra.R`). Python timings: `benchmarks/bench_seurat_extra.py`
 (`benchmarks/results/seurat_extra_timings.json`). Agreement = max |diff| over all rows/cells.
 
 | Check | Rows / size | Result vs R |
 |---|---|---|
-| FindMarkers wilcox gd FU1 vs Baseline (min.pct .1, lfc .1) | 2,360 genes | same genes, same order; max abs d log10(p) 3.9e-13; avg_log2FC 2.9e-15; pct exact |
+| FindMarkers wilcox, gamma-delta cells, follow-up vs baseline (min.pct .1, lfc .1) | 2,360 genes | same genes, same order; max abs d log10(p) 3.9e-13; avg_log2FC 2.9e-15; pct exact |
 | FindMarkers wilcox default thresholds | 157 | order equal; 5.7e-14; 2.2e-15 |
 | FindMarkers wilcox vs rest (ident.2 = NULL) | 1,180 | order equal; 3.6e-13; 4.7e-15 |
 | FindMarkers wilcox only.pos + max.cells.per.ident=1500 (R RNG) | 358 | order equal (same sampled cells); 5.7e-14 |
 | FindMarkers t | 580 | order equal; 8.0e-12 |
 | FindMarkers LR, numeric latent (nCount_RNA, percent.mt), 3,000 cells | 602 | order equal; 2.7e-12 |
-| FindMarkers LR, factor latent (patient_alias, 20 levels, quasi-separated) | 235 | order equal; 9.6e-11 |
+| FindMarkers LR, factor latent (patient, 20 levels, quasi-separated) | 235 | order equal; 9.6e-11 |
 | FindMarkers ADT (CLR, `norm_method="CLR"`) | 3 | exact (weak check, few genes pass) |
 | FindAllMarkers only.pos (8 cell types, 36,601 genes) | 736 rows | same gene/cluster sequence; 3.5e-13 |
 | AverageExpression data (patient x timepoint), counts, ADT | 36,601 x groups | 5.7e-14 abs (1e-15 rel) |
@@ -103,7 +103,7 @@ Speed (single R process vs numba/threads; same machine):
 
 | Step | R (s) | arsc (s) | speed-up |
 |---|---:|---:|---:|
-| FindMarkers wilcox gd FU1 vs Baseline | 46.0 | 0.24 | 189x |
+| FindMarkers wilcox, follow-up vs baseline | 46.0 | 0.24 | 189x |
 | FindMarkers wilcox default | 3.4 | 0.24 | 14x |
 | FindMarkers wilcox vs rest | 89.7 | 1.11 | 81x |
 | FindMarkers wilcox only.pos max.cells | 4.0 | 0.31 | 13x |
@@ -123,8 +123,8 @@ much faster.)
 ## 4. Not ported / caveats
 
 * `FindMarkers(test.use=)`: `DESeq2` (1 call), `MAST` (not installed in R either), `negbinom`, `poisson`, `roc`, `bimod`
-  raise `NotImplementedError`. For sample-level DE use `arsc.pseudobulk` + DESeq2/edgeR in R (patient-level stats are the
-  project standard anyway).
+  raise `NotImplementedError`. For sample-level DE use `arsc.pseudobulk` + DESeq2/edgeR in R (the patient, not the cell, is the
+  unit for condition comparisons).
 * `SCTransform`, `RunALRA`, label transfer / integration (`FindTransferAnchors`, `MapQuery`, `IntegrateData`, Azimuth),
   `HTODemux`: see inventory (1-4 calls each).
 * `ScaleData` regression models other than linear.

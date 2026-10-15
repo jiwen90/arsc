@@ -1,0 +1,9 @@
+# sdist contents: the package, its R helper scripts and the project metadata files.
+# tests/ and benchmarks/ are excluded until their private dataset paths are removed
+# (they reference local reference outputs); re-include with `graft tests` afterwards.
+include LICENSE NOTICE README.md CHANGELOG.md CITATION.cff CONTRIBUTING.md
+recursive-include src/arsc/R *.R
+prune tests
+prune benchmarks
+prune docs
+global-exclude *.py[cod] __pycache__

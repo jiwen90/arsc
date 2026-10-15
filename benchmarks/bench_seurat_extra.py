@@ -1,4 +1,4 @@
-"""Wall-clock of arsc.seurat_extra on gdT_1 (same calls as benchmarks/r_reference_seurat_extra.R).
+"""Wall-clock of arsc.seurat_extra on the reference gamma-delta T-cell export ($ARSC_SCRATCH/exp_gd; same calls as benchmarks/r_reference_seurat_extra.R).
 
 Usage: python benchmarks/bench_seurat_extra.py   -> benchmarks/results/seurat_extra_timings.json (+ speedup table)
 """

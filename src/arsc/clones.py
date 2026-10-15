@@ -1,4 +1,4 @@
-"""TCR / clonal analysis methods (port of tools/R/ar_methods.R + the clone helpers of tools/R/ar.R).
+"""TCR / clonal analysis methods (Python ports of the R reference implementations).
 
 Everything takes a plain cell-level metadata ``pandas.DataFrame`` (one row per cell), exactly like the R
 functions, so it works on any lineage.  The patient is the unit of inference: every method also returns a
@@ -8,6 +8,7 @@ per-patient summary.  No plotting (figures stay in R).
     cyclone_patient_table()   clones per trajectory x patient (wide)
     cyclone_states()          per-patient state composition of trajectory clones over time
     read_10x_clonotypes()     healthy-donor clonotypes.csv -> one row per cell
+    read_10x_contigs()        CellRanger filtered_contig_annotations.csv -> one row per barcode (clone_id)
     clone_expansion_null()    per-clone expansion vs a healthy-donor null (downsampling, Fisher + signed chi)
     startrac()                STARTRAC-style expansion / migration / transition indices (per patient)
     clone_table(), clone_diversity(), clone_dynamics()
@@ -28,7 +29,7 @@ from scipy.special import gammaln
 from ._utils import check_seed
 
 __all__ = [
-    "Cyclone", "cyclone", "cyclone_patient_table", "cyclone_states", "read_10x_clonotypes",
+    "Cyclone", "cyclone", "cyclone_patient_table", "cyclone_states", "read_10x_clonotypes", "read_10x_contigs",
     "clone_expansion_null", "startrac", "clone_table", "clone_diversity", "clone_dynamics",
     "clone_tissue_matrix", "clone_tissue_entropy", "ari", "p_adjust_bh", "fisher_exact_2x2", "pam",
 ]
@@ -63,18 +64,59 @@ def _tp_levels(x: pd.Series, timepoints=None) -> list[str]:
         return sorted(u)
 
 
+def _need_cols(meta, cols, fn: str) -> None:
+    """Raise a KeyError that names the missing columns, lists what exists and says how to fix it."""
+    have = list(getattr(meta, "columns", []))
+    miss = [c for c in dict.fromkeys(cols) if c is not None and c not in have]
+    if miss:
+        raise KeyError(f"{fn}: column(s) {miss} not found in the metadata (has {have[:20]}"
+                       f"{' ...' if len(have) > 20 else ''}). Pass the right names, e.g. "
+                       f"patient_col=/sample_cols=/clone_col= (the defaults such as 'patient_alias' are "
+                       f"only examples).")
+
+
 def ari(a, b) -> float:
-    """Adjusted Rand index between two labelings."""
+    """Adjusted Rand index between two labelings.
+
+    Parameters
+    ----------
+    a, b : array-like of labels, one per item (same length; label values need not match).
+
+    Returns
+    -------
+    float; 1.0 = identical partitions, about 0 = chance agreement.
+
+    Examples
+    --------
+    >>> from arsc import clones
+    >>> clones.ari([0, 0, 1, 1], ["x", "x", "y", "y"])
+    1.0
+    """
     tab = pd.crosstab(np.asarray(a), np.asarray(b)).to_numpy().astype(float)
     n = tab.sum()
     c2 = lambda x: float((x * (x - 1) / 2).sum())  # noqa: E731
     s, sa, sb = c2(tab), c2(tab.sum(1)), c2(tab.sum(0))
     e = sa * sb / (n * (n - 1) / 2)
-    return (s - e) / ((sa + sb) / 2 - e)
+    return float((s - e) / ((sa + sb) / 2 - e))
 
 
 def p_adjust_bh(p) -> np.ndarray:
-    """Benjamini-Hochberg adjustment (== R p.adjust(p, "BH"); NaN preserved)."""
+    """Benjamini-Hochberg adjustment (== R ``p.adjust(p, "BH")``; NaN preserved).
+
+    Parameters
+    ----------
+    p : array-like of p-values (NaN allowed; they stay NaN and are not counted).
+
+    Returns
+    -------
+    numpy array of adjusted p-values, same shape as ``p``.
+
+    Examples
+    --------
+    >>> from arsc import clones
+    >>> clones.p_adjust_bh([0.01, 0.02, 0.03]).round(3).tolist()
+    [0.03, 0.03, 0.03]
+    """
     p = np.asarray(p, dtype=float)
     out = np.full(p.shape, np.nan)
     ok = ~np.isnan(p)
@@ -95,10 +137,25 @@ def _lchoose(n, k):
 
 
 def fisher_exact_2x2(a, b, N1, N2) -> np.ndarray:
-    """Two-sided Fisher exact p (R fisher.test, relErr 1+1e-7) for tables [[a, N1-a], [b, N2-b]].
+    """Two-sided Fisher exact p-values for many 2 x 2 tables ``[[a, N1-a], [b, N2-b]]`` (== R ``fisher.test``).
 
-    ``a``/``b`` arrays (clone counts at the two timepoints), ``N1``/``N2`` scalars or arrays.  Unique tables
-    are evaluated once.
+    Uses R's relative tolerance (1 + 1e-7) for "as extreme" tables; unique tables are evaluated once.
+
+    Parameters
+    ----------
+    a, b : integer arrays, e.g. a clone's cell count at timepoint 1 and timepoint 2.
+    N1, N2 : totals (scalars or arrays broadcastable to ``a``), e.g. clonotyped cells per timepoint.
+
+    Returns
+    -------
+    numpy array of two-sided p-values, one per table.
+
+    Examples
+    --------
+    >>> from arsc import clones
+    >>> p = clones.fisher_exact_2x2([5, 0], [20, 1], 100, 100)
+    >>> bool(p[0] < 0.01), bool(p[1] == 1.0)
+    (True, True)
     """
     a = np.asarray(a, dtype=np.int64)
     b = np.asarray(b, dtype=np.int64)
@@ -121,9 +178,26 @@ def fisher_exact_2x2(a, b, N1, N2) -> np.ndarray:
 
 
 def pam(D: np.ndarray, k: int, max_iter: int = 100):
-    """Partitioning around medoids (BUILD + SWAP) on a dissimilarity matrix (cluster::pam equivalent).
+    """Partitioning around medoids (BUILD + SWAP) on a dissimilarity matrix (``cluster::pam`` equivalent).
 
-    Returns (labels 0..k-1 numbered in medoid order, medoid indices).
+    Parameters
+    ----------
+    D : (n, n) symmetric dissimilarity matrix.
+    k : number of clusters.
+    max_iter : maximum number of SWAP iterations (default 100).
+
+    Returns
+    -------
+    tuple ``(labels, medoids)``: labels 0..k-1 numbered in medoid order, and the medoid row indices.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from arsc import clones
+    >>> D = np.abs(np.subtract.outer(np.arange(6.0), np.arange(6.0)))
+    >>> labels, medoids = clones.pam(D, 2)
+    >>> labels.tolist()
+    [0, 0, 0, 1, 1, 1]
     """
     n = D.shape[0]
     med = [int(np.argmin(D.sum(1)))]
@@ -159,7 +233,33 @@ def pam(D: np.ndarray, k: int, max_iter: int = 100):
 # ============================================================================================ Cyclone
 @dataclass
 class Cyclone:
-    """Result of :func:`cyclone` (mirrors the R ``ar_cyclone`` list)."""
+    """Result of :func:`cyclone` (mirrors the R ``ar_cyclone`` list).
+
+    Attributes
+    ----------
+    clonestats : clone x patient x timepoint long table: ``perc`` (% of the patient's clonotyped cells),
+        consecutive deltas (``delta_fc``, ``delta_c``), ``pass`` (passes the dynamics filter) and ``k``.
+    assignment : one row per clone kept by the filter: patient, group columns, ``clone_id``, ``k``
+        (``"Traj 1"``...; ``"Other"`` after the outlier rule), ``n_max``.
+    counts : patient x trajectory x timepoint: ``n_clones`` and summed ``perc``.
+    mat : timepoint x clone matrix of ``perc`` (missing -> 0).
+    mat_cor : clone x clone Pearson correlation of the standardized matrix.
+    linkage : scipy linkage matrix (ward == R ward.D2); ``None`` for ``method="pam"``/``"absolute"``.
+    cell_k : trajectory per row of the input ``meta`` (``"Other"`` = not clustered, ``None`` = no clone).
+    params : the arguments used.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> obs = arsc.datasets.toy().obs
+    >>> cy = clones.cyclone(obs, clone_col="clone_id", patient_col="patient", time_col="timepoint",
+    ...                     n_clust=2, n_max_min=3, verbose=False)
+    >>> cy.params["timepoints"]
+    ['pre', 'post']
+    >>> list(cy.assignment.columns)
+    ['patient', 'response', 'clone_id', 'k', 'n_max']
+    """
     clonestats: pd.DataFrame      # clone x patient x timepoint long table with perc, deltas, k
     assignment: pd.DataFrame      # one row per clone kept by the filter (k may be "Other" after outlier rule)
     counts: pd.DataFrame          # patient x trajectory: n_clones and summed perc per timepoint
@@ -170,6 +270,25 @@ class Cyclone:
     params: dict = field(default_factory=dict)
 
     def patient_table(self, value="n_clones", at=None) -> pd.DataFrame:
+        """Per-patient trajectory table; see :func:`cyclone_patient_table`.
+
+        Parameters
+        ----------
+        value : ``"n_clones"`` (clones per trajectory) or ``"perc"`` (summed % of clonotyped cells).
+        at : timepoint label to report ``perc`` at (ignored for ``"n_clones"``).
+
+        Returns
+        -------
+        DataFrame, one row per patient, one column per trajectory.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> from arsc import clones
+        >>> cy = clones.cyclone(arsc.datasets.toy().obs, patient_col="patient", n_clust=2, n_max_min=3, verbose=False)
+        >>> cy.patient_table().shape[0]
+        6
+        """
         return cyclone_patient_table(self, value, at)
 
     def __repr__(self):
@@ -252,22 +371,58 @@ def cyclone(meta: pd.DataFrame, clone_col="clone_id", patient_col="patient_alias
             drop_incomplete=True, min_cells_sample=1, stats_only=False, verbose=True):
     """Cyclone: cluster expanding/contracting clones by their temporal trajectory.
 
-    Exact port of ``ar_cyclone`` (itself a faithful port of the published ``cyclone_find_trajectories``):
-    per patient x timepoint perc -> consecutive deltas (fc, abs) -> keep clones with any increasing
-    (fc > min_fc & d > min_c & peak not at t0) or decreasing (fc < 1/min_fc & d < -min_c & peak at t0) step
-    and n_max >= n_max_min -> timepoint x clone matrix standardized (``scale``: "timepoint" = faithful default
-    (z-score per timepoint across clones), "clone" or "none" ~ per-clone z / raw) -> Pearson correlation between
-    clones -> Euclidean distance on the correlation matrix -> Ward.D2 -> cutree(n_clust), numbered by first
-    appearance in sorted(clone_id) order; ``custom_order`` renames cutree ids to Traj 1..n.  ``outlier_sd``:
-    among rows with perc > min_c and n_max >= n_max_min, clones with any perc >= mean + outlier_sd * sd -> "Other".
-    method "pam" (PAM on the correlation matrix) or "absolute" (trajectory = timepoint index of max perc).
-    ``stats_only`` returns just the clone x patient x timepoint change table with logical ``pass``.
+    Exact port of the published ``cyclone_find_trajectories`` algorithm (ARI 1.0 against the published
+    assignments; ``CLONES_PARITY.md``): per patient x timepoint ``perc`` -> consecutive deltas (fold change and
+    absolute) -> keep clones with any increasing (fc > ``min_fc`` & delta > ``min_c`` & peak not at t0) or
+    decreasing (fc < 1/``min_fc`` & delta < -``min_c`` & peak at t0) step and ``n_max >= n_max_min`` -> timepoint x
+    clone matrix standardized -> Pearson correlation between clones -> Euclidean distance on the correlation
+    matrix -> Ward.D2 -> ``cutree(n_clust)``, numbered by first appearance in sorted(clone_id) order.
+
+    Parameters
+    ----------
+    meta : cell-level metadata, one row per cell (e.g. ``Store.obs``).
+    clone_col : column with the clone id (NaN / "" = no TCR; those cells are ignored).
+    patient_col : patient column (default ``"patient_alias"``; pass yours explicitly).
+    time_col : timepoint column.
+    timepoints : ordered timepoint labels to use (default: categorical order, else sorted).
+    n_clust : number of trajectories (clusters) to cut.
+    min_fc : fold-change threshold of a step (default 2).
+    min_c : absolute change threshold of a step, in percentage points (default 0.25).
+    n_max_min : minimum peak cell count of a clone at any timepoint (default 5).
+    method : ``"hclust"`` (published default), ``"pam"`` (PAM on the correlation matrix) or ``"absolute"``
+        (trajectory = timepoint index of the maximum ``perc``).
+    scale : ``"timepoint"`` (faithful default: z-score per timepoint across clones), ``"clone"`` (per-clone z)
+        or ``"none"``.
+    custom_order : list of cutree ids giving the order to rename them ``Traj 1..n``.
+    outlier_sd : among rows with perc > ``min_c`` and n_max >= ``n_max_min``, clones with any perc >=
+        mean + ``outlier_sd`` * sd become ``"Other"`` (default ``None`` = off).
+    reg : pseudocount added to ``perc`` in the fold change (default 0, as published).
+    group_cols : patient-level columns carried into the outputs when present (e.g. treatment, response).
+    drop_incomplete : drop patients missing any of the timepoints (default True).
+    min_cells_sample : minimum clonotyped cells per patient x timepoint.
+    stats_only : return only the clone x patient x timepoint change table (with logical ``pass``).
+    verbose : print filter counts.
+
+    Returns
+    -------
+    :class:`Cyclone` (or a DataFrame with ``stats_only=True``).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> obs = arsc.datasets.toy().obs
+    >>> cy = clones.cyclone(obs, clone_col="clone_id", patient_col="patient", time_col="timepoint",
+    ...                     n_clust=2, n_max_min=3, verbose=False)
+    >>> sorted(cy.assignment["k"].unique())
+    ['Traj 1', 'Traj 2']
     """
     if method not in ("hclust", "pam", "absolute"):
         raise ValueError("method must be hclust|pam|absolute")
     if scale not in ("timepoint", "clone", "none"):
         raise ValueError("scale must be timepoint|clone|none")
     meta = pd.DataFrame(meta)
+    _need_cols(meta, [clone_col, patient_col, time_col], "cyclone")
     group_cols = [c for c in (group_cols or ()) if c in meta.columns]
     lv = _tp_levels(meta[time_col], timepoints)
     cs, clones = _clonestats(meta, clone_col, patient_col, time_col, lv, min_c, min_fc, n_max_min, reg,
@@ -353,7 +508,26 @@ def cyclone(meta: pd.DataFrame, clone_col="clone_id", patient_col="patient_alias
 
 
 def cyclone_patient_table(cy: Cyclone, value="n_clones", at=None) -> pd.DataFrame:
-    """Per-patient trajectory table: clones per trajectory (or summed perc at timepoint ``at``), wide."""
+    """Per-patient trajectory table: clones per trajectory (or summed perc at timepoint ``at``), wide.
+
+    Parameters
+    ----------
+    cy : a :class:`Cyclone` result.
+    value : ``"n_clones"`` (number of clones per trajectory) or ``"perc"`` (summed % of clonotyped cells).
+    at : timepoint label at which ``perc`` is reported (``value="perc"`` only; default all timepoints summed).
+
+    Returns
+    -------
+    DataFrame, one row per patient (plus group columns), one column per trajectory.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> cy = clones.cyclone(arsc.datasets.toy().obs, patient_col="patient", n_clust=2, n_max_min=3, verbose=False)
+    >>> clones.cyclone_patient_table(cy, "perc", at="post").shape[0]
+    6
+    """
     pc = cy.params["patient_col"]
     d = cy.counts
     if value == "n_clones":
@@ -368,14 +542,42 @@ def cyclone_patient_table(cy: Cyclone, value="n_clones", at=None) -> pd.DataFram
 
 def cyclone_states(cy: Cyclone, meta: pd.DataFrame, state_col: str, delta="fc", reg=2.0, mki67=None,
                    group_col="treatment") -> pd.DataFrame:
-    """Per-patient state composition of trajectory clones over time (``ar_cyclone_states``).
+    """Per-patient cell-state composition of trajectory clones over time (``ar_cyclone_states``).
 
-    value n = % of the patient's clonotyped cells at that timepoint in trajectory k AND state s;
-    delta "fc" = log2((n+reg)/(n_t0+reg)), "abs" = n - n_t0, "none" = n.  One row per patient x time x k x state.
+    Value ``n`` = % of the patient's clonotyped cells at that timepoint that are in trajectory k AND state s.
+
+    Parameters
+    ----------
+    cy : a :class:`Cyclone` result computed on the same ``meta`` rows.
+    meta : the cell-level metadata passed to :func:`cyclone`.
+    state_col : column with the cell state (cluster / cell type).
+    delta : ``"fc"`` = log2((n + reg) / (n_t0 + reg)), ``"abs"`` = n - n_t0, ``"none"`` = n.
+    reg : pseudocount for ``delta="fc"`` (default 2).
+    mki67 : optional per-cell values (e.g. MKI67 counts); adds a ``cycling`` column (% > 0).
+    group_col : patient-level grouping column (default ``"treatment"``; ``"all"`` if absent).
+
+    Returns
+    -------
+    DataFrame, one row per patient x timepoint x trajectory x state: ``cells``, ``count``, ``n``, ``n0``,
+    ``value`` (+ ``cycling``).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> obs = arsc.datasets.toy().obs
+    >>> cy = clones.cyclone(obs, patient_col="patient", n_clust=2, n_max_min=3, verbose=False)
+    >>> st = clones.cyclone_states(cy, obs, state_col="cell_type", group_col="response")
+    >>> "value" in st.columns
+    True
     """
     pc, tc = cy.params["patient_col"], cy.params["time_col"]
     tps = cy.params["timepoints"]
     meta = pd.DataFrame(meta)
+    _need_cols(meta, [pc, tc, state_col], "cyclone_states")
+    if len(meta) != len(cy.cell_k):
+        raise ValueError(f"cyclone_states: meta has {len(meta)} rows but the Cyclone result was computed on "
+                         f"{len(cy.cell_k)}; pass the same metadata rows that went into cyclone()")
     d = pd.DataFrame({"patient": meta[pc].astype(str).to_numpy(), "tp": _as_str(meta[tc]).to_numpy(),
                       "state": meta[state_col].astype(str).to_numpy(), "k": cy.cell_k.to_numpy(),
                       "grp": meta[group_col].astype(str).to_numpy() if group_col in meta.columns else "all"})
@@ -411,10 +613,143 @@ def cyclone_states(cy: Cyclone, meta: pd.DataFrame, state_col: str, delta="fc", 
 
 
 # ============================================================================================ HD-null expansion
-def read_10x_clonotypes(files, require_paired=True) -> pd.DataFrame:
-    """Read 10x ``clonotypes.csv`` files ("<donor> <timepoint> clonotypes.csv") -> one row per cell.
+def _truthy(v: pd.Series) -> np.ndarray:
+    """CellRanger booleans arrive as bool or as "True"/"true"/"TRUE" strings."""
+    if v.dtype == bool:
+        return v.to_numpy()
+    return v.astype(str).str.strip().str.lower().isin(["true", "t", "1", "yes"]).to_numpy()
 
-    clone = TRA nt + " " + TRB nt (multiple chains comma-joined), the paired definition of the original.
+
+def read_10x_contigs(path, *, sample=None, chains=("TRA", "TRB"), productive_only: bool = True,
+                     high_confidence: bool = True, key: str = "cdr3_nt", require_paired: bool = False) -> pd.DataFrame:
+    """Read a CellRanger VDJ ``filtered_contig_annotations.csv`` into one row per cell barcode.
+
+    Contigs are kept when their ``chain`` is in ``chains`` and (by default) they are productive, high-confidence
+    and (if the column exists) ``is_cell``. Per chain type, several contigs of one cell are ordered by ``umis``
+    (highest first, ties by sequence) and comma-joined in the ``<chain>_*`` columns. The clone id joins, per
+    chain type in ``chains`` order, the cell's ``key`` sequences **sorted alphabetically** (so the id does not
+    depend on UMI counts) with ``","`` inside a type and ``"|"`` between types, e.g. ``"TGTGCC|TGTGCA"``.
+
+    Parameters
+    ----------
+    path : path of ``filtered_contig_annotations.csv`` (or ``all_contig_annotations.csv``).
+    sample : optional sample label written to a ``sample`` column (the barcode is left unchanged; prefix it
+        yourself if barcodes must be unique across samples).
+    chains : chain types to use, in clone-id order (default ``("TRA", "TRB")``; e.g. ``("TRG", "TRD")`` for
+        gamma-delta T cells, ``("IGH", "IGK", "IGL")`` for B cells).
+    productive_only : keep only ``productive`` contigs (default True).
+    high_confidence : keep only ``high_confidence`` contigs (default True).
+    key : contig column that defines the clone (default ``"cdr3_nt"``; ``"cdr3"`` = amino acids).
+    require_paired : ``clone_id`` is NaN unless every chain type in ``chains`` is present (default False:
+        NaN only when no chain passes).
+
+    Returns
+    -------
+    DataFrame, one row per barcode with at least one passing contig: ``barcode``, ``sample``, then per chain
+    type ``<chain>_cdr3``, ``<chain>_cdr3_nt``, ``<chain>_v_gene``, ``<chain>_j_gene``, ``n_<chain>`` (number
+    of contigs), and ``clone_id``.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> import pandas as pd
+    >>> from arsc import clones
+    >>> f = os.path.join(tempfile.mkdtemp(), "filtered_contig_annotations.csv")
+    >>> pd.DataFrame({
+    ...     "barcode": ["AAA-1", "AAA-1", "CCC-1", "CCC-1", "GGG-1", "GGG-1"],
+    ...     "is_cell": [True] * 6, "high_confidence": [True] * 6,
+    ...     "chain": ["TRA", "TRB", "TRA", "TRB", "TRB", "TRB"],
+    ...     "productive": [True, True, True, True, True, False],
+    ...     "cdr3": ["CAV", "CAS", "CAV", "CAS", "CSA", "CXX"],
+    ...     "cdr3_nt": ["TGTGCA", "TGTGCC", "TGTGCA", "TGTGCC", "TGCAGT", "TGCNNN"],
+    ...     "v_gene": ["TRAV1", "TRBV2", "TRAV1", "TRBV2", "TRBV5", "TRBV6"],
+    ...     "j_gene": ["TRAJ1", "TRBJ1", "TRAJ1", "TRBJ1", "TRBJ2", "TRBJ2"],
+    ...     "umis": [3, 5, 2, 7, 4, 1]}).to_csv(f, index=False)
+    >>> tcr = clones.read_10x_contigs(f, sample="P1_pre")
+    >>> tcr[["barcode", "n_TRA", "n_TRB", "clone_id"]].values.tolist()
+    [['AAA-1', 1, 1, 'TGTGCA|TGTGCC'], ['CCC-1', 1, 1, 'TGTGCA|TGTGCC'], ['GGG-1', 0, 1, '|TGCAGT']]
+    >>> clones.read_10x_contigs(f, require_paired=True)["clone_id"].isna().tolist()
+    [False, False, True]
+    """
+    d = pd.read_csv(path)
+    need = ["barcode", "chain", key]
+    for c in ("productive", "high_confidence"):
+        if (c == "productive" and productive_only) or (c == "high_confidence" and high_confidence):
+            need.append(c)
+    miss = [c for c in need if c not in d.columns]
+    if miss:
+        raise KeyError(f"read_10x_contigs: {path} lacks column(s) {miss} (has {list(d.columns)}); is this a "
+                       "CellRanger *_contig_annotations.csv? Set productive_only/high_confidence=False or key= "
+                       "to match the columns you have.")
+    chains = [str(c) for c in ([chains] if isinstance(chains, str) else chains)]
+    keep = d["chain"].astype(str).isin(chains).to_numpy()
+    if productive_only:
+        keep &= _truthy(d["productive"])
+    if high_confidence:
+        keep &= _truthy(d["high_confidence"])
+    if "is_cell" in d.columns:
+        keep &= _truthy(d["is_cell"])
+    d = d[keep & d[key].notna().to_numpy()].copy()
+    for c in ("cdr3", "cdr3_nt", "v_gene", "j_gene"):
+        if c not in d.columns:
+            d[c] = np.nan
+    d["umis"] = pd.to_numeric(d["umis"], errors="coerce").fillna(0) if "umis" in d.columns else 0
+    d["_key"] = d[key].astype(str)
+    d = d.sort_values(["barcode", "chain", "umis", "_key"], ascending=[True, True, False, True], kind="stable")
+    barcodes = pd.unique(d["barcode"].astype(str))
+    out = pd.DataFrame({"barcode": barcodes})
+    out["sample"] = sample
+    ids = pd.Series([""] * len(out), index=barcodes, dtype=object)
+    complete = pd.Series(True, index=barcodes)
+
+    def join(v):
+        return ",".join(v.astype(str))
+
+    for ch in chains:
+        g = d[d["chain"].astype(str) == ch].groupby(d["barcode"].astype(str), sort=False)
+        agg = pd.DataFrame({f"{ch}_cdr3": g["cdr3"].agg(join), f"{ch}_cdr3_nt": g["cdr3_nt"].agg(join),
+                            f"{ch}_v_gene": g["v_gene"].agg(join), f"{ch}_j_gene": g["j_gene"].agg(join),
+                            f"n_{ch}": g.size()})
+        agg = agg.reindex(barcodes)
+        agg[f"n_{ch}"] = agg[f"n_{ch}"].fillna(0).astype(int)
+        for c in agg.columns:
+            out[c] = agg[c].to_numpy()
+        kid = g["_key"].agg(lambda v: ",".join(sorted(v))).reindex(barcodes).fillna("")
+        complete &= kid != ""
+        ids = ids + ("|" if ch != chains[0] else "") + kid
+    clone = ids.to_numpy(dtype=object)
+    if require_paired:
+        clone[~complete.to_numpy()] = np.nan
+    out["clone_id"] = clone
+    return out
+
+
+def read_10x_clonotypes(files, require_paired=True) -> pd.DataFrame:
+    """Read 10x ``clonotypes.csv`` files named ``"<donor> <timepoint> clonotypes.csv"`` into one row per cell.
+
+    The clone id is TRA nt + " " + TRB nt (multiple chains comma-joined), the paired definition used by
+    :func:`clone_expansion_null` for healthy-donor references.
+
+    Parameters
+    ----------
+    files : iterable of paths; donor and timepoint are parsed from each file name.
+    require_paired : keep only clonotypes with both a TRA and a TRB chain (default True).
+
+    Returns
+    -------
+    DataFrame with columns ``patient_alias``, ``timepoint``, ``clone_id``, one row per cell
+    (clonotypes repeated by their ``frequency``).
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> import pandas as pd
+    >>> from arsc import clones
+    >>> d = tempfile.mkdtemp()
+    >>> f = os.path.join(d, "HD1 T1 clonotypes.csv")
+    >>> pd.DataFrame({"cdr3s_nt": ["TRA:AAA;TRB:CCC", "TRB:GGG"], "frequency": [3, 1]}).to_csv(f, index=False)
+    >>> clones.read_10x_clonotypes([f])["clone_id"].tolist()
+    ['AAA CCC', 'AAA CCC', 'AAA CCC']
     """
     import os
     out = []
@@ -473,22 +808,54 @@ def clone_expansion_null(meta, hd, pairs=((0, 3), (3, 6), (6, 9)), hd_times=("T1
                          clone_col="clone_id", patient_col="patient_alias", time_col="timepoint",
                          ref_depth=None, null_q=0.95, reps=1, seed=1, downsample=True,
                          hd_time_col=None, hd_clone_col=None):
-    """Per-clone expansion/contraction between consecutive timepoints calibrated by a healthy-donor null.
+    """Per-clone expansion/contraction between timepoints, calibrated by a healthy-donor (HD) null.
 
-    Port of ``ar_clone_expansion_null``: per patient and pair, each timepoint is downsampled to at most the HD
-    depth (``ref_depth``, default HD cell counts); per clone a Fisher test (BH within patient x pair -> ``fdr``)
-    and a signed sqrt(Yates chi2) ``chi``.  Null: HD T1 vs T2 downsampled to the patient's depths, cutoff =
-    quantile(|chi_HD|, null_q); ``sig_null`` if |chi| > cutoff.  ``reps`` repeated downsamplings are averaged in
-    the patient summary.  Random draws use numpy (``seed``), so they are statistically but not bitwise equal to R.
-    ``seed`` (default 1) seeds one local ``np.random.default_rng`` consumed in input order (patients by first appearance, then ``pairs``, then reps), so the same input rows + seed give identical draws.
+    Port of ``ar_clone_expansion_null``: per patient and timepoint pair, each timepoint is downsampled to at most
+    the HD depth (``ref_depth``, default the HD cell counts); per clone a Fisher test (BH within patient x pair ->
+    ``fdr``) and a signed sqrt(Yates chi-square) ``chi``. Null: HD T1 vs T2 downsampled to the patient's depths,
+    cutoff = quantile(|chi_HD|, ``null_q``); ``sig_null`` if |chi| > cutoff. Random draws use numpy, so they agree
+    with R statistically but not bitwise. ``seed`` seeds one local ``np.random.default_rng`` consumed in input
+    order (patients by first appearance, then ``pairs``, then reps).
 
-    Returns ``(clones, patients)`` DataFrames.
+    Parameters
+    ----------
+    meta : cell-level metadata of the patients (clone, patient, timepoint columns).
+    hd : cell-level healthy-donor table (e.g. from :func:`read_10x_clonotypes`) with two timepoints.
+    pairs : timepoint pairs ``(t1, t2)`` to test, as labels found in ``time_col``.
+    hd_times : the two HD timepoint labels.
+    clone_col, patient_col, time_col : column names in ``meta``.
+    ref_depth : ``(depth_1, depth_2)`` downsampling depths (default: the HD cell counts).
+    null_q : quantile of |chi_HD| used as the cutoff (default 0.95).
+    reps : repeated downsamplings, averaged in the patient summary.
+    seed : integer seed (default 1).
+    downsample : downsample patient timepoints to ``ref_depth`` (default True).
+    hd_time_col, hd_clone_col : column names in ``hd`` (default: same as ``time_col`` / ``clone_col``).
+
+    Returns
+    -------
+    tuple ``(clones, patients)``: per-clone table (``clone``, ``n_1``, ``n_2``, ``chi``, ``p``, ``fdr``,
+    ``cutoff``, ``sig_null``...) and per patient x pair summary (``n_sig_up``, ``n_sig_down``,
+    ``frac_cells_sig_up_t2``...).
+
+    Examples
+    --------
+    >>> import arsc, pandas as pd
+    >>> from arsc import clones
+    >>> obs = arsc.datasets.toy().obs
+    >>> hd = pd.DataFrame({"timepoint": ["T1"] * 200 + ["T2"] * 200,
+    ...                    "clone_id": [f"h{i % 150}" for i in range(400)]})
+    >>> per_clone, per_patient = clones.clone_expansion_null(obs, hd, pairs=(("pre", "post"),),
+    ...     clone_col="clone_id", patient_col="patient", time_col="timepoint")
+    >>> per_patient.shape[0]
+    6
     """
     seed = check_seed(seed)
     hd_time_col = hd_time_col or time_col
     hd_clone_col = hd_clone_col or clone_col
     rng = np.random.default_rng(seed)
     meta = pd.DataFrame(meta)
+    _need_cols(meta, [clone_col, patient_col, time_col], "clone_expansion_null")
+    _need_cols(hd, [hd_time_col, hd_clone_col], "clone_expansion_null (hd)")
     cl = meta[clone_col]
     meta = meta[cl.notna() & (cl.astype(str) != "")]
     hts = hd[hd_time_col].astype(str)
@@ -572,18 +939,42 @@ def _count_matrix(codes_r, codes_c, nr, nc):
 
 def startrac(meta, clone_col="clone_id", state_col="metaclusters_exh", group_cols="patient_alias", loc_col=None,
              min_cells=20, downsample=None, seed=1):
-    """STARTRAC-style indices (Zhang et al. 2018) computed per patient (or sample).
+    """STARTRAC-style clonal indices (Zhang et al. 2018) computed per patient (or sample).
 
-    expa(state) = 1 - H(clone sizes in state)/log2(n cells in state); tran(state) = sum_c w_c H_c(states);
-    migr(state) = same with ``loc_col``; pairwise tran(A,B) over states A,B.  Entropies in bits, unnormalised.
-    ``seed`` (default 1) seeds the optional per-group ``downsample`` (local ``default_rng``; each group draws
-    a sub-seed from it in group order). Unused without ``downsample``.
-    Returns ``(cluster, pairwise)`` DataFrames.
+    expa(state) = 1 - H(clone sizes in state) / log2(n cells in state); tran(state) = sum_c w_c H_c(states);
+    migr(state) = the same with ``loc_col``; pairwise tran(A, B) over pairs of states. Entropies in bits,
+    unnormalised.
+
+    Parameters
+    ----------
+    meta : cell-level metadata.
+    clone_col : clone id column (cells without a clone are dropped).
+    state_col : cell-state column (cluster / cell type). Default is a project-specific name; pass yours.
+    group_cols : column(s) defining the unit (default ``"patient_alias"``; pass yours, e.g. ``"patient"``).
+    loc_col : optional tissue/location column for the migration index.
+    min_cells : states (and state pairs) with fewer cells in a group are dropped (default 20).
+    downsample : optional number of cells per group x state to sample first.
+    seed : integer seed for ``downsample`` (default 1; unused without it).
+
+    Returns
+    -------
+    tuple ``(cluster, pairwise)`` DataFrames: per group x state ``n``, ``expa``, ``tran`` (+ ``migr``), and per
+    group x state pair ``tran`` and ``n_shared_clones``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> obs = arsc.datasets.toy().obs
+    >>> per_state, pairs = clones.startrac(obs, clone_col="clone_id", state_col="cell_type", group_cols="patient")
+    >>> list(per_state.columns)
+    ['patient', 'state', 'n', 'expa', 'tran']
     """
     seed = check_seed(seed)
     rng = np.random.default_rng(seed)
     gc = [group_cols] if isinstance(group_cols, str) else list(group_cols)
     cols = list(dict.fromkeys([clone_col, state_col, *gc, *([loc_col] if loc_col else [])]))
+    _need_cols(pd.DataFrame(meta), cols, "startrac")
     d = pd.DataFrame(meta)[cols].copy()
     d = d.rename(columns={clone_col: "clone", state_col: "state"}) if clone_col != state_col else d
     d = d[d.clone.notna() & (d.clone.astype(str) != "") & d.state.notna()]
@@ -630,9 +1021,31 @@ def startrac(meta, clone_col="clone_id", state_col="metaclusters_exh", group_col
 
 # ============================================================================================ clone helpers
 def clone_table(meta, clone_col, sample_cols=("patient_alias", "timepoint"), by=None) -> pd.DataFrame:
-    """Clone counts and within-sample frequency per sample (cells without a clone dropped)."""
+    """Clone counts and within-sample frequency per sample (cells without a clone dropped).
+
+    Parameters
+    ----------
+    meta : cell-level metadata.
+    clone_col : clone id column.
+    sample_cols : columns that define a sample (default ``("patient_alias", "timepoint")``; pass yours).
+    by : optional extra column(s) to split counts by (e.g. cell state); ``freq`` stays within sample.
+
+    Returns
+    -------
+    DataFrame with ``sample_cols`` (+ ``by``), ``clone``, ``n`` (cells) and ``freq`` (fraction of the sample's
+    clonotyped cells).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> ct = clones.clone_table(arsc.datasets.toy().obs, "clone_id", sample_cols=("patient", "timepoint"))
+    >>> list(ct.columns)
+    ['patient', 'timepoint', 'clone', 'n', 'freq']
+    """
     sc = list(sample_cols) + ([by] if isinstance(by, str) else list(by or []))
     d = pd.DataFrame(meta)
+    _need_cols(d, [clone_col, *sc], "clone_table")
     d = d[d[clone_col].notna() & (d[clone_col].astype(str) != "")]
     ct = d.groupby([*sc, d[clone_col].rename("clone")], observed=True, sort=True).size().rename("n").reset_index()
     ct["freq"] = ct.n / ct.groupby(list(sample_cols), observed=True).n.transform("sum")
@@ -641,14 +1054,39 @@ def clone_table(meta, clone_col, sample_cols=("patient_alias", "timepoint"), by=
 
 def clone_diversity(ct, sample_cols=("patient_alias", "timepoint"), depth=None, floor=200, reps=20, seed=1,
                     verbose=True) -> pd.DataFrame:
-    """Diversity per sample after rarefying to a common depth (default = min sample depth >= ``floor``).
+    """Clonal diversity per sample after rarefying to a common depth.
 
-    Metrics (means over ``reps`` draws): shannon (nats), simpson, richness, top10_frac, clonality.
-    Rarefaction uses an exact multivariate hypergeometric draw (== sampling cells without replacement).
-    ``seed`` (default 1) seeds a local ``np.random.default_rng`` consumed in sorted sample order.
+    Metrics (means over ``reps`` draws): shannon (nats), simpson, richness, top10_frac, clonality. Rarefaction
+    uses an exact multivariate hypergeometric draw (== sampling cells without replacement). ``seed`` seeds a
+    local ``np.random.default_rng`` consumed in sorted sample order.
+
+    Parameters
+    ----------
+    ct : clone table from :func:`clone_table`.
+    sample_cols : the sample columns used to build ``ct``.
+    depth : rarefaction depth (default: the smallest sample depth >= ``floor``).
+    floor : minimum depth; samples below ``depth`` are dropped (default 200).
+    reps : number of rarefaction draws (default 20).
+    seed : integer seed (default 1).
+    verbose : print the depth and the number of retained samples.
+
+    Returns
+    -------
+    DataFrame, one row per retained sample: ``shannon``, ``simpson``, ``richness``, ``top10_frac``,
+    ``clonality``, ``depth``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> ct = clones.clone_table(arsc.datasets.toy().obs, "clone_id", sample_cols=("patient", "timepoint"))
+    >>> dv = clones.clone_diversity(ct, sample_cols=("patient", "timepoint"), floor=50, verbose=False)
+    >>> dv.shape
+    (12, 8)
     """
     seed = check_seed(seed)
     sc = list(sample_cols)
+    _need_cols(ct, [*sc, "n"], "clone_diversity (ct from clone_table)")
     rng = np.random.default_rng(seed)
     sizes = ct.groupby(sc, observed=True).n.sum().rename("N")
     if depth is None:
@@ -681,7 +1119,39 @@ def clone_diversity(ct, sample_cols=("patient_alias", "timepoint"), depth=None, 
 
 
 def clone_dynamics(ct, t0, t1, patient="patient_alias", time="timepoint", min_cells=3) -> pd.DataFrame:
-    """Clone dynamics between two timepoints within each patient (Fisher per clone, BH within patient)."""
+    """Clone dynamics between two timepoints within each patient (Fisher test per clone, BH within patient).
+
+    Parameters
+    ----------
+    ct : clone table from :func:`clone_table` (must contain ``patient``, ``time``, ``clone``, ``n``).
+    t0, t1 : the two timepoint labels (t0 = reference).
+    patient : patient column (default ``"patient_alias"``; pass yours).
+    time : timepoint column.
+    min_cells : minimum cells of a clone over both timepoints to be tested (default 3).
+
+    Returns
+    -------
+    DataFrame, one row per tested clone: ``n_0``, ``n_1``, ``p``, ``fdr``, ``lfc`` (log2 frequency ratio),
+    ``class`` (``novel_expanded`` / ``expanded`` / ``contracted`` / ``stable`` at FDR < 0.05), patient,
+    ``N0``, ``N1``. Cell-level Fisher p-values describe single clones within a patient; compare patients
+    or arms with patient-level summaries (e.g. the number of expanded clones per patient).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> ct = clones.clone_table(arsc.datasets.toy().obs, "clone_id", sample_cols=("patient", "timepoint"))
+    >>> dyn = clones.clone_dynamics(ct, "pre", "post", patient="patient", time="timepoint")
+    >>> sorted(dyn["patient"].unique())
+    ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']
+    """
+    _need_cols(ct, [patient, time, "clone", "n"], "clone_dynamics (ct from clone_table)")
+    have_tp = set(ct[time].astype(str))
+    miss_tp = [t for t in (_fmt_tp(t0), _fmt_tp(t1)) if t not in have_tp]
+    if miss_tp:
+        import warnings
+        warnings.warn(f"clone_dynamics: timepoint(s) {miss_tp} not in column {time!r} (has {sorted(have_tp)}); "
+                      "the result will be empty", stacklevel=2)
     out = []
     for pt, d in ct.groupby(patient, sort=False, observed=True):
         tt = d[time].astype(str)
@@ -709,16 +1179,56 @@ def clone_dynamics(ct, t0, t1, patient="patient_alias", time="timepoint", min_ce
 
 
 def clone_tissue_matrix(meta, clone_col="clone_id", tissue_col="tissue", min_cells=1) -> pd.DataFrame:
-    """Clone x tissue cell-count matrix (clones with fewer than ``min_cells`` cells dropped)."""
+    """Clone x tissue cell-count matrix (clones with fewer than ``min_cells`` cells dropped).
+
+    Parameters
+    ----------
+    meta : cell-level metadata.
+    clone_col : clone id column.
+    tissue_col : tissue (or any compartment) column.
+    min_cells : minimum total cells per clone (default 1).
+
+    Returns
+    -------
+    DataFrame, clones x tissues, integer cell counts.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> m = clones.clone_tissue_matrix(arsc.datasets.toy().obs, tissue_col="cell_type", min_cells=5)
+    >>> list(m.columns)
+    ['CD4 T', 'CD8 T']
+    """
     d = pd.DataFrame(meta)
+    _need_cols(d, [clone_col, tissue_col], "clone_tissue_matrix")
     d = d[d[clone_col].notna() & (d[clone_col].astype(str) != "") & d[tissue_col].notna()]
     m = pd.crosstab(d[clone_col].astype(str), d[tissue_col].astype(str))
     return m[m.sum(1) >= min_cells]
 
 
 def clone_tissue_entropy(mat: pd.DataFrame) -> pd.DataFrame:
-    """Per-clone tissue distribution: bits entropy, entropy normalised by log2(#tissues), tissue breadth,
-    dominant tissue and its fraction (low entropy = tissue-restricted, high = disseminated)."""
+    """Per-clone tissue distribution: entropy, normalised entropy, breadth and dominant tissue.
+
+    Low entropy = tissue-restricted clone, high = disseminated.
+
+    Parameters
+    ----------
+    mat : clone x tissue count matrix from :func:`clone_tissue_matrix`.
+
+    Returns
+    -------
+    DataFrame indexed by clone: ``n_cells``, ``n_tissues``, ``entropy`` (bits), ``entropy_norm``
+    (entropy / log2(number of tissues)), ``dominant``, ``dominant_frac``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> from arsc import clones
+    >>> m = clones.clone_tissue_matrix(arsc.datasets.toy().obs, tissue_col="cell_type", min_cells=5)
+    >>> list(clones.clone_tissue_entropy(m).columns)
+    ['n_cells', 'n_tissues', 'entropy', 'entropy_norm', 'dominant', 'dominant_frac']
+    """
     M = mat.to_numpy().astype(float)
     H = _row_entropy(M)
     nt = (M > 0).sum(1)

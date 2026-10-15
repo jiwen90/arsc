@@ -1,17 +1,29 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
+# NOTE: the name "arsc" is already taken on PyPI by an unrelated package (quickARSC). Choose a
+# distribution name before the first upload (the import name `arsc` can stay). See CHANGELOG / NOTICE.
 name = "arsc"
 version = "0.2.0"
-description = "Fast, R-validated single-cell compute engine: memory-mapped stores, Seurat/scanpy/harmony/presto/UCell ports, clonal analysis"
+description = "Fast, validated single-cell compute: memory-mapped stores, Seurat/scanpy-parity methods, pseudobulk DE, patient-level statistics and clonal (TCR) analysis"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Proprietary (private; not yet licensed for redistribution)" }
-keywords = ["single-cell", "scRNA-seq", "Seurat", "scanpy", "TCR", "clonotype"]
+license = "MIT"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Kevin Wang" }]
+maintainers = [{ name = "Kevin Wang" }]
+keywords = ["single-cell", "scRNA-seq", "CITE-seq", "Seurat", "scanpy", "pseudobulk", "DESeq2", "TCR", "clonotype", "memory-mapped"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = [
@@ -24,10 +36,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# h5ad / 10x readers and writers
 h5ad = ["anndata>=0.10", "h5py>=3.8"]
+# kNN (approximate), Leiden/Louvain clustering, UMAP. Note: leidenalg is GPL-3.0-or-later (optional).
 graph = ["igraph>=0.10", "leidenalg>=0.10", "umap-learn>=0.5", "pynndescent>=0.5"]
-all = ["arsc[h5ad,graph]"]
-dev = ["arsc[h5ad,graph]", "pytest>=7", "scanpy>=1.10", "harmonypy==0.0.10", "psutil"]
+# patient-level statistics (GLMM/LMM/GEE) and pseudobulk DE (DESeq2 via pydeseq2, limma-voom)
+stats = ["statsmodels>=0.14", "patsy>=0.5", "pydeseq2>=0.4"]
+# optimal-transport clone distance in arsc.clonotrace
+clonotrace = ["pot>=0.9"]
+all = ["arsc[h5ad,graph,stats,clonotrace]"]
+dev = ["arsc[h5ad,graph,stats]", "pytest>=7", "scanpy>=1.10", "harmonypy==0.0.10", "psutil", "build", "twine"]
+
+[project.urls]
+Repository = "https://github.com/jiwen90/arsc"
+Issues = "https://github.com/jiwen90/arsc/issues"
+Changelog = "https://github.com/jiwen90/arsc/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

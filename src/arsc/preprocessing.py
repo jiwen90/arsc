@@ -44,10 +44,29 @@ def _lognorm_kernel(indptr, data, out, scale_factor):
 
 
 def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matrix:
-    """``log1p(x / total_counts(cell) * scale_factor)`` per cell.
+    """Log-normalize counts per cell: ``log1p(x / total_counts(cell) * scale_factor)``.
 
-    Matches Seurat's ``LogNormalize`` (C++ ``LogNorm``) to floating-point
-    precision. Returns a new CSR with the same sparsity pattern.
+    Matches Seurat's ``LogNormalize`` (C++ ``LogNorm``) to floating-point precision
+    (< 1e-10 vs ``NormalizeData``). For bitwise scanpy parity use
+    :func:`arsc.normalize_total_log1p`.
+
+    Parameters
+    ----------
+    X : cells x features raw counts (sparse or dense).
+    scale_factor : target total per cell (Seurat ``scale.factor``, default 1e4).
+    dtype : output dtype (float64 default).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix with the same sparsity pattern as ``X``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> L.shape
+    (3000, 300)
     """
     X = as_csr(X)
     out = np.zeros(X.data.shape, dtype=dtype)
@@ -56,12 +75,27 @@ def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matr
 
 
 def clr(X, margin: int = 2) -> sp.csr_matrix:
-    """Centered log-ratio transform as in Seurat ``NormalizeData(method = "CLR")``.
+    """Centered log-ratio transform as in Seurat ``NormalizeData(method = "CLR")`` (for ADT).
 
     Seurat's function is ``log1p(x / exp(sum(log1p(x[x > 0])) / length(x)))``.
-    ``margin = 2`` (recommended for ADT; Seurat's margin refers to its features x
-    cells layout) normalizes each *cell* across features; ``margin = 1``
-    normalizes each feature across cells.
+
+    Parameters
+    ----------
+    X : cells x features counts (e.g. the ``ADT`` assay).
+    margin : ``2`` (Seurat's ADT default; Seurat's margin refers to its features x cells
+        layout) normalizes each *cell* across features; ``1`` normalizes each feature across cells.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix (float64) with the same sparsity pattern as ``X``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> A = arsc.pp.clr(ds.X("ADT", "counts"), margin=2)
+    >>> A.shape
+    (3000, 6)
     """
     X = as_csr(X, dtype=np.float64)
     n, p = X.shape
@@ -78,7 +112,7 @@ def clr(X, margin: int = 2) -> sp.csr_matrix:
         gm = np.exp(sums / n)  # per feature
         scale_vec = 1.0 / gm[X.indices]
     else:
-        raise ValueError("margin must be 1 or 2")
+        raise ValueError(f"margin must be 1 (per feature) or 2 (per cell, Seurat's ADT default); got {margin!r}")
     out = X.copy()
     out.data = np.log1p(X.data * scale_vec)
     return out
@@ -133,11 +167,20 @@ def _var_std_clipped(indptr, indices, data, n_rows, n_cols, mu, sd, vmax):
 
 def hvg_vst(counts, nfeatures: int = 2000, features=None, loess_span: float = 0.3,
             clip_max="auto", surface: str = "interpolate") -> pd.DataFrame:
-    """Seurat v3 "vst" highly-variable features on raw counts.
+    """Seurat v3 "vst" highly-variable features on raw counts (``FindVariableFeatures``).
 
     Fits ``log10(variance) ~ log10(mean)`` with R-compatible loess (span 0.3),
     standardizes each feature by the fitted s.d. (clipping at ``sqrt(n_cells)``)
     and ranks by the variance of the standardized values.
+
+    Parameters
+    ----------
+    counts : cells x features raw counts (not log-normalized).
+    nfeatures : number of features flagged ``highly_variable``.
+    features : feature names (index of the result; default ``0..p-1``).
+    loess_span : loess span (Seurat ``loess.span``).
+    clip_max : clipping value for standardized values; ``"auto"`` = ``sqrt(n_cells)``.
+    surface : loess surface, ``"interpolate"`` (R default) or ``"direct"``.
 
     Returns
     -------
@@ -146,6 +189,15 @@ def hvg_vst(counts, nfeatures: int = 2000, features=None, loess_span: float = 0.
     features) and boolean ``highly_variable`` (top ``nfeatures``).
     ``df.index[df.highly_variable]`` is *not* ranked; use
     ``df.sort_values("rank").index[:n]`` for Seurat's ``VariableFeatures`` order.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> hv = arsc.pp.hvg_vst(ds.X("RNA", "counts"), nfeatures=100, features=ds.features("RNA"))
+    >>> int(hv.highly_variable.sum())
+    100
+    >>> top = hv.sort_values("rank").index[:100]       # Seurat VariableFeatures order
     """
     X = as_csr(counts)
     n, p = X.shape
@@ -176,9 +228,30 @@ def scale(X, center: bool = True, do_scale: bool = True, scale_max: float = 10.0
           dtype=np.float64) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Seurat ``ScaleData`` (no regression): dense z-scores, s.d. with n-1, values > ``scale_max`` clipped.
 
-    Seurat clips only the upper tail (``FastSparseRowScale``). Zero-variance
-    features become 0. Returns ``(Z, mean, sd)``; select features first
-    (``X[:, hvg_idx]``) as Seurat scales only ``VariableFeatures`` by default.
+    Seurat clips only the upper tail (``FastSparseRowScale``). Zero-variance features become 0.
+    Select features first (``X[:, hvg_idx]``): Seurat scales only ``VariableFeatures`` by default,
+    and the output is dense. For regression of covariates use :func:`arsc.scale_data`.
+
+    Parameters
+    ----------
+    X : cells x features (log-normalized) matrix, sparse or dense.
+    center : subtract the per-feature mean.
+    do_scale : divide by the per-feature s.d. (n-1).
+    scale_max : upper clip (Seurat ``scale.max``); ``None`` or ``inf`` disables clipping.
+    dtype : output dtype.
+
+    Returns
+    -------
+    tuple ``(Z, mean, sd)``: dense cells x features array, per-feature mean and s.d.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> Z, mu, sd = arsc.pp.scale(L[:, :50])
+    >>> Z.shape
+    (3000, 50)
     """
     if sp.issparse(X):
         X = as_csr(X)
@@ -205,7 +278,23 @@ def scale(X, center: bool = True, do_scale: bool = True, scale_max: float = 10.0
 # --------------------------------------------------------------------------- PCA
 @dataclass
 class PCAResult:
-    """``embedding`` (cells x k, = U*d), ``loadings`` (features x k), ``stdev`` (= d/sqrt(n-1))."""
+    """Result of :func:`pca`.
+
+    Attributes
+    ----------
+    embedding : cells x k cell embeddings (= U * d, Seurat ``cell.embeddings``).
+    loadings : features x k loadings (Seurat ``feature.loadings``).
+    stdev : per-PC standard deviation (= d / sqrt(n - 1), Seurat ``stdev``).
+    total_variance : total variance of the input.
+    variance_ratio : fraction of total variance per PC (property).
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> r = arsc.pp.pca(np.random.default_rng(0).standard_normal((100, 20)), n_comps=5)
+    >>> r.embedding.shape, r.loadings.shape, r.variance_ratio.shape
+    ((100, 5), (20, 5), (5,))
+    """
 
     embedding: np.ndarray
     loadings: np.ndarray
@@ -237,9 +326,39 @@ def pca(Z: np.ndarray, n_comps: int = 50, method: str = "auto", seed: int = 42,
 
     ``seed`` (default 42 = Seurat ``RunPCA(seed.use = 42)``): ARPACK start vector (``"arpack"``)
     or the Gaussian test matrix (``"randomized"``); ``"gram"`` is deterministic and ignores it.
+
+    Parameters
+    ----------
+    Z : cells x features dense, centered (scaled) matrix, e.g. the first output of :func:`scale`.
+    n_comps : number of components (capped at ``min(n, p) - 1``).
+    method : ``"auto"``, ``"gram"``, ``"arpack"`` or ``"randomized"`` (see above).
+    seed : integer seed (``None`` is rejected).
+    n_oversamples : randomized-SVD oversampling.
+    n_iter : randomized-SVD power iterations.
+
+    Returns
+    -------
+    PCAResult with ``embedding``, ``loadings``, ``stdev`` and ``variance_ratio``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> counts = ds.X("RNA", "counts")
+    >>> hv = arsc.pp.hvg_vst(counts, nfeatures=100)
+    >>> L = arsc.pp.log_normalize(counts)
+    >>> Z, _, _ = arsc.pp.scale(L[:, hv.sort_values("rank").index[:100]])
+    >>> pc = arsc.pp.pca(Z, n_comps=20)
+    >>> pc.embedding.shape
+    (3000, 20)
     """
     seed = check_seed(seed)
+    if hasattr(Z, "toarray"):
+        raise TypeError("pca expects a dense, centered matrix: run arsc.pp.scale(X[:, hvg]) first "
+                        "(Seurat RunPCA uses the dense scale.data)")
     Z = np.asarray(Z)
+    if Z.ndim != 2:
+        raise ValueError(f"pca expects a 2-D cells x features array; got shape {Z.shape}")
     n, p = Z.shape
     k = min(n_comps, p - 1, n - 1)
     if method == "auto":
@@ -270,7 +389,7 @@ def pca(Z: np.ndarray, n_comps: int = 50, method: str = "auto", seed: int = 42,
         _, d, Vt = np.linalg.svd(B, full_matrices=False)
         d, V = d[:k], Vt[:k].T
     else:
-        raise ValueError(f"unknown method {method!r}")
+        raise ValueError(f"unknown method {method!r}; use 'auto', 'gram', 'arpack' or 'randomized'")
     sign = np.sign(V[np.abs(V).argmax(0), np.arange(k)])
     sign[sign == 0] = 1
     V = V * sign

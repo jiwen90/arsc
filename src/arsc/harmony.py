@@ -24,7 +24,7 @@ until ``check_convergence(1)``), including defaults and their quirks:
 Differences that cannot be matched bit-for-bit: R's k-means / shuffling use
 R's RNG; pass ``init_centroids`` (e.g. from R) to start from identical
 centroids. The deterministic correction step reproduces R to ~1e-12 given the
-same R matrix (see VALIDATION.md). Note ``block_size = 1`` is degenerate in
+same R matrix (see the validation table in README.md). Note ``block_size = 1`` is degenerate in
 harmony 1.2 (all cells are removed at once, so E = O = 0 and E / (O + E) is
 0/0; R returns NaN); it is rejected here.
 """
@@ -222,7 +222,30 @@ def _l2_rows(X):
 # --------------------------------------------------------------------------- core class
 @dataclass
 class HarmonyResult:
-    """``Z_corr`` (cells x d) plus the final state and convergence traces."""
+    """Result of :func:`run_harmony` with ``return_object=True``: corrected embedding plus final state and traces.
+
+    Attributes
+    ----------
+    Z_corr : (n_cells, d) corrected embedding (what :func:`run_harmony` returns by default).
+    R : (nclust, n_cells) soft cluster assignments.
+    Y : (d, nclust) cluster centroids.
+    objective_harmony : objective after each harmony round.
+    objective_kmeans : objective after each clustering iteration.
+    kmeans_rounds : clustering iterations per harmony round.
+    converged : whether the harmony objective converged before ``max_iter``.
+    batch_levels : ``{variable: levels}`` in R factor order.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> res = arsc.run_harmony(pcs, ds.obs, "patient", return_object=True)
+    >>> res.Z_corr.shape, list(res.batch_levels)
+    ((3000, 10), ['patient'])
+    """
 
     Z_corr: np.ndarray
     R: np.ndarray
@@ -235,7 +258,41 @@ class HarmonyResult:
 
 
 class Harmony:
-    """Stateful Harmony object (port of the C++ class). Most users want :func:`run_harmony`."""
+    """Stateful Harmony object (port of the C++ class of R harmony 1.2). Most users want :func:`run_harmony`.
+
+    Parameters
+    ----------
+    Z : (n_cells, d) embedding.
+    codes : (n_cells, n_variables) integer batch codes, global across variables (variable v's levels follow
+        variable v-1's).
+    B_vec : number of levels per variable.
+    theta : per-level diversity penalty (length sum(B_vec)).
+    sigma : per-cluster soft k-means width (length ``K``).
+    lambda_vec : ridge penalties ``[0, per level...]``, or ``None`` for automatic lambda.
+    alpha : automatic-lambda factor (default 0.2).
+    max_iter_cluster : clustering iterations per round (default 20).
+    epsilon_cluster, epsilon_harmony : convergence tolerances.
+    K : number of clusters.
+    block_size : fraction of cells per online-update block (default 0.05; must be < 1).
+    seed : integer seed for k-means init and block order.
+
+    Attributes
+    ----------
+    Z_corr : corrected embedding after :meth:`harmonize`; ``R``, ``Y``, objective traces as in
+    :class:`HarmonyResult`.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from arsc.harmony import Harmony
+    >>> rng = np.random.default_rng(0)
+    >>> Z = rng.normal(size=(200, 5)); codes = (np.arange(200) % 2)[:, None]
+    >>> h = Harmony(Z, codes, [2], theta=np.full(2, 2.0), sigma=np.full(5, 0.1), lambda_vec=np.array([0, 1.0, 1.0]), K=5)
+    >>> h.init_cluster()
+    >>> _ = h.harmonize(3)
+    >>> h.Z_corr.shape
+    (200, 5)
+    """
 
     window_size = 3
 
@@ -390,7 +447,7 @@ def _r_factor_levels(values) -> tuple[np.ndarray, np.ndarray]:
     else:
         cat = pd.Categorical(s)
     if (cat.codes < 0).any():
-        raise ValueError("batch variable contains missing values")
+        raise ValueError("batch variable contains missing values; fill them or drop those cells before run_harmony")
     return np.asarray(cat.codes, dtype=np.int64), np.asarray(cat.categories)
 
 
@@ -398,7 +455,10 @@ def run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_=1.0, nclust
                 early_stop=True, alpha=0.2, tau=0.0, block_size=0.05, max_iter_cluster=20,
                 epsilon_cluster=1e-3, epsilon_harmony=1e-2, seed=0, init_centroids=None,
                 kmeans_n_init=10, n_threads=None, return_object=False, verbose=False):
-    """Run Harmony on an embedding (cells x d), matching ``harmony::RunHarmony`` 1.2 defaults.
+    """Run Harmony batch correction on an embedding (cells x d), matching ``harmony::RunHarmony`` 1.2 defaults.
+
+    Validated against R harmony 1.2 (same objective trajectory; per-dimension r 0.989-0.998, the residual
+    coming from R's random block order). Not the same algorithm port as ``harmonypy``.
 
     Parameters
     ----------
@@ -407,35 +467,60 @@ def run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_=1.0, nclust
     vars_use : column name or list of names (ignored if ``meta`` is an array).
     theta : diversity penalty per variable (default 2 each).
     sigma : soft k-means width (scalar or length ``nclust``).
-    lambda_ : ridge penalty, scalar or one per variable; ``None`` = automatic
-        (``alpha * E``), as ``lambda = NULL`` in R.
-    nclust : default ``min(round(N / 30), 100)``.
-    max_iter : harmony rounds (R ``max_iter``); ``early_stop=False`` disables the
-        objective-based stop.
-    seed : integer seed (default 0) for the k-means init (sklearn ``random_state``) and the
-        per-iteration random block order (local ``np.random.default_rng``). Same input + seed ->
-        bit-identical output, independent of ``n_threads`` (fixed reduction order).
-    init_centroids : optional (nclust x d) starting centroids (bypasses k-means).
+    lambda_ : ridge penalty, scalar or one per variable; ``None`` = automatic (``alpha * E``), as
+        ``lambda = NULL`` in R.
+    nclust : number of clusters (default ``min(round(N / 30), 100)``).
+    max_iter : harmony rounds (R ``max_iter``).
+    early_stop : stop when the objective converges (default True; False runs all ``max_iter`` rounds).
+    alpha : automatic-lambda factor (default 0.2).
+    tau : protection against over-correcting small batches (default 0 = off).
+    block_size : fraction of cells per online-update block (default 0.05).
+    max_iter_cluster : clustering iterations per round (default 20).
+    epsilon_cluster, epsilon_harmony : convergence tolerances (defaults 1e-3, 1e-2).
+    seed : integer seed (default 0) for the k-means init (sklearn ``random_state``) and the per-iteration
+        random block order (local ``np.random.default_rng``). Same input + seed -> bit-identical output,
+        independent of ``n_threads`` (fixed reduction order).
+    init_centroids : optional (nclust x d) starting centroids (bypasses k-means; use R's to match R exactly).
+    kmeans_n_init : k-means restarts (default 10).
     n_threads : numba threads (default: all).
     return_object : return :class:`HarmonyResult` (with traces) instead of the array.
+    verbose : print the objective per round.
 
     Returns
     -------
-    (n_cells, d) corrected embedding, or HarmonyResult.
+    (n_cells, d) corrected embedding, or :class:`HarmonyResult`.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L.toarray())
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> H = arsc.run_harmony(pcs, ds.obs, "patient")
+    >>> H.shape
+    (3000, 10)
     """
     seed = check_seed(seed)
     if n_threads is not None:
         nb.set_num_threads(int(n_threads))
     Z = np.asarray(Z, dtype=np.float64)
     N = Z.shape[0]
+    if Z.ndim != 2:
+        raise ValueError(f"run_harmony: Z must be a cells x dims array (e.g. PCA embeddings), got shape {Z.shape}")
     if isinstance(meta, pd.DataFrame):
         vars_use = [vars_use] if isinstance(vars_use, str) else list(vars_use)
+        miss = [v for v in vars_use if v not in meta.columns]
+        if miss:
+            raise KeyError(f"run_harmony: batch column(s) {miss} not in meta (has {list(meta.columns)[:20]}); "
+                           "pass vars_use= with existing column names")
         cols = [meta[v] for v in vars_use]
     else:
         vars_use = ["batch_variable"]
         cols = [pd.Series(np.asarray(meta))]
     if len(cols[0]) != N:
-        raise ValueError("number of labels does not match number of cells")
+        raise ValueError(f"run_harmony: {len(cols[0])} batch labels for {N} cells; meta must be row-aligned with Z "
+                         "(same cells, same order)")
     if nclust is None:
         nclust = int(min(round(N / 30), 100))  # R round(): half to even, same as Python
     if theta is None:

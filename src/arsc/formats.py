@@ -51,12 +51,42 @@ TENX_ASSAYS = {"Gene Expression": "RNA", "Antibody Capture": "ADT", "CRISPR Guid
 
 
 class ArscFormatError(ValueError):
-    """Input file is not in a supported format, or has an inconsistent structure."""
+    """Input file is not in a supported format, or has an inconsistent structure (a ``ValueError``).
+
+    Attributes
+    ----------
+    args : the message (says which file and what was expected).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> try:
+    ...     arsc.detect_format("data.xyz")
+    ... except arsc.ArscFormatError as e:
+    ...     print("unknown format" in str(e))
+    True
+    """
 
 
 # =========================================================================== small helpers
 def make_unique(names: Sequence[str], join: str = "-") -> list[str]:
-    """Deduplicate names exactly like ``anndata.utils.make_index_unique`` (``a, a -> a, a-1``)."""
+    """Deduplicate names exactly like ``anndata.utils.make_index_unique`` (``a, a -> a, a-1``).
+
+    Parameters
+    ----------
+    names : sequence of names.
+    join : separator before the counter.
+
+    Returns
+    -------
+    list of str, unique, first occurrences unchanged.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> arsc.make_unique(["TBCE", "TBCE", "CD8A"])
+    ['TBCE', 'TBCE-1', 'CD8A']
+    """
     values = [str(v) for v in names]
     seen_first: set[str] = set()
     dup_pos = []
@@ -312,6 +342,24 @@ class StoreBuilder:
     The order is cells, then assays and layers, then the optional reductions, graphs, varm and uns,
     and finally :meth:`finish`. The directory version writes into ``<out>.tmp<pid>`` and renames it
     when finished, so an interrupted conversion never leaves a half-written store behind.
+
+    Parameters
+    ----------
+    out : store directory, or ``None`` for an in-memory :class:`arsc.Dataset`.
+    source : free-text provenance recorded in the manifest.
+    overwrite : replace an existing store at ``out``.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np, pandas as pd, scipy.sparse as sp
+    >>> counts = sp.random(100, 20, density=0.2, format="csr", random_state=0) * 10
+    >>> b = arsc.StoreBuilder("my_store")
+    >>> b.set_cells([f"c{i}" for i in range(100)], pd.DataFrame({"patient": ["P1", "P2"] * 50}))
+    >>> b.add_assay("RNA", [f"g{j}" for j in range(20)])
+    >>> b.add_layer("RNA", "counts", counts.floor())
+    >>> st = b.finish()
+    >>> st.n_cells, st.layers("RNA")
+    (100, ['counts'])
     """
 
     def __init__(self, out: PathLike | None, *, source: str = "", overwrite: bool = False):
@@ -339,6 +387,7 @@ class StoreBuilder:
 
     # ---------------------------------------------------------------- cells / obs
     def set_cells(self, cells: Sequence[str], obs: pd.DataFrame | None = None) -> None:
+        """Set the cell barcodes (and optional per-cell metadata, row-aligned with ``cells``)."""
         cells = pd.Index([str(c) for c in cells])
         self._cells = cells
         self.manifest["n_cells"] = int(len(cells))
@@ -363,6 +412,7 @@ class StoreBuilder:
     # ---------------------------------------------------------------- assays / layers
     def add_assay(self, name: str, features: Sequence[str], *, var: pd.DataFrame | None = None,
                   variable_features: Sequence[str] | None = None) -> None:
+        """Declare an assay with its feature names (optional per-feature ``var`` and variable features)."""
         feats = [str(f) for f in features]
         if len(set(feats)) != len(feats):
             raise ArscFormatError(f"assay {name!r}: feature names are not unique (use arsc.make_unique)")
@@ -414,6 +464,7 @@ class StoreBuilder:
                       loadings: np.ndarray | None = None, loadings_features: Sequence[str] | None = None,
                       stdev: np.ndarray | None = None, assay: str | None = None, key: str | None = None,
                       frame: bool = False) -> None:
+        """Add a cells x k embedding (PCA, harmony, UMAP...), optionally with loadings and stdev."""
         emb = np.asarray(embedding)
         if emb.ndim != 2 or emb.shape[0] != self.n_cells:
             raise ArscFormatError(f"reduction {name!r}: expected a {self.n_cells} x k array, got {emb.shape}")
@@ -440,6 +491,7 @@ class StoreBuilder:
         self._mem_reds[name] = Reduction(e64, cols, L, np.asarray(stdev) if stdev is not None else None, e["assay"])
 
     def add_graph(self, name: str, m, *, key: str | None = None) -> None:
+        """Add a cells x cells graph (e.g. an SNN)."""
         g = sp.csr_matrix(m)
         if g.shape != (self.n_cells, self.n_cells):
             raise ArscFormatError(f"graph {name!r}: expected {self.n_cells} x {self.n_cells}, got {g.shape}")
@@ -455,6 +507,7 @@ class StoreBuilder:
         self._mem_graphs[name] = g
 
     def add_varm(self, assay: str, key: str, arr) -> None:
+        """Add a per-feature matrix (features x k) to an assay."""
         a = np.asarray(arr)
         nf = self.manifest["assays"][assay]["n_features"]
         if a.shape[0] != nf:
@@ -480,6 +533,7 @@ class StoreBuilder:
 
     # ---------------------------------------------------------------- finish
     def finish(self, *, open_store: bool = True, build_csc: bool = True) -> Store | Dataset | Path:
+        """Write the manifest and return the opened Store (or the Dataset when building in memory)."""
         if self._cells is None:
             raise RuntimeError("no cells set")
         for a, e in self.manifest["assays"].items():
@@ -635,11 +689,38 @@ def read_h5ad(path: PathLike, store: PathLike | None = None, *, assay: str = "RN
 
     With ``store`` set, the store is written atomically and then opened. If the same source was
     already converted there, the existing store is opened and nothing is rewritten.
+
+    Parameters
+    ----------
+    path : the ``.h5ad`` file.
+    store : output store directory; ``None`` returns an in-memory Dataset.
+    assay : assay name for ``X`` and ``layers``.
+    x_layer : layer name for ``X``.
+    layers : AnnData layers to import (``None`` = all).
+    raw : assay name for ``.raw`` (``None`` skips it).
+    raw_as_layer : store ``.raw`` as a layer of ``assay`` (same genes only).
+    obsm, varm, obsp, uns : import these AnnData slots.
+    dtype : value dtype on disk (``"auto"``: float32 when exact, else the source dtype).
+    chunk_nnz : non-zeros per streamed chunk.
+    overwrite : replace an existing store.
+
+    Returns
+    -------
+    arsc.Store (with ``store=``) or arsc.Dataset. Needs ``anndata`` and ``h5py`` (``pip install "arsc[h5ad]"``).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> f = arsc.datasets.toy_h5ad("toy_a.h5ad", n_cells=500)
+    >>> ds = arsc.read_h5ad(f)                      # in memory
+    >>> st = arsc.read_h5ad(f, store="toy_h5ad_store")   # memory-mapped store, converted once
+    >>> st.n_cells, st.layers("RNA")
+    (500, ['X'])
     """
     h5py = _h5()
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(f"{path}: no such file (check the path; relative paths resolve from {Path.cwd()})")
     if store is not None and (Path(store) / "manifest.json").exists() and not overwrite:
         st = _open_store(store)
         if Path(st.manifest.get("source", "")).name == path.name:
@@ -783,8 +864,29 @@ def read_10x_h5(path: PathLike, store: PathLike | None = None, *, var_names: Lit
     Antibody Capture -> ``ADT``, CRISPR Guide Capture -> ``CRISPR``, Multiplexing Capture -> ``HTO``,
     Peaks -> ``ATAC``. Each assay gets one layer, ``counts``. Names are deduplicated within each assay
     like ``var_names_make_unique`` (``join``). ``var`` keeps ``gene_ids``, ``feature_types`` and the
-    other per-feature fields, as ``scanpy.read_10x_h5`` does. ``feature_types`` restricts the import,
-    e.g. ``["Gene Expression"]``.
+    other per-feature fields, as ``scanpy.read_10x_h5`` does.
+
+    Parameters
+    ----------
+    path : the ``.h5`` file.
+    store : output store directory; ``None`` returns an in-memory Dataset.
+    var_names : ``"gene_symbols"`` or ``"gene_ids"`` as feature names.
+    feature_types : restrict the import, e.g. ``["Gene Expression"]``.
+    join : separator for deduplicated names.
+    dtype : value dtype on disk.
+    chunk_nnz : non-zeros per streamed chunk.
+    overwrite : replace an existing store.
+
+    Returns
+    -------
+    arsc.Store (with ``store=``) or arsc.Dataset with assays ``RNA`` (and ``ADT``, ...), layer ``counts``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> st = arsc.read_10x_h5("filtered_feature_bc_matrix.h5", store="run1")   # doctest: +SKIP
+    >>> st.assays                                                             # doctest: +SKIP
+    ['RNA', 'ADT']
     """
     h5py = _h5()
     path = Path(path)
@@ -868,6 +970,25 @@ def read_10x_mtx(path: PathLike, store: PathLike | None = None, *, var_names: Li
 
     The triplets are parsed in one pass (scipy's fast Matrix Market reader), so peak memory is about
     16 bytes per non-zero. For very large matrices, the 10x ``.h5`` is the memory-bounded route.
+
+    Parameters
+    ----------
+    path : the directory (or a file inside it).
+    store : output store directory; ``None`` returns an in-memory Dataset.
+    var_names : ``"gene_symbols"`` or ``"gene_ids"``.
+    feature_types : restrict the import.
+    join : separator for deduplicated names.
+    dtype : value dtype on disk.
+    overwrite : replace an existing store.
+
+    Returns
+    -------
+    arsc.Store (with ``store=``) or arsc.Dataset.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.read_10x_mtx("filtered_feature_bc_matrix/")    # doctest: +SKIP
     """
     from scipy.io import mmread
 
@@ -916,6 +1037,20 @@ def read_seurat(path: PathLike, store: PathLike, **export_kw) -> Store:
     Needs R with SeuratObject (and ``qs`` for ``.qs``). Writes ``store`` once; later calls open it.
     ``export_kw`` are passed to :func:`arsc.export_seurat` (``assays``, ``layers``, ``graphs``, ...).
     For ``.h5Seurat`` files, see :func:`read` (convert to h5ad with SeuratDisk, or save as qs in R).
+
+    Parameters
+    ----------
+    path : ``.qs`` or ``.rds`` file with a Seurat object.
+    store : output store directory (required).
+
+    Returns
+    -------
+    arsc.Store.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> st = arsc.read_seurat("obj.qs", store="stores/obj")      # doctest: +SKIP
     """
     from .io import export_seurat
 
@@ -936,7 +1071,23 @@ def read_seurat(path: PathLike, store: PathLike, **export_kw) -> Store:
 
 # =========================================================================== dispatch
 def detect_format(path: PathLike) -> str:
-    """One of ``store, h5ad, 10x_h5, 10x_mtx, seurat, h5seurat, loom``; raises ArscFormatError otherwise."""
+    """Detect the format of a path from its name (and HDF5 layout for ``.h5``).
+
+    Parameters
+    ----------
+    path : file or directory.
+
+    Returns
+    -------
+    str, one of ``store, h5ad, 10x_h5, 10x_mtx, seurat, h5seurat, loom``; raises
+    :class:`ArscFormatError` otherwise.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> arsc.detect_format("obj.qs"), arsc.detect_format("pbmc.h5ad")
+    ('seurat', 'h5ad')
+    """
     p = Path(path)
     if p.is_dir():
         if (p / "manifest.json").exists():
@@ -987,11 +1138,31 @@ def read(path: PathLike, store: PathLike | None = None, **kw) -> Store | Dataset
 
     ``.h5Seurat`` is not parsed natively. In R, ``SeuratDisk::Convert("x.h5Seurat", dest = "h5ad")``
     gives an h5ad, or ``qs::qsave(LoadH5Seurat("x.h5Seurat"), "x.qs")`` gives a qs for the exporter.
+
+    Parameters
+    ----------
+    path : file or directory (any format above).
+    store : output store directory for a conversion (required for Seurat objects).
+
+    Returns
+    -------
+    arsc.Dataset (in memory) or arsc.Store (memory-mapped).
+
+    Examples
+    --------
+    >>> import arsc
+    >>> f = arsc.datasets.toy_h5ad("toy_b.h5ad", n_cells=500)
+    >>> ds = arsc.read(f)
+    >>> ds.n_cells
+    500
+    >>> st = arsc.read(f, store="toy_store2")
+    >>> arsc.read("toy_store2").n_cells      # a store directory reopens as a Store
+    500
     """
     fmt = detect_format(path)
     if fmt == "store":
         if store is not None:
-            raise ValueError("path is already an arsc store; open it directly (store= is for conversions)")
+            raise ValueError("path is already an arsc store; open it with arsc.open(path) (store= is for conversions)")
         return _open_store(path, **kw)
     if fmt == "h5ad":
         return read_h5ad(path, store, **kw)
@@ -1182,6 +1353,30 @@ def to_anndata(obj: Store | Dataset, cells=None, genes=None, *, assay: str | Non
     otherwise ``counts`` when present. The other layers of ``assay`` go to ``.layers``. ``raw``
     restores ``.raw`` when the store came from an h5ad that had one. ``obsp=True`` also exports the
     graphs. Values are cast back to the source dtype recorded at import (``restore_dtype``).
+
+    Parameters
+    ----------
+    obj : arsc.Store or arsc.Dataset.
+    cells : cells to export (mask, positions or barcodes).
+    genes : genes to export (mask, positions or names).
+    assay : assay for ``X`` (default: the store's default assay).
+    x_layer : layer used as ``X``.
+    layers : other layers to export (default all).
+    raw : restore ``.raw``.
+    obsm, varm, obsp, uns : export these slots.
+    restore_dtype : cast to the source dtype.
+
+    Returns
+    -------
+    anndata.AnnData.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> ad = arsc.to_anndata(ds, cells=(ds.obs.cell_type == "CD8 T").to_numpy(), genes=["CD8A", "GZMK"], assay="RNA")
+    >>> ad.n_vars, list(ad.var_names)
+    (2, ['CD8A', 'GZMK'])
     """
     import anndata as ad
 
@@ -1234,13 +1429,15 @@ def _write_csr_stream(group_parent, name: str, M: sp.csr_matrix, cidx, gidx, n_s
     src_dt = np.dtype(info["source_dtype"]) if (restore and info.get("source_dtype")) else M.dtype
     kw = {"compression": compression} if compression else {}
     dd = g.create_dataset("data", shape=(0,), maxshape=(None,), dtype=src_dt, chunks=(1 << 18,), **kw)
-    di = g.create_dataset("indices", shape=(0,), maxshape=(None,), dtype=np.int32 if n_cols < 2 ** 31 else np.int64,
-                          chunks=(1 << 18,), **kw)
-    ptr = np.zeros(n_sel + 1, dtype=np.int64)
     indptr = np.asarray(M.indptr)
     rows_all = np.arange(M.shape[0]) if cidx is None else cidx
     lens = indptr[rows_all + 1] - indptr[rows_all]
     cum = np.concatenate([[0], np.cumsum(lens)])
+    # one index dtype for indices and indptr (scipy refuses mixed int32/int64 in in-place operations, which
+    # breaks e.g. scanpy on the written file); int32 unless the column count or the nnz needs int64
+    idx_dt = np.int32 if (n_cols < 2 ** 31 and int(cum[-1]) < 2 ** 31) else np.int64
+    di = g.create_dataset("indices", shape=(0,), maxshape=(None,), dtype=idx_dt, chunks=(1 << 18,), **kw)
+    ptr = np.zeros(n_sel + 1, dtype=np.int64)
     s, nnz = 0, 0
     while s < n_sel:
         e = int(np.searchsorted(cum, cum[s] + chunk_nnz, side="right")) - 1
@@ -1254,7 +1451,7 @@ def _write_csr_stream(group_parent, name: str, M: sp.csr_matrix, cidx, gidx, n_s
         ptr[s + 1:e + 1] = np.asarray(m.indptr[1:], dtype=np.int64) + nnz
         nnz += k
         s = e
-    g.create_dataset("indptr", data=ptr)
+    g.create_dataset("indptr", data=ptr.astype(idx_dt))
 
 
 def write_h5ad(obj: Store | Dataset, path: PathLike, cells=None, genes=None, *, assay: str | None = None,
@@ -1269,6 +1466,27 @@ def write_h5ad(obj: Store | Dataset, path: PathLike, cells=None, genes=None, *, 
     h5py (``"gzip"``, ``"lzf"``, or ``None``, which is uncompressed and fastest). The file is
     written to ``<path>.tmp`` and renamed. The output reads back with ``anndata.read_h5ad`` and
     ``scanpy.read_h5ad``.
+
+    Parameters
+    ----------
+    obj : arsc.Store or arsc.Dataset.
+    path : output ``.h5ad``.
+    cells, genes, assay, x_layer, layers, raw, obsm, varm, obsp, uns, restore_dtype : as in :func:`to_anndata`.
+    compression : h5py compression.
+    chunk_nnz : non-zeros per streamed chunk.
+    overwrite : replace an existing file.
+
+    Returns
+    -------
+    pathlib.Path of the written file.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> p = arsc.write_h5ad(ds, "cd8.h5ad", cells=(ds.obs.cell_type == "CD8 T").to_numpy(), assay="RNA")
+    >>> p.name
+    'cd8.h5ad'
     """
     h5py = _h5()
     _, write_elem = _anndata_elem_io()

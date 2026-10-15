@@ -163,7 +163,7 @@ def _partition(X, n_clusters, seed, iters=3, chunk=65536):
 
 
 def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None = None, seed: int = 0):
-    """k nearest neighbours (Euclidean). Returns ``(idx, dist)``, each (n_query x k).
+    """k nearest neighbours (Euclidean), exact by default.
 
     ``method="exact"`` (default): exact search in float64 with cluster-based
     triangle-inequality pruning (numba, parallel over queries). Deterministic;
@@ -173,8 +173,34 @@ def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None 
     ``seed`` (default 0): for ``"exact"`` it only seeds the k-means partition used for
     pruning, which never changes the (exact) answer; for ``"pynndescent"`` it is the
     ``random_state`` of the random-projection forest and NN-descent.
+
+    Parameters
+    ----------
+    X : (n x d) dense embedding (e.g. PCs).
+    k : neighbours per query (self included when ``query`` is None); capped at n.
+    query : optional (m x d) query points; default ``X`` itself.
+    method : ``"exact"`` or ``"pynndescent"``.
+    n_clusters : partitions used for pruning (default ``2 * sqrt(n)``).
+    seed : integer seed.
+
+    Returns
+    -------
+    tuple ``(idx, dist)``: int64 and float64 arrays, each (n_query x k), nearest first.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L)
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> idx, dist = arsc.knn(pcs, 15)
+    >>> idx.shape, bool((idx[:, 0] == range(3000)).all())
+    ((3000, 15), True)
     """
     seed = check_seed(seed)
+    if hasattr(X, "toarray"):
+        raise TypeError("knn expects a dense embedding (e.g. PCs), not a sparse expression matrix")
     X = np.ascontiguousarray(X, dtype=np.float64)
     Q = X if query is None else np.ascontiguousarray(query, dtype=np.float64)
     n = X.shape[0]
@@ -188,7 +214,7 @@ def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None 
             idx, dist = index.query(Q, k=k)
         return idx.astype(np.int64), dist.astype(np.float64)
     if method != "exact":
-        raise ValueError(method)
+        raise ValueError(f"unknown method {method!r}; use 'exact' or 'pynndescent'")
     if n_clusters is None:
         n_clusters = max(1, int(2 * np.sqrt(n)))
     Xp, ids, starts, centers, radius, rpt = _partition(X, n_clusters, seed)
@@ -227,7 +253,23 @@ def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None 
 
 
 def l2_normalize(X: np.ndarray) -> np.ndarray:
-    """Row-wise L2 normalization; zero rows stay 0 (Seurat ``L2Norm``)."""
+    """Row-wise L2 normalization; zero rows stay 0 (Seurat ``L2Norm``).
+
+    Parameters
+    ----------
+    X : (n x d) array.
+
+    Returns
+    -------
+    numpy.ndarray (float64) with unit-norm rows.
+
+    Examples
+    --------
+    >>> import arsc, numpy as np
+    >>> arsc.neighbors.l2_normalize(np.array([[3.0, 4.0], [0.0, 0.0]]))
+    array([[0.6, 0.8],
+           [0. , 0. ]])
+    """
     X = np.asarray(X, dtype=np.float64)
     nrm = np.sqrt((X * X).sum(1, keepdims=True))
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -274,8 +316,26 @@ def _snn_count(idx, rev_ptr, rev_idx, n, prune, k, out_ptr, out_idx, out_val, fi
 def snn_graph(idx: np.ndarray, prune: float = 1 / 15) -> sp.csr_matrix:
     """Seurat ``ComputeSNN``: Jaccard similarity of k-NN sets, entries < ``prune`` removed.
 
-    ``idx`` is the (n x k) neighbour index matrix (include self for FindNeighbors
-    semantics). Returns a symmetric CSR (n x n).
+    Parameters
+    ----------
+    idx : (n x k) neighbour index matrix, e.g. from :func:`knn` (include self for
+        ``FindNeighbors`` semantics).
+    prune : Jaccard cutoff (Seurat ``prune.SNN``, default 1/15).
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix, symmetric (n x n) SNN weights.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L)
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> idx, _ = arsc.knn(pcs, 20)
+    >>> arsc.snn_graph(idx).shape
+    (3000, 3000)
     """
     idx = np.ascontiguousarray(idx, dtype=np.int64)
     n, k = idx.shape
@@ -304,9 +364,37 @@ def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm:
                    method: str = "exact", seed: int = 0) -> dict:
     """Seurat ``FindNeighbors``: k-NN (self included) and SNN graphs from an embedding.
 
-    ``seed`` is passed to :func:`knn` (matters only for ``method="pynndescent"``).
+    ``seed`` is passed to :func:`knn` (matters only for ``method="pynndescent"``). The k-NN is
+    exact; Seurat's Annoy is approximate, so SNN graphs differ slightly from Seurat's
+    (see the README validation table).
 
-    Returns ``{"idx", "dist", "nn" (binary csr), "snn" (csr)}``.
+    Parameters
+    ----------
+    emb : (n x d) embedding (PCs, harmony).
+    k : neighbours including self (Seurat ``k.param``).
+    prune : SNN Jaccard cutoff (Seurat ``prune.SNN``).
+    l2_norm : L2-normalize rows first (Seurat ``l2.norm``).
+    method : ``"exact"`` or ``"pynndescent"``.
+    seed : integer seed.
+
+    Returns
+    -------
+    dict with ``"idx"``, ``"dist"`` (n x k arrays), ``"nn"`` (binary CSR) and ``"snn"`` (CSR), the
+    input for :func:`arsc.cluster`.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> L = arsc.pp.log_normalize(ds.X("RNA", "counts"))
+    >>> Z, _, _ = arsc.pp.scale(L)
+    >>> pcs = arsc.pp.pca(Z, n_comps=10).embedding
+    >>> g = arsc.find_neighbors(pcs, k=20)
+    >>> sorted(g)
+    ['dist', 'idx', 'nn', 'snn']
+    >>> labels = arsc.cluster(g["snn"], resolution=0.5)
+    >>> labels.shape
+    (3000,)
     """
     X = l2_normalize(emb) if l2_norm else np.asarray(emb, dtype=np.float64)
     idx, dist = knn(X, k, method=method, seed=seed)
@@ -431,10 +519,24 @@ def _union_kernel(allnn, cands, n_cand):
 class WNNResult:
     """Output of :func:`wnn`.
 
-    ``weights`` (n x M modality weights, rows sum to 1), ``idx``/``dist``
-    (n x k weighted neighbours, self excluded, Seurat ``weighted.nn``),
-    ``wknn`` (binary, symmetrized, diagonal 1), ``wsnn`` (pruned Jaccard SNN),
-    ``sigma`` (per-cell kernel bandwidths), ``score`` (per-modality scores).
+    Attributes
+    ----------
+    weights : n x M modality weights (rows sum to 1; Seurat ``RNA.weight`` etc.).
+    idx, dist : n x k weighted neighbours, self excluded (Seurat ``weighted.nn``).
+    wknn : binary, symmetrized k-NN graph, diagonal 1.
+    wsnn : pruned Jaccard SNN graph (cluster this).
+    sigma : per-cell kernel bandwidths, per modality.
+    nearest_dist : distance to the nearest neighbour, per modality.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> rna = arsc.pp.pca(arsc.pp.scale(arsc.pp.log_normalize(ds.X("RNA", "counts")))[0], n_comps=10).embedding
+    >>> adt = arsc.pp.pca(arsc.pp.scale(arsc.pp.clr(ds.X("ADT", "counts")))[0], n_comps=4).embedding
+    >>> w = arsc.wnn([rna, adt], k_nn=20, knn_range=50)
+    >>> w.weights.shape, w.wsnn.shape
+    ((3000, 2), (3000, 3000))
     """
 
     weights: np.ndarray
@@ -461,11 +563,23 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
 
     Returns
     -------
-    WNNResult
+    WNNResult with ``weights``, ``idx``, ``dist``, ``wknn``, ``wsnn``, ``sigma``, ``nearest_dist``.
+
+    Examples
+    --------
+    >>> import arsc
+    >>> ds = arsc.datasets.toy()
+    >>> rna = arsc.pp.pca(arsc.pp.scale(arsc.pp.log_normalize(ds.X("RNA", "counts")))[0], n_comps=10).embedding
+    >>> adt = arsc.pp.pca(arsc.pp.scale(arsc.pp.clr(ds.X("ADT", "counts")))[0], n_comps=4).embedding
+    >>> w = arsc.wnn([rna, adt], k_nn=20, knn_range=50)
+    >>> labels = arsc.cluster(w.wsnn, resolution=0.5)
     """
     M = len(embeddings)
     if M < 2:
-        raise ValueError("need at least two modalities")
+        raise ValueError("wnn needs at least two modalities: pass a list of embeddings, e.g. [rna_pcs, adt_pcs]")
+    if len({np.asarray(e).shape[0] for e in embeddings}) != 1:
+        raise ValueError("all embeddings must have the same cells (rows); got shapes "
+                         f"{[np.asarray(e).shape for e in embeddings]}")
     cc = np.broadcast_to(np.asarray(cross_constant, dtype=np.float64), (M,))
     E = [l2_normalize(e) if l2_norm else np.asarray(e, dtype=np.float64) for e in embeddings]
     n = E[0].shape[0]

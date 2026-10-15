@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use arsc, please cite it as below, and also cite the original papers of the methods you used (listed in NOTICE)."
+title: "arsc: fast, validated single-cell compute"
+abstract: "Memory-mapped single-cell stores and Python reimplementations of Seurat, scanpy, harmony, presto, UCell, DESeq2/limma-voom/fgsea and clonal (TCR) methods, each checked numerically against its reference software."
+type: software
+authors:
+  - family-names: Wang
+    given-names: Kevin
+version: 0.2.0
+# date-released is a placeholder: set it to the date of the first public release.
+date-released: 2026-10-14
+license: MIT
+repository-code: "https://github.com/jiwen90/arsc"
+keywords:
+  - single-cell
+  - scRNA-seq
+  - Seurat
+  - scanpy
+  - pseudobulk
+  - TCR
