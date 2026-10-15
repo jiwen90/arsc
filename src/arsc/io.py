@@ -509,18 +509,19 @@ def _read_obs_csv(d: Path, manifest: dict, cells: list) -> pd.DataFrame:
 def _warn_if_source_changed(path: Path) -> None:
     """A store registered with a ``PROVENANCE.json`` (AutoResearch ``tools/store_register.py``) records its source
     files' size and mtime; warn when a source now differs, so analyses never silently use a stale conversion.
-    Source paths are relative to the root three levels above ``data/_derived/<name>/<store>``; a source that is not
-    reachable (e.g. not mounted) is skipped. Costs a few ``stat`` calls."""
+    A source is ``<data root>/<data>/<relative_path>``, the data root being two levels above
+    ``<data root>/_derived/<name>/<store>``; a source that is not reachable (e.g. not mounted) is skipped. Costs a few
+    ``stat`` calls."""
     prov = path / "PROVENANCE.json"
     if not prov.exists():
         return
     try:
         pv = json.loads(prov.read_text(encoding="utf-8"))
-        root = path.resolve().parents[3]
+        root = path.resolve().parents[2] / str(pv.get("data", ""))
     except (OSError, ValueError, IndexError):
         return
     for s in pv.get("sources") or []:
-        f = root / str(s.get("path", ""))
+        f = root / str(s.get("relative_path", ""))
         try:
             fs = [f] if f.is_file() else [x for x in f.rglob("*") if x.is_file()] if f.is_dir() else []
             if not fs:

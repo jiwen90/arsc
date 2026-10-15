@@ -410,3 +410,12 @@ def test_write_h5ad_uses_one_index_dtype(tmp_path):
     assert X.indices.dtype == X.indptr.dtype == np.int32
     X.data[:] = 1.0
     X += X  # an in-place sparse op that fails on mixed index dtypes in recent scipy
+
+
+def test_obs_csv_single_level_factor_string(tmp_path):
+    """jsonlite (auto_unbox) wrote a 1-level factor's levels as a JSON string; reading must not split it into letters."""
+    from arsc.io import _read_obs_csv
+    (tmp_path / "obs.csv").write_text('"cell","orig.ident","ct"\n"a","s1","x"\n"b","s1","y"\n', encoding="utf-8")
+    man = {"obs": {"orig.ident": {"type": "factor", "levels": "s1"}, "ct": {"type": "factor", "levels": ["x", "y"]}}}
+    obs = _read_obs_csv(tmp_path, man, ["a", "b"])
+    assert list(obs["orig.ident"].cat.categories) == ["s1"] and list(obs["ct"]) == ["x", "y"]
