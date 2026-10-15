@@ -509,15 +509,23 @@ def _read_obs_csv(d: Path, manifest: dict, cells: list) -> pd.DataFrame:
 def _warn_if_source_changed(path: Path) -> None:
     """A store registered with a ``PROVENANCE.json`` (AutoResearch ``tools/store_register.py``) records its source
     files' size and mtime; warn when a source now differs, so analyses never silently use a stale conversion.
-    A source is ``<data root>/<data>/<relative_path>``, the data root being two levels above
-    ``<data root>/_derived/<name>/<store>``; a source that is not reachable (e.g. not mounted) is skipped. Costs a few
-    ``stat`` calls."""
+    A source is ``<dataset>/raw/<relative_path>`` for a store at ``<data root>/<owner>/<dataset>/stores/<store>``
+    (or ``stores/.superseded/<x>``; AutoResearch layout B), falling back to the legacy ``<data root>/<dataset>/`` raw
+    copy, and to ``<data root>/<data>`` for the older ``<data root>/_derived/<name>/<store>``; a source that is not
+    reachable (e.g. not mounted) is skipped. Costs a few ``stat`` calls."""
     prov = path / "PROVENANCE.json"
     if not prov.exists():
         return
     try:
         pv = json.loads(prov.read_text(encoding="utf-8"))
-        root = path.resolve().parents[2] / str(pv.get("data", ""))
+        rp = path.resolve()
+        stores = rp.parents[1] if rp.parent.name == ".superseded" else rp.parent
+        if stores.name == "stores":
+            root = stores.parent / "raw"
+            if not root.is_dir():
+                root = stores.parents[2] / str(pv.get("data", stores.parent.name))
+        else:
+            root = rp.parents[2] / str(pv.get("data", ""))
     except (OSError, ValueError, IndexError):
         return
     for s in pv.get("sources") or []:
