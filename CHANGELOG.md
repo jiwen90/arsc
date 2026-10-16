@@ -6,6 +6,15 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Seed recording: every stochastic function in SEEDS.md records the seed it used. Pandas results carry
+  `attrs["seed"]` / `attrs["seed_function"]`; `arsc.seeds_used()` / `arsc.reset_seeds_used()` give the
+  per-process log (outermost calls only, counted per function and seed). Results are unchanged.
+- Tests of 1-thread vs N-thread determinism for `knn(method="pynndescent")`, `fgsea`, `propagate_clones` and
+  `add_module_score` (`tests/test_seedlog.py`). fgsea, propagate_clones and add_module_score are
+  thread-invariant; pynndescent is repeatable at a fixed thread count but not across thread counts
+  (documented in SEEDS.md, recorded as an expected failure).
+
 ### Fixed
 - Seurat import: a factor with a single level (e.g. `orig.ident` of a one-sample object) was written by jsonlite
   as a JSON string, and `Store.obs` failed with "Categorical categories must be unique". The exporter now writes

@@ -45,7 +45,7 @@ number of threads.
 |---|---|---|---|
 | `pp.pca` | `seed` (42) | ARPACK start vector (`method="arpack"`), Gaussian test matrix (`"randomized"`); `"gram"` ignores it | bit-identical. arpack and gram converge to the same subspace for any seed. randomized depends on the seed by design |
 | `run_harmony` | `seed` (0) | sklearn `KMeans(random_state=seed)` init; block order each clustering round (local `default_rng`) | bit-identical and thread-invariant (fixed reduction chunks, see below). `init_centroids` bypasses k-means |
-| `knn` | `seed` (0) | `"exact"`: k-means partition used only for pruning, so the answer is exact and the same for every seed (tested). `"pynndescent"`: `random_state` | bit-identical. pynndescent output depends on the seed |
+| `knn` | `seed` (0) | `"exact"`: k-means partition used only for pruning, so the answer is exact and the same for every seed (tested). `"pynndescent"`: `random_state` | bit-identical. pynndescent output depends on the seed and on the thread count (see below) |
 | `find_neighbors` | `seed` (0) | passed to `knn` | as `knn` |
 | `wnn` | `seed` (0) | passed to `knn` for every modality | as `knn` |
 | `cluster` | `seed` (0) | Leiden: leidenalg `seed`. Louvain: start `s` uses a private `random.Random(seed + s)` as the igraph RNG | bit-identical |
@@ -56,7 +56,7 @@ number of threads.
 | `scanpy_extra.umap_from_connectivities` | `random_state` (0) | local `RandomState` for spectral-init noise and SGD (`parallel=False`) | bit-identical |
 | `scanpy_extra.diffmap` | `random_state` (0) | ARPACK `v0` (local `RandomState`) | bit-identical. A different seed changes only ARPACK's convergence path (differences at the solver tolerance) |
 | `scanpy_extra.palantir_diffusion_maps` | `seed` (0) | ARPACK `v0` (`default_rng(seed).random`, as palantir); `knn` seed | bit-identical |
-| `add_module_score` | `seed` (1, R seed) | R-compatible RNG (`_rrng.RRandom`): bin tie-break noise and control-gene draws, identical to R `AddModuleScore(seed = s)` | bit-identical, equal to R |
+| `add_module_score` | `seed` (1, R seed) | R-compatible RNG (`_rrng.RRandom`): bin tie-break noise and control-gene draws, identical to R `AddModuleScore(seed = s)` | bit-identical, equal to R, thread-invariant (tested) |
 | `cell_cycle_scoring` | `seed` (1, R seed) | passed to `add_module_score` | bit-identical, equal to R |
 | `find_markers` | `random_seed` (1, R seed) | `max_cells_per_ident` downsampling (R-compatible RNG); not used otherwise | bit-identical, equal to R |
 | `find_all_markers` | `random_seed` (1, R seed) | passed unchanged to each per-cluster `find_markers`, as Seurat does | bit-identical |
@@ -68,7 +68,7 @@ number of threads.
 | `clones.clone_expansion_null` | `seed` (1) | patient and healthy-donor downsampling (local `default_rng`, consumed in input order) | bit-identical for the same input row order |
 | `clones.startrac` | `seed` (1) | optional per-group `downsample` | bit-identical |
 | `clones.clone_diversity` | `seed` (1) | rarefaction (multivariate hypergeometric draws, sorted sample order) | bit-identical |
-| `clonotrace.propagate_clones` | `seed` (0) | bootstrap label subsets (local `default_rng`) | bit-identical. Label spreading is a deterministic numba kernel with per-row sums |
+| `clonotrace.propagate_clones` | `seed` (0) | bootstrap label subsets (local `default_rng`) | bit-identical and thread-invariant (tested). Label spreading is a deterministic numba kernel with per-row sums |
 | `clonotrace.revise_distance` | `seed` (0) | leidenalg seed of the default Leiden ladder (not used when `clusters` or `mean_weight` is given) | bit-identical |
 | `clonotrace.cluster_clones` | `seed` (0) | private `random.Random(seed)` as the igraph RNG. This used to be `random.seed` on the global RNG, then restored; the stream is identical, so the labels are unchanged | bit-identical |
 | `clonotrace.profile_enrichment` | `seed` (0) | label permutations (local `default_rng`) | bit-identical |
@@ -79,6 +79,20 @@ These functions are deterministic and take no seed: `clones.pam` (BUILD + SWAP),
 `clonotrace.isomds` (L-BFGS from `cmdscale`), `clone_dpt` and `clone_distance` (`eigh` / Dijkstra / EMD
 LP), `markers`, `pseudobulk`, `hvg_vst`, `scale`, `glmm_prop` / `gee_prop` / `lmm_score`, `deseq2` /
 `voom`, `rank_genes_groups`, `highly_variable_genes`, `dpt`, and `magic_impute`.
+
+## Recording the seed
+
+Every function in the table is wrapped by `arsc._seedlog.records_seed`, so the seed a call used is kept
+without any extra code (tests: `tests/test_seedlog.py`):
+
+* A pandas result (DataFrame or Series) gets `result.attrs["seed"]` and `result.attrs["seed_function"]`.
+* `arsc.seeds_used()` returns the seeds used in this process, one entry per function and seed value:
+  `[{"function": "stats.paired_test", "param": "seed", "seed": 1, "calls": 4}, ...]`. Only the
+  outermost call is logged: `paired_test` calling `boot_ci`, or `clonotrace.run` calling
+  `propagate_clones`, is one entry (they pass the same seed down, rule 5). Calls that raise are not
+  logged. `arsc.seeds_used(reset=True)` reads and clears the log; `arsc.reset_seeds_used()` clears it.
+* The log is in memory only and touches no RNG. A run-config writer (for example the AutoResearch
+  `arseed.py`) reads it at the end of a script and records it next to the results.
 
 ## Parallelism and floating-point order
 
@@ -96,8 +110,11 @@ LP), `markers`, `pseudobulk`, `hvg_vst`, `scale`, `glmm_prop` / `gee_prop` / `lm
 * **sklearn KMeans** (harmony init) is deterministic for a given `random_state` and thread count. Its
   OpenMP chunked reductions are not guaranteed to be bitwise thread-invariant. The harmony
   thread-invariance test passes on the test data; to pin the init completely, pass `init_centroids`.
-* **pynndescent** with `random_state` set is deterministic in the tested version (0.6). Across versions,
-  only statistical agreement is guaranteed.
+* **pynndescent** with `random_state` set is deterministic in the tested version (0.6) for a fixed thread
+  count, but **not thread-invariant**: its parallel NN-descent updates depend on the numba thread count
+  (measured on 600 synthetic cells, k = 10: 5 of 6000 neighbour entries differ between 1 and 4 threads;
+  1 and 2 threads agreed). Record `arsc.get_threads()` with the seed, or use `knn(method="exact")`, when the
+  graph must not depend on threads. Across versions, only statistical agreement is guaranteed.
 
 ## Behaviour changes in this revision (could alter previous results)
 

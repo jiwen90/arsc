@@ -36,6 +36,7 @@ from scipy.special import ndtr
 from ._cc_genes import CC_GENES, CC_GENES_UPDATED_2019
 from ._rrng import RRandom
 from ._utils import as_csr, check_seed, factorize_groups
+from ._seedlog import records_seed
 from .markers import _rank_stats
 from . import preprocessing as pp
 
@@ -327,6 +328,7 @@ def _lr_p(Xs, mask1, latent):
 
 
 # ============================================================================ FindMarkers
+@records_seed("random_seed")
 def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, cells_1=None, cells_2=None,
                  test_features=None, test_use: str = "wilcox", logfc_threshold: float = 0.25,
                  min_pct: float = 0.1, min_diff_pct: float = -np.inf, only_pos: bool = False,
@@ -460,6 +462,7 @@ def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, c
     return res[["p_val", fcname, "pct.1", "pct.2", "p_val_adj"]]
 
 
+@records_seed("random_seed")
 def find_all_markers(X, groups, *, features=None, test_use: str = "wilcox", logfc_threshold: float = 0.25,
                      min_pct: float = 0.1, min_diff_pct: float = -np.inf, only_pos: bool = False,
                      return_thresh: float = 0.01, max_cells_per_ident: float = np.inf, random_seed: int = 1,
@@ -637,6 +640,7 @@ def average_expression(X, obs: pd.DataFrame | None = None, group_by=None, *, fea
 
 
 # ============================================================================ CellCycleScoring
+@records_seed("seed")
 def cell_cycle_scoring(X, features, s_features=None, g2m_features=None, *, ctrl: int | None = None,
                        nbin: int = 24, seed: int = 1, cells=None, pool=None) -> pd.DataFrame:
     """Seurat ``CellCycleScoring``: ``S.Score`` / ``G2M.Score`` (``AddModuleScore``) and ``Phase``.

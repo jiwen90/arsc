@@ -22,6 +22,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ._utils import check_seed
+from ._seedlog import records_seed
 
 __all__ = ["knn", "snn_graph", "find_neighbors", "wnn", "WNNResult", "l2_normalize"]
 
@@ -162,6 +163,7 @@ def _partition(X, n_clusters, seed, iters=3, chunk=65536):
     return Xp, order.astype(np.int64), starts, centers, radius, rpt
 
 
+@records_seed("seed")
 def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None = None, seed: int = 0):
     """k nearest neighbours (Euclidean), exact by default.
 
@@ -361,6 +363,7 @@ def _nn_matrix(idx: np.ndarray, n: int) -> sp.csr_matrix:
     return sp.csr_matrix((np.ones(m * k), (np.repeat(np.arange(m), k), idx.ravel())), shape=(m, n))
 
 
+@records_seed("seed")
 def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm: bool = False,
                    method: str = "exact", seed: int = 0) -> dict:
     """Seurat ``FindNeighbors``: k-NN (self included) and SNN graphs from an embedding.
@@ -549,6 +552,7 @@ class WNNResult:
     nearest_dist: np.ndarray
 
 
+@records_seed("seed")
 def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float = 1 / 15,
         sd_scale: float = 1.0, cross_constant=1e-4, l2_norm: bool = True, smooth: bool = False,
         knn_method: str = "exact", seed: int = 0) -> WNNResult:

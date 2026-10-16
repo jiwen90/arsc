@@ -27,6 +27,7 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.special import gammaln
 
 from ._utils import as_list, check_seed
+from ._seedlog import records_seed
 
 __all__ = [
     "Cyclone", "cyclone", "cyclone_patient_table", "cyclone_states", "read_10x_clonotypes", "read_10x_contigs",
@@ -804,6 +805,7 @@ def pair_test(c1, c2) -> pd.DataFrame:
                          "chi": _signed_chi(a, b, N1, N2), "p": fisher_exact_2x2(a, b, N1, N2)})
 
 
+@records_seed("seed")
 def clone_expansion_null(meta, hd, pairs=((0, 3), (3, 6), (6, 9)), hd_times=("T1", "T2"),
                          clone_col="clone_id", patient_col="patient_alias", time_col="timepoint",
                          ref_depth=None, null_q=0.95, reps=1, seed=1, downsample=True,
@@ -937,6 +939,7 @@ def _count_matrix(codes_r, codes_c, nr, nc):
     return M
 
 
+@records_seed("seed")
 def startrac(meta, clone_col="clone_id", state_col="metaclusters_exh", group_cols="patient_alias", loc_col=None,
              min_cells=20, downsample=None, seed=1):
     """STARTRAC-style clonal indices (Zhang et al. 2018) computed per patient (or sample).
@@ -1052,6 +1055,7 @@ def clone_table(meta, clone_col, sample_cols=("patient_alias", "timepoint"), by=
     return ct
 
 
+@records_seed("seed")
 def clone_diversity(ct, sample_cols=("patient_alias", "timepoint"), depth=None, floor=200, reps=20, seed=1,
                     verbose=True) -> pd.DataFrame:
     """Clonal diversity per sample after rarefying to a common depth.

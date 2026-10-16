@@ -36,6 +36,7 @@ import scipy.sparse as sp
 from scipy import stats as _st
 
 from ._utils import as_csr, check_seed, p_adjust_bh
+from ._seedlog import records_seed
 from .markers import _rank_stats
 from .preprocessing import _col_mean_var, hvg_vst
 
@@ -113,6 +114,7 @@ def normalize_total_log1p(counts, target_sum: float = 1e4, dtype=np.float64) -> 
 
 
 # --------------------------------------------------------------------------- score_genes
+@records_seed("random_state")
 def score_genes(X, features, gene_list, *, ctrl_size: int = 50, gene_pool=None, n_bins: int = 25,
                 random_state: int = 0, ctrl_as_ref: bool = True, return_controls: bool = False):
     """``sc.tl.score_genes``: module score with expression-matched control genes (scanpy-exact).
@@ -697,6 +699,7 @@ def qc_metrics(counts, features=None, qc_vars: dict | None = None, percent_top=(
 
 
 # --------------------------------------------------------------------------- neighbors / leiden / umap
+@records_seed("random_state")
 def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: str = "exact",
               random_state: int = 0) -> dict:
     """``sc.pp.neighbors`` (``method="umap"``): kNN + UMAP fuzzy-simplicial-set connectivities.
@@ -754,6 +757,7 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
     return {"connectivities": conn.tocsr(), "distances": dist, "indices": idx}
 
 
+@records_seed("random_state")
 def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_iterations: int = -1,
            directed: bool = True, use_weights: bool = True, flavor: str = "leidenalg") -> np.ndarray:
     """``sc.tl.leiden`` on a connectivities graph (scanpy 1.11 defaults); same graph + seed -> identical labels.
@@ -823,6 +827,7 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
     return np.asarray(part.membership)
 
 
+@records_seed("random_state")
 def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: float = 1.0, n_components: int = 2,
                              maxiter: int | None = None, alpha: float = 1.0, gamma: float = 1.0,
                              negative_sample_rate: int = 5, init_pos: str = "spectral", random_state: int = 0) -> np.ndarray:
@@ -882,6 +887,7 @@ def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: f
 
 
 # --------------------------------------------------------------------------- diffmap / dpt
+@records_seed("random_state")
 def diffmap(connectivities, n_comps: int = 15, *, random_state: int = 0) -> dict:
     """``sc.tl.diffmap`` on a scanpy connectivities graph (symmetric ``transitions_sym`` eigendecomposition).
 
@@ -971,6 +977,7 @@ def dpt(dm: dict, root: int, n_dcs: int = 10, *, thresh: float = 0.9994) -> np.n
 
 
 # --------------------------------------------------------------------------- palantir pieces (deterministic parts)
+@records_seed("seed")
 def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: float = 0.0, seed: int = 0,
                             method: str = "exact") -> dict:
     """``palantir.utils.run_diffusion_maps`` (adaptive anisotropic kernel, Setty 2019).

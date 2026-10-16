@@ -26,6 +26,7 @@ import pandas as pd
 from scipy import optimize, stats as sps
 
 from ._utils import as_list, check_seed
+from ._seedlog import records_seed
 
 __all__ = ["composition", "sample_means", "bh", "boot_ci", "wilcoxon_signed_rank", "paired_test", "perm_test",
            "arm_contrast", "glmm_prop", "gee_prop", "lmm_score", "mde", "feasibility", "count_logit_delta",
@@ -167,6 +168,7 @@ def _tf(x, transform, eps=1e-3):
     raise ValueError(f"transform must be 'none', 'logit' or 'log2ratio'; got {transform!r}")
 
 
+@records_seed("seed")
 def boot_ci(x, f=np.median, B: int = 4000, seed: int = 1):
     """Percentile bootstrap 95% CI of a statistic of per-patient values (NaN when < 3 finite values).
 
@@ -260,6 +262,7 @@ def wilcoxon_signed_rank(x, exact: bool | None = None, correct: bool = True) -> 
     return float(min(2 * min(sps.norm.cdf(z), sps.norm.sf(z)), 1.0))
 
 
+@records_seed("seed")
 def paired_test(df: pd.DataFrame, value: str = "value", t0=None, t1=None, patient: str = "patient_alias",
                 time: str = "timepoint", by=None, transform: str = "none", eps: float = 1e-3, B: int = 4000,
                 seed: int = 1) -> pd.DataFrame:
@@ -329,6 +332,7 @@ def paired_test(df: pd.DataFrame, value: str = "value", t0=None, t1=None, patien
     return res
 
 
+@records_seed("seed")
 def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
     """Two-group permutation test on per-patient values (e.g. responders vs non-responders).
 
@@ -380,6 +384,7 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
     return dict(n_x=nx, n_y=len(y), stat=float(obs), p_perm=float(np.mean(np.abs(null) >= abs(obs) - 1e-12)))
 
 
+@records_seed("seed")
 def arm_contrast(a, b, B: int = 20000, seed: int = 1) -> dict:
     """Between-arm comparison of per-patient deltas (e.g. post - pre in responders vs non-responders).
 

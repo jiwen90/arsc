@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 
 from ._utils import check_seed
+from ._seedlog import records_seed
 
 # Fixed reduction-chunk counts: per-chunk partial sums are combined in chunk order, so the float summation
 # order (and hence every objective value / convergence decision) is the same for any number of threads.
@@ -451,6 +452,7 @@ def _r_factor_levels(values) -> tuple[np.ndarray, np.ndarray]:
     return np.asarray(cat.codes, dtype=np.int64), np.asarray(cat.categories)
 
 
+@records_seed("seed")
 def run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_=1.0, nclust=None, max_iter=10,
                 early_stop=True, alpha=0.2, tau=0.0, block_size=0.05, max_iter_cluster=20,
                 epsilon_cluster=1e-3, epsilon_harmony=1e-2, seed=0, init_centroids=None,

@@ -43,6 +43,7 @@ import scipy.sparse as sp
 from scipy import stats as sps
 
 from ._utils import check_seed
+from ._seedlog import records_seed
 
 __all__ = [
     "knn_connectivity", "cell_transition", "label_spreading", "propagate_clones", "sparsify", "filter_and_sparsify",
@@ -391,6 +392,7 @@ class CloneProb:
         return pd.DataFrame(self.prob, index=self.cells, columns=self.clones)
 
 
+@records_seed("seed")
 def propagate_clones(adj, clones, *, min_size: int = 10, alpha: float = 0.6, sample_rate: float = 0.8,
                      n_boot: int = 48, block_size: int = 128, tol: float = 1e-3, max_iter: int = 100,
                      epsilon: float = 0.0, seed: int = 0, levels: Sequence[str] | None = None,
@@ -895,6 +897,7 @@ def _square(D) -> tuple[np.ndarray, list]:
     return Dm, names
 
 
+@records_seed("seed")
 def revise_distance(D, embedding, Q, *, clusters: pd.DataFrame | np.ndarray | None = None, sample=None,
                     local_rescale: bool = False, local_k: int = 7, resolutions=(0.3, 0.5, 0.8, 1.2),
                     cluster_k: int = 15, mean_weight: float | None = None, s_grid=None, seed: int = 0):
@@ -1036,6 +1039,7 @@ def _leiden_ladder(X, resolutions, k, seed):
 
 
 # =========================================================================== 4. clone clusters / embedding / dpt
+@records_seed("seed")
 def cluster_clones(D, k: int = 10, resolution: float = 1.0, *, prune: float = 0.0, weight: str = "jaccard",
                    seed: int = 0, n_iterations: int = 2) -> pd.Series:
     """Leiden communities of clones from their distance matrix (R ``leiden_dis``, ``if_umap=FALSE``).
@@ -1431,6 +1435,7 @@ def profile_mass(cell_profile_prob: pd.DataFrame, cluster_label) -> pd.DataFrame
     return df.groupby("__cl", sort=True).sum()
 
 
+@records_seed("seed")
 def profile_enrichment(cell_profile_prob: pd.DataFrame, cluster_label, n_perm: int = 300, seed: int = 0):
     """Cluster x profile mass and a one-sided permutation p-value (R ``cluster_profile_enrich``).
 
@@ -1644,6 +1649,7 @@ def bin_filter(mass, time, thresh: float = 5, binsize: float = 0.005) -> np.ndar
     return np.isin(code, list(ok))
 
 
+@records_seed("seed")
 def fate_genes(profile, cluster, X, genes: Sequence[str], cell_cluster, cell_t, cell_profile_prob: pd.DataFrame,
                *, n_perm: int = 50, seed: int = 0, min_cells: int = 30, mass_thresh: float = 3,
                binsize: float = 0.005) -> pd.DataFrame | None:
@@ -1884,6 +1890,7 @@ class CloneTrace:
                 f"{self.clusters.nunique()} profiles")
 
 
+@records_seed("seed")
 def run(embedding, clones, *, cells=None, cell_clusters=None, start_cluster=None, k: int = 30,
         min_size: int = 10, alpha: float = 0.6, n_boot: int = 48, max_deviance: float = 0.3,
         distance: str = "nn", graph_k: int = 10, revised: bool = False, revise_clusters=None,

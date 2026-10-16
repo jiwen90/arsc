@@ -83,7 +83,7 @@ def _public(modname: str):
     if modname == "arsc":
         names = [n for n, o in vars(arsc).items() if not n.startswith("_") and callable(o)
                  and not inspect.ismodule(o) and getattr(o, "__module__", "").startswith("arsc")]
-        names = [n for n in names if getattr(getattr(arsc, n), "__module__", "") in ("arsc._help", "arsc.io", "arsc.formats")]
+        names = [n for n in names if getattr(getattr(arsc, n), "__module__", "") in ("arsc._help", "arsc.io", "arsc.formats", "arsc._seedlog")]
     if names is None:
         names = [n for n, o in vars(mod).items() if not n.startswith("_") and (inspect.isfunction(o) or inspect.isclass(o))
                  and getattr(o, "__module__", "") == mod.__name__]

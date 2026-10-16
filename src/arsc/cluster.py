@@ -11,6 +11,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ._utils import check_seed
+from ._seedlog import records_seed
 
 __all__ = ["cluster", "umap"]
 
@@ -56,6 +57,7 @@ def _group_singletons(labels: np.ndarray, G: sp.csr_matrix) -> np.ndarray:
     return labels
 
 
+@records_seed("seed")
 def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 0, n_iterations: int = 2,
             n_start: int = 10, group_singletons: bool = True) -> np.ndarray:
     """Cluster a weighted graph (e.g. ``find_neighbors(...)["snn"]`` or ``wnn(...).wsnn``).
@@ -128,6 +130,7 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
     return labels
 
 
+@records_seed("seed")
 def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosine", seed: int = 42,
          n_epochs: int | None = None, spread: float = 1.0, init: str = "spectral", knn=None) -> np.ndarray:
     """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbours, min_dist 0.3).

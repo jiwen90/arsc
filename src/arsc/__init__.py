@@ -23,6 +23,7 @@ Quick map (see README.md):
                                                       Seurat 4.3 parity (seurat_extra; SEURAT_PARITY.md)
     arsc.rank_genes_groups / score_genes / highly_variable_genes / scanpy_extra.*   scanpy parity (SCANPY_PARITY.md)
     arsc.de (deseq2 / voom / fgsea / msigdb)                           pseudobulk DE + GSEA
+    arsc.seeds_used / reset_seeds_used                seeds used by stochastic calls (SEEDS.md)
 """
 from ._threads import preconfigure_env as _pre
 
@@ -43,6 +44,7 @@ from .cluster import cluster, umap  # noqa: E402
 from . import clones, clonotrace, genesets  # noqa: E402
 from . import stats, de, datasets  # noqa: E402
 from ._help import help, recipes  # noqa: E402,A004  (task map / runnable recipes)
+from ._seedlog import reset_seeds_used, seeds_used  # noqa: E402  (seed of every stochastic call, SEEDS.md)
 from .stats import composition, paired_test, perm_test, glmm_prop  # noqa: E402
 from .de import deseq2, voom, fgsea, msigdb  # noqa: E402
 from . import scanpy_extra  # noqa: E402  (scanpy parity; neighbors/leiden live here as scanpy_extra.*)

@@ -31,6 +31,7 @@ from scipy import special, stats as sps
 from scipy.optimize import minimize_scalar
 
 from ._utils import check_seed
+from ._seedlog import records_seed
 from .stats import bh
 
 __all__ = ["deseq2", "voom", "fgsea", "msigdb", "filter_by_expr", "tmm_factors", "duplicate_correlation"]
@@ -664,6 +665,7 @@ def _null_es(absw, N, k, nperm, seed):
     return out
 
 
+@records_seed("seed")
 def fgsea(stats: pd.Series, genesets: dict, min_size: int = 10, max_size: int = 500, nperm: int = 10000,
           gsea_param: float = 1.0, seed: int = 1) -> pd.DataFrame:
     """Preranked GSEA following fgsea.  ES, leading edge and the NES definition (ES / mean of the

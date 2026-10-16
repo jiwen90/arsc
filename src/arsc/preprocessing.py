@@ -26,6 +26,7 @@ import scipy.sparse as sp
 
 from ._loess import loess_fit
 from ._utils import as_csr, check_seed
+from ._seedlog import records_seed
 
 __all__ = ["log_normalize", "clr", "hvg_vst", "scale", "pca", "PCAResult"]
 
@@ -313,6 +314,7 @@ class PCAResult:
         return self.stdev ** 2 / self.total_variance
 
 
+@records_seed("seed")
 def pca(Z: np.ndarray, n_comps: int = 50, method: str = "auto", seed: int = 42,
         n_oversamples: int | None = None, n_iter: int = 15) -> PCAResult:
     """Truncated PCA of an already-centered (scaled) matrix, Seurat ``RunPCA`` conventions.

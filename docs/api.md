@@ -518,6 +518,45 @@ Examples
 (5, 2)
 ```
 
+### `arsc.reset_seeds_used() -> 'None'`
+
+```text
+Clear the seed log of this process (``seeds_used``).
+
+Returns
+-------
+None
+
+Examples
+--------
+>>> import arsc
+>>> arsc.reset_seeds_used()
+>>> arsc.seeds_used()
+[]
+```
+
+### `arsc.seeds_used(reset: 'bool' = False) -> 'list'`
+
+```text
+Seeds used by stochastic arsc calls in this process (outermost calls only).
+
+Parameters
+----------
+reset : clear the log after reading it.
+
+Returns
+-------
+list of dicts ``{"function", "param", "seed", "calls"}`` in first-call order.
+
+Examples
+--------
+>>> import arsc
+>>> arsc.reset_seeds_used()
+>>> _ = arsc.stats.boot_ci([1.0, 2.0, 3.0, 4.0], seed=7)
+>>> arsc.seeds_used()
+[{'function': 'stats.boot_ci', 'param': 'seed', 'seed': 7, 'calls': 1}]
+```
+
 ### `arsc.Store(path, finalize: 'bool' = True, build_csc: 'bool' = True)`
 
 ```text

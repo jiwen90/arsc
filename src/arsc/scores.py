@@ -16,6 +16,7 @@ import pandas as pd
 
 from ._rrng import RRandom
 from ._utils import as_csr, check_seed
+from ._seedlog import records_seed
 
 __all__ = ["score_ucell", "add_module_score", "parse_signature"]
 
@@ -206,6 +207,7 @@ def _cut_number(x: np.ndarray, n: int) -> np.ndarray:
     return np.clip(code, 1, n)  # include.lowest: max value goes to the last bin
 
 
+@records_seed("seed")
 def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl: int = 100,
                      seed: int = 1, name: str = "Cluster", cells=None,
                      return_controls: bool = False):
