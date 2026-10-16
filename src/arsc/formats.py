@@ -1432,15 +1432,17 @@ def _write_csr_stream(group_parent, name: str, M: sp.csr_matrix, cidx, gidx, n_s
     g.attrs["shape"] = np.array([n_sel, n_cols], dtype=np.int64)
     src_dt = np.dtype(info["source_dtype"]) if (restore and info.get("source_dtype")) else M.dtype
     kw = {"compression": compression} if compression else {}
-    dd = g.create_dataset("data", shape=(0,), maxshape=(None,), dtype=src_dt, chunks=(1 << 18,), **kw)
     indptr = np.asarray(M.indptr)
     rows_all = np.arange(M.shape[0]) if cidx is None else cidx
     lens = indptr[rows_all + 1] - indptr[rows_all]
     cum = np.concatenate([[0], np.cumsum(lens)])
+    # chunk no larger than the matrix: a fixed 256k-element chunk wrote 1-2 MB per tiny test matrix
+    ck = (int(max(1, min(1 << 18, int(cum[-1])))),)
+    dd = g.create_dataset("data", shape=(0,), maxshape=(None,), dtype=src_dt, chunks=ck, **kw)
     # one index dtype for indices and indptr (scipy refuses mixed int32/int64 in in-place operations, which
     # breaks e.g. scanpy on the written file); int32 unless the column count or the nnz needs int64
     idx_dt = np.int32 if (n_cols < 2 ** 31 and int(cum[-1]) < 2 ** 31) else np.int64
-    di = g.create_dataset("indices", shape=(0,), maxshape=(None,), dtype=idx_dt, chunks=(1 << 18,), **kw)
+    di = g.create_dataset("indices", shape=(0,), maxshape=(None,), dtype=idx_dt, chunks=ck, **kw)
     ptr = np.zeros(n_sel + 1, dtype=np.int64)
     s, nnz = 0, 0
     while s < n_sel:
