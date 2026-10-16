@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 
 from ._utils import check_seed
+from ._detla import matmul, single_thread
 from ._seedlog import records_seed
 
 # Fixed reduction-chunk counts: per-chunk partial sums are combined in chunk order, so the float summation
@@ -370,14 +371,15 @@ class Harmony:
             from sklearn.cluster import KMeans
             km = KMeans(n_clusters=self.K, n_init=n_init, max_iter=kmeans_iter, random_state=self.seed,
                         algorithm="lloyd")
-            km.fit(self.Z_cos)
+            with single_thread():  # k-means' OpenMP/BLAS sums depend on the thread count otherwise
+                km.fit(self.Z_cos)
             Y = km.cluster_centers_
         else:
             Y = np.asarray(init_centroids, dtype=np.float64)
             if Y.shape != (self.K, self.d):
                 raise ValueError(f"init_centroids must be K x d = {self.K} x {self.d}")
         self.Y = _l2_rows(Y)
-        self.dist = 2.0 * (1.0 - self.Z_cos @ self.Y.T)
+        self.dist = 2.0 * (1.0 - matmul(self.Z_cos, self.Y.T))
         self.R = np.empty((self.N, self.K))
         _scale_dist(self.dist, self.sigma, self.R)
         self.O, self.E = self._OE()
@@ -392,9 +394,9 @@ class Harmony:
         sd = np.empty((self.N, self.K))
         it = 0
         for it in range(self.max_iter_kmeans):
-            Y = self.R.T @ self.Z_cos  # K x d
+            Y = matmul(self.R.T, self.Z_cos)  # K x d (fixed-block sum over cells: thread-invariant)
             self.Y = _l2_rows(Y)
-            self.dist = 2.0 * (1.0 - self.Z_cos @ self.Y.T)
+            self.dist = 2.0 * (1.0 - matmul(self.Z_cos, self.Y.T))
             _scale_dist(self.dist, self.sigma, sd)
             order = self.rng.permutation(self.N).astype(np.int64)
             ET, OT = np.ascontiguousarray(self.E.T), np.ascontiguousarray(self.O.T)
@@ -419,9 +421,10 @@ class Harmony:
             lam = np.broadcast_to(self.lambda_vec, (self.K, nb1))
         idx = np.arange(nb1)
         M[:, idx, idx] += lam
-        inv = np.linalg.inv(M)
         RZ = _rz(self.R, self.Z_orig, self.codes1, nb1)
-        W = inv @ RZ  # K x (B+1) x d
+        with single_thread("blas"):
+            inv = np.linalg.inv(M)
+            W = inv @ RZ  # K x (B+1) x d
         W[:, 0, :] = 0.0
         _apply_correction(self.Z_orig, self.R, W, self.codes1, self.Z_corr)
         self.Z_cos = _l2_rows(self.Z_corr)

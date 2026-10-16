@@ -373,34 +373,47 @@ def pca(Z: np.ndarray, n_comps: int = 50, method: str = "auto", seed: int = 42,
     if method == "auto":
         method = "gram" if p <= 6000 else "arpack"
     total_var = float(((Z.astype(np.float64) ** 2).sum(0) / (n - 1)).sum()) if Z.size else 0.0
+    from ._detla import matmul, single_thread  # thread-count-invariant products (SEEDS.md)
+    with single_thread("blas"):
+        d, V = _pca_core(Z, k, method, seed, n_oversamples, n_iter, matmul)
+    sign = np.sign(V[np.abs(V).argmax(0), np.arange(k)])
+    sign[sign == 0] = 1
+    V = V * sign
+    emb = matmul(Z, V)
+    return PCAResult(emb, V, d / np.sqrt(max(1, n - 1)), total_var)
+
+
+def _pca_core(Z, k, method, seed, n_oversamples, n_iter, matmul):
+    """Singular values and right vectors (BLAS pinned to 1 thread by the caller; big products via ``matmul``)."""
+    n, p = Z.shape
     if method == "gram":
-        G = Z.T @ Z
+        G = matmul(Z.T, Z)
         w, V = np.linalg.eigh(G)
         o = np.argsort(w)[::-1][:k]
         d = np.sqrt(np.maximum(w[o], 0))
         V = V[:, o]
     elif method == "arpack":
         from scipy.sparse.linalg import svds
+        from scipy.sparse.linalg import LinearOperator
         v0 = np.random.default_rng(seed).standard_normal(min(n, p))
-        _, d, Vt = svds(Z, k=k, v0=v0)
+        op = LinearOperator(Z.shape, dtype=Z.dtype, matvec=lambda v: matmul(Z, np.ravel(v)),
+                            rmatvec=lambda u: matmul(Z.T, np.ravel(u)),
+                            matmat=lambda V_: matmul(Z, V_), rmatmat=lambda U: matmul(Z.T, U))
+        _, d, Vt = svds(op, k=k, v0=v0)
         o = np.argsort(d)[::-1]
         d, V = d[o], Vt[o].T
     elif method == "randomized":
         rng = np.random.default_rng(seed)
         ov = max(20, k) if n_oversamples is None else n_oversamples
-        Q = Z @ rng.standard_normal((p, k + ov))
+        Q = matmul(Z, rng.standard_normal((p, k + ov)))
         for _ in range(n_iter):
             Q, _ = np.linalg.qr(Q)
-            Q, _ = np.linalg.qr(Z.T @ Q)
-            Q = Z @ Q
+            Q, _ = np.linalg.qr(matmul(Z.T, Q))
+            Q = matmul(Z, Q)
         Q, _ = np.linalg.qr(Q)
-        B = Q.T @ Z
+        B = matmul(Q.T, Z)
         _, d, Vt = np.linalg.svd(B, full_matrices=False)
         d, V = d[:k], Vt[:k].T
     else:
         raise ValueError(f"unknown method {method!r}; use 'auto', 'gram', 'arpack' or 'randomized'")
-    sign = np.sign(V[np.abs(V).argmax(0), np.arange(k)])
-    sign[sign == 0] = 1
-    V = V * sign
-    emb = Z @ V
-    return PCAResult(emb, V, d / np.sqrt(max(1, n - 1)), total_var)
+    return d, V

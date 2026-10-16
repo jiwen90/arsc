@@ -156,3 +156,47 @@ def test_add_module_score_thread_invariant(threads):
     sigs = {"m1": FEATS[:15], "m2": FEATS[40:60]}
     a, b = threads(lambda: arsc.add_module_score(X, FEATS, sigs, ctrl=5, seed=1))
     assert same(a, b)
+
+
+# ------------------------------------------------------------------ PCA / harmony: 2 vs 8 threads (BLAS + numba)
+_PROBE_LINALG = r'''
+import numpy as np, arsc
+r = np.random.default_rng(0)
+Z = r.standard_normal((9000, 300)); Z -= Z.mean(0)
+batch = np.tile(["x", "y", "z"], 3000)
+out = {}
+for t in (2, 8):
+    assert arsc.set_threads(t) == t
+    res = {m: arsc.pp.pca(Z, n_comps=20, method=m, seed=1) for m in ("gram", "arpack", "randomized")}
+    res["harmony"] = arsc.run_harmony(res["gram"].embedding, batch, None, nclust=10, max_iter=3, seed=1)
+    out[t] = res
+bad = []
+for m in ("gram", "arpack", "randomized"):
+    a, b = out[2][m], out[8][m]
+    if not (np.array_equal(a.embedding, b.embedding) and np.array_equal(a.stdev, b.stdev)):
+        bad.append(f"{m}: max diff {np.abs(a.embedding - b.embedding).max():.1e}")
+if not np.array_equal(out[2]["harmony"], out[8]["harmony"]):
+    bad.append(f"harmony: max diff {np.abs(out[2]['harmony'] - out[8]['harmony']).max():.1e}")
+print("BAD " + "; ".join(bad) if bad else "SAME")
+'''
+
+
+def test_pca_and_harmony_2_vs_8_threads():
+    """BLAS splits long reductions by thread count; arsc._detla blocks them in a fixed order (SEEDS.md)."""
+    import os
+    import subprocess
+    import sys
+    env = {k: v for k, v in os.environ.items() if not k.endswith("_THREADS")}
+    env["AR_THREADS"] = "8"
+    r = subprocess.run([sys.executable, "-c", _PROBE_LINALG], capture_output=True, text=True, env=env, timeout=600)
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stdout.strip().endswith("SAME"), r.stdout
+
+
+def test_detla_matmul_matches_numpy():
+    from arsc._detla import matmul
+    r = np.random.default_rng(1)
+    A, B = r.standard_normal((5000, 70)), r.standard_normal((70, 9))
+    assert np.allclose(matmul(A, B), A @ B, rtol=1e-12, atol=1e-12)
+    assert np.allclose(matmul(A.T, A), A.T @ A, rtol=1e-12, atol=1e-10)
+    assert np.allclose(matmul(A, B[:, 0]), A @ B[:, 0])

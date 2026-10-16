@@ -18,6 +18,13 @@ All notable changes to arsc are recorded here. The format follows
   thread-invariant; pynndescent is repeatable at a fixed thread count but not across thread counts
   (documented in SEEDS.md, recorded as an expected failure).
 
+### Changed
+- `pp.pca` and `run_harmony` are now thread-count-invariant: their large BLAS products run in fixed blocks in a fixed
+  summation order (`arsc._detla`), and `eigh` / QR / ARPACK updates / the k-means init run on one BLAS/OpenMP
+  thread. Measured before: PCA differed by up to 3e-11 and harmony by 5e-14 to 1.4e-12 between 2 and 8 threads
+  (SEEDS.md had claimed harmony was thread-invariant; that test varied only numba threads). Values change at float
+  rounding versus earlier runs. Tested 2 vs 8 threads.
+
 ### Fixed
 - `HarmonyResult` docstring: `R` is `(n_cells, nclust)` and `Y` is `(nclust, d)` (the docstring had them transposed).
 - Seurat import: a factor with a single level (e.g. `orig.ident` of a one-sample object) was written by jsonlite

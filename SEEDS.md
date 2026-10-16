@@ -43,8 +43,8 @@ number of threads.
 
 | Function | Seed parameter (default) | What the seed drives | Determinism |
 |---|---|---|---|
-| `pp.pca` | `seed` (42) | ARPACK start vector (`method="arpack"`), Gaussian test matrix (`"randomized"`); `"gram"` ignores it | bit-identical. arpack and gram converge to the same subspace for any seed. randomized depends on the seed by design |
-| `run_harmony` | `seed` (0) | sklearn `KMeans(random_state=seed)` init; block order each clustering round (local `default_rng`) | bit-identical and thread-invariant (fixed reduction chunks, see below). `init_centroids` bypasses k-means |
+| `pp.pca` | `seed` (42) | ARPACK start vector (`method="arpack"`), Gaussian test matrix (`"randomized"`); `"gram"` ignores it | bit-identical and thread-invariant (BLAS products in fixed blocks, `arsc._detla`; 2 vs 8 threads tested). arpack and gram converge to the same subspace for any seed. randomized depends on the seed by design |
+| `run_harmony` | `seed` (0) | sklearn `KMeans(random_state=seed)` init; block order each clustering round (local `default_rng`) | bit-identical and thread-invariant (fixed numba reduction chunks, fixed-block BLAS products, k-means on one thread; 2 vs 8 threads tested, see below). `init_centroids` bypasses k-means |
 | `knn` | `seed` (0) | `"exact"`: k-means partition used only for pruning, so the answer is exact and the same for every seed (tested). `"pynndescent"`: `random_state` | bit-identical. pynndescent output depends on the seed and on the thread count (see below) |
 | `find_neighbors` | `seed` (0) | passed to `knn` | as `knn` |
 | `wnn` | `seed` (0) | passed to `knn` for every modality | as `knn` |
@@ -104,14 +104,21 @@ without any extra code (tests: `tests/test_seedlog.py`):
 * **harmony** had cross-thread reductions whose chunk count followed the thread count (`get_num_threads()`
   for the objective, `min(8, threads)` for the R update). That made the float32 objective, and so the
   convergence decisions, depend on the number of threads. The chunk counts are now fixed (32 and 8).
-  The result is bit-identical for any `n_threads`, which is tested with 1 thread vs all threads. On the
-  32-thread lab machine these are the same values as before, so earlier results there do not change.
-* **BLAS** (`pca` gram/randomized, `@` products): results are deterministic for a fixed BLAS library and
-  thread count. Across different BLAS builds or thread counts, expect differences of about 1e-12
-  relative, not bitwise equality.
-* **sklearn KMeans** (harmony init) is deterministic for a given `random_state` and thread count. Its
-  OpenMP chunked reductions are not guaranteed to be bitwise thread-invariant. The harmony
-  thread-invariance test passes on the test data; to pin the init completely, pass `init_centroids`.
+  That test varied only the numba threads, so it missed the BLAS products: measured with 2 vs 8 BLAS
+  threads, harmony still differed by 5e-14 (and up to 1.4e-12 on a 9000-cell test), from
+  `R.T @ Z_cos` (a sum over all cells, which multithreaded BLAS splits by thread count) and the k-means init.
+  Fixed in this revision (next item); the 2 vs 8 thread test now covers BLAS and numba together.
+* **BLAS** products over a long dimension (`Z.T @ Z` in `pca`, `R.T @ Z` in harmony) are summed in an
+  order that depends on the BLAS thread count (measured, 2 vs 8 threads: PCA max |diff| 6e-12 gram,
+  3e-11 arpack, 2e-11 randomized). `pca` and `run_harmony` now compute their large products with
+  `arsc._detla.matmul`: fixed 4096-row blocks, each on single-threaded BLAS, run in parallel on arsc's
+  threads and summed in block order; `eigh`, QR, ARPACK's own updates, `inv` and the sklearn k-means init run
+  with BLAS/OpenMP pinned to one thread. Results are bit-identical for any thread count (tested 2 vs 8,
+  `tests/test_seedlog.py`) and as fast or faster (50,000 x 2,000 Gram: 0.98 s blocked vs 1.78 s plain BLAS
+  at 8 threads; `eigh` of 2,000 x 2,000: 1.4 s on one thread vs 3.4 s on eight). Values differ from earlier
+  runs at float rounding (about 1e-10 absolute on the Gram matrix), which can move a harmony convergence
+  decision. Across different BLAS builds, only agreement to about 1e-12 relative is expected. Other `@`
+  products in arsc (small, or row-wise) are not covered by this guarantee.
 * **pynndescent** with `random_state` set is deterministic in the tested version (0.6) for a fixed thread
   count, but **not thread-invariant**: its parallel NN-descent updates depend on the numba thread count
   (measured on 600 synthetic cells, k = 10: 5 of 6000 neighbour entries differ between 1 and 4 threads;
