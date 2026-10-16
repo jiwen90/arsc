@@ -12,6 +12,7 @@ Quick map (see README.md):
     arsc.pseudobulk                                   per-sample aggregation
     arsc.pp.log_normalize / clr / hvg_vst / scale / pca
     arsc.run_harmony                                  harmony 1.2 port
+    arsc.symphony (build_reference / map_query / transfer_labels / mapping_score)   Symphony reference mapping
     arsc.wilcoxauc                                    presto port
     arsc.score_ucell / add_module_score               UCell / Seurat AddModuleScore
     arsc.neighbors / wnn / cluster / umap             graph tools
@@ -41,7 +42,7 @@ from .pseudobulk import Pseudobulk, pseudobulk  # noqa: E402
 from .scores import add_module_score, score_ucell  # noqa: E402
 from .neighbors import find_neighbors, knn, snn_graph, wnn  # noqa: E402
 from .cluster import cluster, umap  # noqa: E402
-from . import clones, clonotrace, genesets  # noqa: E402
+from . import clones, clonotrace, genesets, symphony  # noqa: E402
 from . import stats, de, datasets  # noqa: E402
 from ._help import help, recipes  # noqa: E402,A004  (task map / runnable recipes)
 from ._seedlog import reset_seeds_used, seeds_used  # noqa: E402  (seed of every stochastic call, SEEDS.md)

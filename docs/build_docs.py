@@ -31,6 +31,7 @@ API_MODULES = [
     ("arsc.neighbors", "Neighbours and WNN"),
     ("arsc.cluster", "Clustering and UMAP"),
     ("arsc.harmony", "Harmony"),
+    ("arsc.symphony", "Symphony reference mapping"),
     ("arsc.de", "Differential expression and GSEA"),
     ("arsc.stats", "Patient-level statistics"),
     ("arsc.clones", "TCR clones"),

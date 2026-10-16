@@ -111,6 +111,12 @@ def cp():
     return ct.propagate_clones(T, TOY_CLONES, n_boot=3)
 
 
+_SOBS = pd.DataFrame({"b": GROUPS}, index=[f"c{i}" for i in range(len(GROUPS))])
+_SREF = arsc.symphony.build_reference(X, FEATS, _SOBS, vars="b", normalize=False, topn=100, d=5, K=4, max_iter=2,
+                                      umap=False)
+_SQ = arsc.symphony.map_query(X, FEATS, _SOBS, _SREF, vars="b", normalize=False, umap=False)
+
+
 def _q(cp_):
     return ct.filter_and_sparsify(cp_, 0.3)
 
@@ -173,6 +179,10 @@ def _cases():
                                                                  verbose=False, **k), "seed", True),
         "clonotrace.propagate_clones": (lambda **k: ct.propagate_clones(ct.cell_transition(TOY_X, 10), TOY_CLONES,
                                                                         n_boot=3, **k), "seed", True),
+        "symphony.build_reference": (lambda **k: arsc.symphony.build_reference(
+            X, FEATS, _SOBS, vars="b", normalize=False, topn=100, d=5, K=4, max_iter=2, umap=False, **k), "seed", True),
+        "symphony.transfer_labels": (lambda **k: arsc.symphony.transfer_labels(_SREF, _SQ, GROUPS, k=4, **k), "seed",
+                                     False),
         "clonotrace.run": (lambda **k: ct.run(TOY_X, TOY_CLONES, n_boot=3, n_mds=3, cluster_k=3, dpt_k=4,
                                               dpt_nn=3, k=10, revised=True, **k), "seed", True),
     }

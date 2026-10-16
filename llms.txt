@@ -28,6 +28,7 @@ Licence: GPL-3.0-or-later (LICENSE); NOTICE credits each ported original with it
 - [SCANPY_PARITY.md](SCANPY_PARITY.md): scanpy/palantir functions vs scanpy 1.11
 - [STATS_PARITY.md](STATS_PARITY.md): DESeq2, limma-voom, fgsea, Wilcoxon, permutation, GLMM vs R
 - [CLONES_PARITY.md](CLONES_PARITY.md): Cyclone, STARTRAC, clone dynamics/diversity vs R
+- [SYMPHONY_PARITY.md](SYMPHONY_PARITY.md): Symphony reference mapping (build reference, map query, kNN labels) vs R symphony 0.1.1
 - [CLONOTRACE_PARITY.md](CLONOTRACE_PARITY.md): CloneTrace port
 - [SEEDS.md](SEEDS.md): seeds and determinism of every stochastic function
 - [benchmarks/README.md](benchmarks/README.md): reproducible speed / memory / agreement benchmarks vs scanpy and Seurat

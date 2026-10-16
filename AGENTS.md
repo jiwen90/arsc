@@ -76,6 +76,8 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 | Reduce | scale (Seurat ScaleData, optional regression) | `arsc.pp.scale(L[:, idx]) / arsc.scale_data(...)` |
 | Reduce | PCA (Seurat RunPCA conventions) | `arsc.pp.pca(Z, n_comps=50).embedding` |
 | Reduce | Harmony batch correction (R harmony 1.2 port) | `arsc.run_harmony(pcs, obs, 'batch')` |
+| Reduce | map a query onto a reference (Symphony: build once, map, kNN labels) | `ref = arsc.symphony.build_reference(counts, genes, obs, 'batch'); q = arsc.symphony.map_query(qcounts, qgenes, qobs, ref, 'batch')` |
+| Reduce | transfer reference labels to the query, with confidence | `arsc.symphony.transfer_labels(ref, q, 'cell_type', k=5)` |
 | Graph | kNN + SNN graph (Seurat FindNeighbors, exact kNN) | `arsc.find_neighbors(emb, k=20)['snn']` |
 | Graph | multimodal WNN (Seurat FindMultiModalNeighbors) | `arsc.wnn([rna_emb, adt_emb]).wsnn` |
 | Graph | scanpy neighbors / leiden | `arsc.scanpy_extra.neighbors(emb); arsc.scanpy_extra.leiden(conn)` |
@@ -196,6 +198,26 @@ snn = arsc.find_neighbors(emb, k=20)["snn"]
 obs["cluster"] = pd.Categorical(arsc.cluster(snn, resolution=0.5).astype(str))   # 0 = largest
 xy = arsc.umap(emb)                                                 # cells x 2 (plot elsewhere)
 print(pd.crosstab(obs["cluster"], obs["cell_type"]))
+```
+
+### `reference_mapping`: Map a query dataset onto a reference (Symphony) and transfer its labels
+
+Asks like: "map my cells onto a reference"; "transfer labels from a reference"; "symphony mapQuery"; "project a new dataset onto an existing atlas"
+
+```python
+import pandas as pd
+import arsc
+
+ds = arsc.datasets.toy()
+counts, genes, obs = ds.X("RNA", "counts"), ds.features("RNA"), ds.obs
+isref = (obs["timepoint"] == "pre").to_numpy()                    # reference = the cleanest, most complete set
+ref = arsc.symphony.build_reference(counts[isref], genes, obs[isref], vars="patient",
+                                    topn=200, d=10, K=20, umap=False)  # real data: topn 2000, d 20-30, K 100
+q = arsc.symphony.map_query(counts[~isref], genes, obs[~isref], ref, vars="patient", umap=False)
+lab = arsc.symphony.transfer_labels(ref, q, "cell_type", k=5)       # label + prob (share of the k votes)
+lab["mapping_dist"] = arsc.symphony.mapping_score(ref, q)           # high = far from the reference
+print(pd.crosstab(lab["label"], obs.loc[~isref, "cell_type"]))
+print("low-confidence cells (prob < 0.6):", int((lab["prob"] < 0.6).sum()))
 ```
 
 ### `wnn`: Cluster on RNA + protein (CITE-seq) with weighted nearest neighbours
@@ -509,6 +531,11 @@ print(adata)
   (the toy has 300 genes) pass `ctrl=5`. The real-data default is 100.
 * Seeds are integers with fixed defaults (`seed`, or `random_state` in the scanpy-parity functions); `None` is
   rejected and the global RNG is never touched. Same input + seed gives an identical result (`SEEDS.md`).
+* **Reference mapping** (`arsc.symphony`): `build_reference` and `map_query` take raw counts by default
+  (`normalize=True`; pass `normalize=False` for log-normalised input). `map_query(vars=...)` removes what those
+  columns explain, so never list the biology you compare (timepoint, response). Choose a reference that is clean
+  and spans every state in the query; read low `transfer_labels(...)["prob"]` or a high `mapping_score` as
+  "possibly absent from the reference", not as a confident label. Arrays are cells first (R's are transposed).
 * The first `umap` call in a process takes about 15 s (umap-learn's numba compile); later calls are fast.
 * `de.msigdb("H")` needs R + msigdbr once, then reads a cache (`ARSC_CACHE`, default `~/.cache/arsc`). Without R,
   pass your own sets: `arsc.genesets.read_genesets("sets.gmt")`. `de.deseq2` needs `pydeseq2` (`arsc[stats]`).
@@ -533,6 +560,7 @@ print(adata)
 | `scanpy_extra.neighbors` / `leiden` / `umap_from_connectivities` | identical to scanpy below 4,096 cells (scanpy switches to approximate kNN above) |
 | `run_harmony` | same objective path as R harmony 1.2; per-dimension r 0.989-0.998 |
 | `wnn` | modality weight r 0.97; neighbour overlap 0.92; cluster ARI 0.87 vs Seurat |
+| `symphony.*` (Symphony mapping) | deterministic steps exact (<= 1e-12) given the same reference; own reference: query embedding r >= 0.99, kNN labels 99 % (vignette) and as close to R as R is to itself under another seed (CD8 clusters) |
 | `de.deseq2` (pydeseq2) | log2FC r 0.9998, top-100 overlap 98-100 vs R DESeq2 |
 | `de.voom` (+ duplicateCorrelation) | logFC/t r 1.00000; max abs diff 1e-4 vs limma |
 | `de.fgsea` | ES exact; NES r 0.99995; p sampled (fgseaSimple) |

@@ -228,8 +228,8 @@ class HarmonyResult:
     Attributes
     ----------
     Z_corr : (n_cells, d) corrected embedding (what :func:`run_harmony` returns by default).
-    R : (nclust, n_cells) soft cluster assignments.
-    Y : (d, nclust) cluster centroids.
+    R : (n_cells, nclust) soft cluster assignments (cells first; R harmony stores the transpose).
+    Y : (nclust, d) cluster centroids (L2-normalised rows).
     objective_harmony : objective after each harmony round.
     objective_kmeans : objective after each clustering iteration.
     kmeans_rounds : clustering iterations per harmony round.

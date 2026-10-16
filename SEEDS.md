@@ -74,6 +74,8 @@ number of threads.
 | `clonotrace.profile_enrichment` | `seed` (0) | label permutations (local `default_rng`) | bit-identical |
 | `clonotrace.fate_genes` | `seed` (0) | permutation null (local `default_rng`) | bit-identical |
 | `clonotrace.run` | `seed` (0) | one seed for the whole pipeline: `propagate_clones`, `revise_distance`, `cluster_clones` | bit-identical |
+| `symphony.build_reference` | `seed` (111, R symphony's `seed`) | one seed for the build: Harmony (k-means init, block order), the soft k-means when `vars=None`, the UMAP layout | bit-identical. R's `set.seed(111)` drives R's own k-means, so R and arsc references differ at Harmony's stochastic steps (SYMPHONY_PARITY.md) |
+| `symphony.transfer_labels` | `seed` (0, R `knnPredict(seed = 0)`) | breaks kNN vote ties (local `default_rng`) | bit-identical; a different seed changes only tied votes |
 
 These functions are deterministic and take no seed: `clones.pam` (BUILD + SWAP), `cyclone`,
 `clonotrace.isomds` (L-BFGS from `cmdscale`), `clone_dpt` and `clone_distance` (`eigh` / Dijkstra / EMD

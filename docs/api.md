@@ -11,6 +11,7 @@ Generated from the docstrings by `docs/build_docs.py`; do not edit by hand. Star
 * [arsc.scores](#arscscores): Signature scores
 * [arsc.neighbors](#arscneighbors): Neighbours and WNN
 * [arsc.harmony](#arscharmony): Harmony
+* [arsc.symphony](#arscsymphony): Symphony reference mapping
 * [arsc.de](#arscde): Differential expression and GSEA
 * [arsc.stats](#arscstats): Patient-level statistics
 * [arsc.clones](#arscclones): TCR clones
@@ -1967,8 +1968,8 @@ Result of :func:`run_harmony` with ``return_object=True``: corrected embedding p
 Attributes
 ----------
 Z_corr : (n_cells, d) corrected embedding (what :func:`run_harmony` returns by default).
-R : (nclust, n_cells) soft cluster assignments.
-Y : (d, nclust) cluster centroids.
+R : (n_cells, nclust) soft cluster assignments (cells first; R harmony stores the transpose).
+Y : (nclust, d) cluster centroids (L2-normalised rows).
 objective_harmony : objective after each harmony round.
 objective_kmeans : objective after each clustering iteration.
 kmeans_rounds : clustering iterations per harmony round.
@@ -2035,6 +2036,273 @@ Examples
 >>> H = arsc.run_harmony(pcs, ds.obs, "patient")
 >>> H.shape
 (3000, 10)
+```
+
+## arsc.symphony
+
+Symphony reference mapping.
+
+### `arsc.symphony.build_reference(X, genes, obs, vars=None, *, normalize: 'bool' = True, topn: 'int' = 2000, vargenes_groups=None, hvg=None, additional_genes=None, d: 'int' = 20, K: 'int' = 100, theta=2.0, sigma: 'float' = 0.1, lambda_: 'float' = 1.0, tau: 'float' = 0.0, max_iter: 'int' = 10, umap: 'bool' = True, umap_min_dist: 'float' = 0.1, umap_n_neighbors: 'int' = 30, seed: 'int' = 111) -> 'Reference'`
+
+```text
+Build a Symphony reference (R ``symphony::buildReference``).
+
+Parameters
+----------
+X : reference cells x genes matrix: raw counts (``normalize=True``, the default, as R ``do_normalize``) or
+    log-normalised values (``normalize=False``). A memory-mapped store matrix works (``st.X("RNA", "counts")``).
+genes : gene names aligned to the columns of ``X``.
+obs : reference metadata, row-aligned with ``X`` (index = barcodes); kept for label transfer.
+vars : batch column(s) for Harmony (R ``vars``); None = no Harmony (soft k-means clusters instead).
+normalize : log-normalise counts first (LogNormalize, scale factor 1e4).
+topn : variable genes (per group when ``vargenes_groups`` is given; groups' top genes are united).
+vargenes_groups : obs column whose groups each contribute ``topn`` genes (R ``vargenes_groups``).
+hvg : optional explicit gene list instead of the vst selection (e.g. the HVGs of an existing Seurat object).
+additional_genes : genes added to the selection (R ``additional_genes``).
+d : number of PCs (R ``d``).
+K : Harmony clusters (R ``K``).
+theta, sigma, lambda_, tau, max_iter : Harmony settings (see module notes: R with harmony 1.2 runs
+    ``max_iter = 10`` and ignores ``tau``).
+umap : fit a reference UMAP (kept as a model so query cells can be placed on it).
+umap_min_dist, umap_n_neighbors : UMAP settings (R: 0.1, 30).
+seed : integer seed (R ``seed = 111``) for every stochastic step: Harmony's k-means init and block order,
+    the k-means of the no-Harmony case, and the UMAP layout (SEEDS.md rule 5).
+
+Returns
+-------
+Reference.
+
+Examples
+--------
+>>> import arsc
+>>> ds = arsc.datasets.toy()
+>>> ref = arsc.symphony.build_reference(ds.X("RNA", "counts"), ds.features("RNA"), ds.obs, vars="patient",
+...                                     topn=200, d=10, K=20, umap=False)
+>>> ref.loadings.shape, round(float(ref.R.sum(0).mean()), 6)
+((200, 10), 1.0)
+```
+
+### `arsc.symphony.load_reference(path: 'str') -> 'Reference'`
+
+```text
+Read a reference written by :meth:`Reference.save`.
+
+The UMAP model is a pickle: load only references you (or a trusted pipeline) wrote.
+
+Parameters
+----------
+path : directory written by ``Reference.save``.
+
+Returns
+-------
+Reference.
+
+Examples
+--------
+>>> import arsc, tempfile
+>>> ds = arsc.datasets.toy()
+>>> ref = arsc.symphony.build_reference(ds.X("RNA", "counts"), ds.features("RNA"), ds.obs, vars="patient",
+...                                     topn=200, d=10, K=20, umap=False)
+>>> with tempfile.TemporaryDirectory() as d:
+...     len(arsc.symphony.load_reference(ref.save(d)).genes)
+200
+```
+
+### `arsc.symphony.map_query(X, genes, obs, ref: 'Reference', vars=None, *, normalize: 'bool' = True, sigma: 'float' = 0.1, lambda_: 'float' = 1.0, umap: 'bool' = True) -> 'QueryMap'`
+
+```text
+Map query cells onto a Symphony reference (R ``symphony::mapQuery``).
+
+Parameters
+----------
+X : query cells x genes, raw counts (``normalize=True``) or log-normalised. Only the reference's variable
+    genes are densified; library sizes use all genes. A memory-mapped store matrix works.
+genes : gene names of ``X``'s columns.
+obs : query metadata, row-aligned with ``X``.
+ref : the :class:`Reference`.
+vars : query batch column(s) to correct (R ``vars``). The correction removes what these columns explain, so
+    never include the biology you want to compare (e.g. timepoint or response).
+normalize : log-normalise counts first.
+sigma : soft-clustering width (R ``sigma = 0.1``).
+lambda_ : ridge penalty on the batch terms (symphony fixes 1).
+umap : place query cells on the reference UMAP (needs ``ref.umap_model``).
+
+Returns
+-------
+QueryMap.
+
+Examples
+--------
+>>> import arsc
+>>> ds = arsc.datasets.toy()
+>>> X, g = ds.X("RNA", "counts"), ds.features("RNA")
+>>> isref = (ds.obs["timepoint"] == "pre").to_numpy()
+>>> ref = arsc.symphony.build_reference(X[isref], g, ds.obs[isref], vars="patient", topn=200, d=10, K=20,
+...                                     umap=False)
+>>> q = arsc.symphony.map_query(X[~isref], g, ds.obs[~isref], ref, vars="patient", umap=False)
+>>> q.R.shape
+(20, 1517)
+```
+
+### `arsc.symphony.mapping_score(ref: 'Reference', query: 'QueryMap', use_orig: 'bool' = True) -> 'np.ndarray'`
+
+```text
+Per-cell mapping distance (R ``symphony::calcPerCellMappingMetric``, Mahalanobis).
+
+For each reference cluster k, the R_k-weighted mean and covariance of the reference PCs (``Z_orig``; or the
+corrected ``Z_corr`` with ``use_orig=False``); each query cell's Mahalanobis distance of its uncorrected
+projection to every cluster, averaged with the cell's soft assignment. High values = the cell sits far from
+the reference distribution (possibly a state the reference lacks); compare against the reference's own cells
+or a held-out reference batch to set a cut-off.
+
+Parameters
+----------
+ref : the :class:`Reference`.
+query : the :class:`QueryMap`.
+use_orig : use the reference PCs before Harmony (R default ``Z_orig = TRUE``).
+
+Returns
+-------
+numpy.ndarray, one distance per query cell.
+
+Examples
+--------
+>>> import arsc
+>>> ds = arsc.datasets.toy()
+>>> X, g = ds.X("RNA", "counts"), ds.features("RNA")
+>>> isref = (ds.obs["timepoint"] == "pre").to_numpy()
+>>> ref = arsc.symphony.build_reference(X[isref], g, ds.obs[isref], vars="patient", topn=200, d=10, K=20,
+...                                     umap=False)
+>>> q = arsc.symphony.map_query(X[~isref], g, ds.obs[~isref], ref, vars="patient", umap=False)
+>>> arsc.symphony.mapping_score(ref, q).shape
+(1517,)
+```
+
+### `arsc.symphony.QueryMap(Z: 'np.ndarray', Z_pca: 'np.ndarray', R: 'np.ndarray', obs: 'pd.DataFrame', umap: 'np.ndarray | None' = None, n_shared_genes: 'int' = 0) -> None`
+
+```text
+A query mapped onto a :class:`Reference` (``mapQuery`` output), cells first.
+
+Attributes
+----------
+Z : (cells x d) corrected query embedding, in the reference's Harmony space (R ``Z``).
+Z_pca : (cells x d) query projected on the reference loadings, before correction (R ``Zq_pca``).
+R : (K x cells) soft assignment of query cells to the reference clusters.
+obs : query metadata.
+umap : (cells x 2) query cells placed on the reference UMAP, or None.
+n_shared_genes : reference variable genes found in the query (missing ones are set to 0 after scaling).
+
+Examples
+--------
+>>> import arsc
+>>> ds = arsc.datasets.toy()
+>>> X, g = ds.X("RNA", "counts"), ds.features("RNA")
+>>> isref = (ds.obs["timepoint"] == "pre").to_numpy()
+>>> ref = arsc.symphony.build_reference(X[isref], g, ds.obs[isref], vars="patient", topn=200, d=10, K=20,
+...                                     umap=False)
+>>> q = arsc.symphony.map_query(X[~isref], g, ds.obs[~isref], ref, vars="patient", umap=False)
+>>> q.Z.shape, q.n_shared_genes
+((1517, 10), 200)
+```
+
+### `arsc.symphony.Reference(genes: 'pd.Index', mean: 'np.ndarray', sd: 'np.ndarray', loadings: 'np.ndarray', Z_orig: 'np.ndarray', Z_corr: 'np.ndarray', R: 'np.ndarray', centroids: 'np.ndarray', Nr: 'np.ndarray', C: 'np.ndarray', obs: 'pd.DataFrame', umap: 'np.ndarray | None' = None, umap_model: 'object | None' = None, params: 'dict' = <factory>) -> None`
+
+```text
+A compressed Symphony reference (``buildReference`` output), cells-first orientation.
+
+Attributes
+----------
+genes : Index of the reference variable genes (order of ``mean``, ``sd`` and the ``loadings`` rows).
+mean, sd : per-gene mean and s.d. (n - 1) of the log-normalised reference expression.
+loadings : (genes x d) PCA gene loadings (R ``loadings``).
+Z_orig : (cells x d) reference PCs before Harmony.
+Z_corr : (cells x d) Harmony-corrected reference embedding.
+R : (K x cells) soft cluster assignments.
+centroids : (K x d) L2-normalised Harmony centroids (R ``centroids``, transposed).
+Nr : (K,) cluster sizes ``R.sum(1)`` (R ``cache[[1]]``).
+C : (K x d) ``R @ Z_corr`` (R ``cache[[2]]``).
+obs : reference cell metadata (index = cell barcodes, row-aligned with ``Z_corr``).
+umap : (cells x 2) reference UMAP, or None.
+umap_model : fitted umap-learn model (for placing query cells), or None.
+params : the settings used to build it.
+
+Examples
+--------
+>>> import arsc
+>>> ds = arsc.datasets.toy()
+>>> ref = arsc.symphony.build_reference(ds.X("RNA", "counts"), ds.features("RNA"), ds.obs, vars="patient",
+...                                     topn=200, d=10, K=20, umap=False)
+>>> ref.Z_corr.shape, ref.centroids.shape
+((3000, 10), (20, 10))
+```
+
+### `arsc.symphony.reference_from_harmony(Z_orig, Z_corr, R, genes, mean, sd, loadings, obs, *, umap: 'bool' = True, umap_min_dist: 'float' = 0.1, umap_n_neighbors: 'int' = 30, seed: 'int' = 111) -> 'Reference'`
+
+```text
+Build a reference from an existing PCA + Harmony run (R ``buildReferenceFromHarmonyObj``).
+
+Use it to wrap a reference made elsewhere, e.g. the matrices of a saved R symphony reference or a Seurat
+object (``Z_orig`` = PCs, ``Z_corr`` = Harmony embedding, ``R`` = Harmony's soft clusters, ``loadings`` =
+feature loadings, ``mean``/``sd`` = the variable genes' log-normalised mean and s.d.).
+
+Parameters
+----------
+Z_orig, Z_corr : (cells x d) PCs and Harmony embedding.
+R : (K x cells) or (cells x K) soft cluster assignments.
+genes : the variable genes (rows of ``loadings``).
+mean, sd : per-gene mean and s.d. used to scale the reference.
+loadings : (genes x d) loadings.
+obs : reference metadata, row-aligned with ``Z_corr``.
+umap : fit a reference UMAP model on ``Z_corr``.
+umap_min_dist, umap_n_neighbors, seed : UMAP settings.
+
+Returns
+-------
+Reference.
+
+Examples
+--------
+>>> import arsc, numpy as np
+>>> ds = arsc.datasets.toy()
+>>> r = arsc.symphony.build_reference(ds.X("RNA", "counts"), ds.features("RNA"), ds.obs, vars="patient",
+...                                   topn=200, d=10, K=20, umap=False)
+>>> r2 = arsc.symphony.reference_from_harmony(r.Z_orig, r.Z_corr, r.R, r.genes, r.mean, r.sd, r.loadings,
+...                                          r.obs, umap=False)
+>>> bool(np.allclose(r2.C, r.C))
+True
+```
+
+### `arsc.symphony.transfer_labels(ref: 'Reference', query: 'QueryMap', labels, k: 'int' = 5, seed: 'int' = 0) -> 'pd.DataFrame'`
+
+```text
+k-NN label transfer from the reference to the mapped query (R ``symphony::knnPredict``).
+
+Parameters
+----------
+ref : the :class:`Reference`.
+query : the :class:`QueryMap`.
+labels : a column of ``ref.obs`` or an array of reference labels (row-aligned with ``ref.Z_corr``).
+k : neighbours (R ``k = 5``).
+seed : integer seed for breaking vote ties.
+
+Returns
+-------
+DataFrame indexed by query cell: ``label`` (majority among the k nearest reference cells, Euclidean on the
+corrected embeddings) and ``prob`` (share of the k votes for it; R ``_prob``). Low ``prob`` marks cells whose
+neighbourhood is mixed, e.g. a state absent from the reference.
+
+Examples
+--------
+>>> import arsc
+>>> ds = arsc.datasets.toy()
+>>> X, g = ds.X("RNA", "counts"), ds.features("RNA")
+>>> isref = (ds.obs["timepoint"] == "pre").to_numpy()
+>>> ref = arsc.symphony.build_reference(X[isref], g, ds.obs[isref], vars="patient", topn=200, d=10, K=20,
+...                                     umap=False)
+>>> q = arsc.symphony.map_query(X[~isref], g, ds.obs[~isref], ref, vars="patient", umap=False)
+>>> lab = arsc.symphony.transfer_labels(ref, q, "cell_type", k=5)
+>>> float((lab["label"] == ds.obs.loc[~isref, "cell_type"]).mean()) > 0.8   # the toy types overlap
+True
 ```
 
 ## arsc.de

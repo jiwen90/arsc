@@ -7,6 +7,9 @@ All notable changes to arsc are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- `arsc.symphony`: Symphony reference mapping (port of R symphony 0.1.1, GPL-3): `build_reference`,
+  `reference_from_harmony`, `map_query`, `transfer_labels` (kNN with vote-share confidence), `mapping_score`,
+  `Reference.save` / `load_reference`, UMAP placement of query cells. Parity in `SYMPHONY_PARITY.md`.
 - Seed recording: every stochastic function in SEEDS.md records the seed it used. Pandas results carry
   `attrs["seed"]` / `attrs["seed_function"]`; `arsc.seeds_used()` / `arsc.reset_seeds_used()` give the
   per-process log (outermost calls only, counted per function and seed). Results are unchanged.
@@ -16,6 +19,7 @@ All notable changes to arsc are recorded here. The format follows
   (documented in SEEDS.md, recorded as an expected failure).
 
 ### Fixed
+- `HarmonyResult` docstring: `R` is `(n_cells, nclust)` and `Y` is `(nclust, d)` (the docstring had them transposed).
 - Seurat import: a factor with a single level (e.g. `orig.ident` of a one-sample object) was written by jsonlite
   as a JSON string, and `Store.obs` failed with "Categorical categories must be unique". The exporter now writes
   the levels as an array (`I()`), and the reader also accepts the old string form (stores already on disk).

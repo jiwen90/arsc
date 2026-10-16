@@ -30,6 +30,7 @@ TABLE = [
     ("clonotrace", "propagate_clones", "seed"), ("clonotrace", "revise_distance", "seed"),
     ("clonotrace", "cluster_clones", "seed"), ("clonotrace", "profile_enrichment", "seed"),
     ("clonotrace", "fate_genes", "seed"), ("clonotrace", "run", "seed"),
+    ("symphony", "build_reference", "seed"), ("symphony", "transfer_labels", "seed"),
 ]
 
 

@@ -26,6 +26,8 @@ TASKS = [
     ("Reduce", "scale (Seurat ScaleData, optional regression)", "arsc.pp.scale(L[:, idx]) / arsc.scale_data(...)"),
     ("Reduce", "PCA (Seurat RunPCA conventions)", "arsc.pp.pca(Z, n_comps=50).embedding"),
     ("Reduce", "Harmony batch correction (R harmony 1.2 port)", "arsc.run_harmony(pcs, obs, 'batch')"),
+    ("Reduce", "map a query onto a reference (Symphony: build once, map, kNN labels)", "ref = arsc.symphony.build_reference(counts, genes, obs, 'batch'); q = arsc.symphony.map_query(qcounts, qgenes, qobs, ref, 'batch')"),
+    ("Reduce", "transfer reference labels to the query, with confidence", "arsc.symphony.transfer_labels(ref, q, 'cell_type', k=5)"),
     ("Graph", "kNN + SNN graph (Seurat FindNeighbors, exact kNN)", "arsc.find_neighbors(emb, k=20)['snn']"),
     ("Graph", "multimodal WNN (Seurat FindMultiModalNeighbors)", "arsc.wnn([rna_emb, adt_emb]).wsnn"),
     ("Graph", "scanpy neighbors / leiden", "arsc.scanpy_extra.neighbors(emb); arsc.scanpy_extra.leiden(conn)"),
@@ -122,6 +124,26 @@ snn = arsc.find_neighbors(emb, k=20)["snn"]
 obs["cluster"] = pd.Categorical(arsc.cluster(snn, resolution=0.5).astype(str))   # 0 = largest
 xy = arsc.umap(emb)                                                 # cells x 2 (plot elsewhere)
 print(pd.crosstab(obs["cluster"], obs["cell_type"]))
+''',
+    ),
+    dict(
+        id="reference_mapping",
+        title="Map a query dataset onto a reference (Symphony) and transfer its labels",
+        asks=["map my cells onto a reference", "transfer labels from a reference", "symphony mapQuery",
+              "project a new dataset onto an existing atlas"],
+        code='''import pandas as pd
+import arsc
+
+ds = arsc.datasets.toy()
+counts, genes, obs = ds.X("RNA", "counts"), ds.features("RNA"), ds.obs
+isref = (obs["timepoint"] == "pre").to_numpy()                    # reference = the cleanest, most complete set
+ref = arsc.symphony.build_reference(counts[isref], genes, obs[isref], vars="patient",
+                                    topn=200, d=10, K=20, umap=False)  # real data: topn 2000, d 20-30, K 100
+q = arsc.symphony.map_query(counts[~isref], genes, obs[~isref], ref, vars="patient", umap=False)
+lab = arsc.symphony.transfer_labels(ref, q, "cell_type", k=5)       # label + prob (share of the k votes)
+lab["mapping_dist"] = arsc.symphony.mapping_score(ref, q)           # high = far from the reference
+print(pd.crosstab(lab["label"], obs.loc[~isref, "cell_type"]))
+print("low-confidence cells (prob < 0.6):", int((lab["prob"] < 0.6).sum()))
 ''',
     ),
     dict(

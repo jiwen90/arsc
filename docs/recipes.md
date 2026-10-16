@@ -62,6 +62,26 @@ xy = arsc.umap(emb)                                                 # cells x 2 
 print(pd.crosstab(obs["cluster"], obs["cell_type"]))
 ```
 
+## `reference_mapping`: Map a query dataset onto a reference (Symphony) and transfer its labels
+
+Asks like: "map my cells onto a reference"; "transfer labels from a reference"; "symphony mapQuery"; "project a new dataset onto an existing atlas"
+
+```python
+import pandas as pd
+import arsc
+
+ds = arsc.datasets.toy()
+counts, genes, obs = ds.X("RNA", "counts"), ds.features("RNA"), ds.obs
+isref = (obs["timepoint"] == "pre").to_numpy()                    # reference = the cleanest, most complete set
+ref = arsc.symphony.build_reference(counts[isref], genes, obs[isref], vars="patient",
+                                    topn=200, d=10, K=20, umap=False)  # real data: topn 2000, d 20-30, K 100
+q = arsc.symphony.map_query(counts[~isref], genes, obs[~isref], ref, vars="patient", umap=False)
+lab = arsc.symphony.transfer_labels(ref, q, "cell_type", k=5)       # label + prob (share of the k votes)
+lab["mapping_dist"] = arsc.symphony.mapping_score(ref, q)           # high = far from the reference
+print(pd.crosstab(lab["label"], obs.loc[~isref, "cell_type"]))
+print("low-confidence cells (prob < 0.6):", int((lab["prob"] < 0.6).sum()))
+```
+
 ## `wnn`: Cluster on RNA + protein (CITE-seq) with weighted nearest neighbours
 
 Asks like: "cluster on RNA and ADT together"; "weighted nearest neighbour clustering"; "CITE-seq WNN"

@@ -38,6 +38,12 @@ Harmony integration (arsc.run_harmony, arsc.harmony). Translated from harmony 1.
   - Korsunsky I, et al. Fast, sensitive and accurate integration of single-cell data with Harmony.
     Nat Methods (2019).
 
+Symphony reference mapping (arsc.symphony). Translated from symphony 0.1.1 (R/C++, GPL (>= 3); authors
+Joyce Kang, Ilya Korsunsky, Soumya Raychaudhuri): reference compression, query projection, soft clustering, the
+mixture-of-experts query correction, kNN label transfer and the per-cell mapping metric.
+  - Kang JB, et al. Efficient and precise single-cell reference atlas mapping with Symphony.
+    Nat Commun 12, 5890 (2021).
+
 Fast Wilcoxon / AUC markers (arsc.wilcoxauc). Follows presto 1.0.0 (R, GPL-3).
   - Korsunsky I, Nathan A, Millard N, Raychaudhuri S. Presto scales Wilcoxon and auROC analyses to
     millions of observations. bioRxiv (2019).

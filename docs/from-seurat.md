@@ -38,7 +38,8 @@ st = arsc.open("stores/obj")                   # afterwards: memory-mapped, no R
 | `RenameIdents`, `AddMetaData`, `SplitObject` | `arsc.rename_idents`, `arsc.add_metadata`, `arsc.split_object` | |
 | DESeq2 / limma-voom on pseudobulk | `arsc.de.deseq2`, `arsc.de.voom(..., block="patient")` | r 0.9998 / 1.00000 |
 | `fgsea::fgsea`, `msigdbr` | `arsc.de.fgsea`, `arsc.de.msigdb("H")` | ES exact |
-| `SCTransform`, `IntegrateData`, Azimuth / `MapQuery`, `HTODemux` | not ported; run them in R | |
+| `symphony::buildReference` / `mapQuery` / `knnPredict` | `arsc.symphony.build_reference` / `map_query` / `transfer_labels` | exact given the same reference (SYMPHONY_PARITY.md) |
+| `SCTransform`, `IntegrateData`, Azimuth / Seurat `MapQuery`, `HTODemux` | not ported; run them in R | |
 | `DimPlot`, `FeaturePlot`, `VlnPlot` | not provided: plot the returned tables | |
 
 A standard Seurat workflow in arsc:
