@@ -3072,7 +3072,9 @@ Examples
 Two-group permutation test on per-patient values (e.g. responders vs non-responders).
 
 Exact enumeration when ``choose(n_x + n_y, n_x) <= B``, otherwise ``B`` random permutations.
-Two-sided: p = fraction of permutations with ``|stat| >= |observed|``.
+Two-sided: exact p = fraction of permutations with ``|stat| >= |observed|``; sampled p =
+``(1 + #extreme) / (B + 1)``, which is never 0 (the observed labelling counts as one permutation).
+Non-finite values are dropped first; an empty group or a non-finite observed statistic gives p = NaN.
 
 Parameters
 ----------
@@ -3085,8 +3087,8 @@ seed : seeds a local ``np.random.default_rng`` for sampled permutations (unused 
 
 Returns
 -------
-dict with ``n_x``, ``n_y``, ``stat`` (observed) and ``p_perm``. With 3 vs 3 patients the smallest
-possible p is 2/20 = 0.1 (ties of the median statistic can make it larger, as below).
+dict with ``n_x``, ``n_y``, ``stat`` (observed), ``p_perm`` and ``exact`` (True when enumerated). With 3 vs 3
+patients the smallest possible p is 2/20 = 0.1 (ties of the median statistic can make it larger, as below).
 
 Examples
 --------

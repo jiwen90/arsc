@@ -65,7 +65,7 @@ Notes. R's `psignrank` / `pwilcox` / `qsignrank` / `qwilcox` arithmetic (sums of
 quantile fuzz, `signif(achieved, 2)`) is reproduced, so the reported achieved confidence level matches R when the requested level is
 not attainable with few patients (n = 3: 0.87 rather than 0.95). CSV inputs must be read with `float_precision="round_trip"`: pandas'
 fast float parser is off by 1 ulp on some values, enough to create or break a tie in the normal-approximation CI. Monte Carlo p-values
-of the randomisation tests are `(1 + #) / (B + 1)` (never 0); `perm_test` and `arstats`-style exact-only versions keep `#/B`.
+of the randomisation tests, `perm_test`'s sampled branch included, are `(1 + #) / (B + 1)` (never 0); exact enumerations keep `#/B`.
 Not ported: the exact conditional 2 x 2 x K test (`mantelhaen.test(exact = TRUE)`), the Breslow-Day homogeneity test, ICC forms
 other than ICC(1), Freedman-Lane with blocks / several tested columns.
 

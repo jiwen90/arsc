@@ -25,6 +25,10 @@ All notable changes to arsc are recorded here. The format follows
   (documented in SEEDS.md, recorded as an expected failure).
 
 ### Changed
+- `stats.perm_test`: the sampled (Monte Carlo) p is now `(1 + #extreme) / (B + 1)` and can no longer be 0 (it was
+  `#extreme / B`); exact enumeration is unchanged. An empty group or a non-finite observed statistic now gives
+  p = NaN (it gave 0). The result gains `exact`. `stats.arm_contrast` drops non-finite values before the
+  Hodges-Lehmann shift and the leave-one-out range, as `perm_test` already did for the p.
 - `pp.pca` and `run_harmony` are now thread-count-invariant: their large BLAS products run in fixed blocks in a fixed
   summation order (`arsc._detla`), and `eigh` / QR / ARPACK updates / the k-means init run on one BLAS/OpenMP
   thread. Measured before: PCA differed by up to 3e-11 and harmony by 5e-14 to 1.4e-12 between 2 and 8 threads

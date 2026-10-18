@@ -59,6 +59,20 @@ def test_perm_exact_enumeration_and_arm_contrast():
     assert a["diff_medians"] == pytest.approx(-3.5) and a["loo_sign_reversals"] == 0
 
 
+def test_perm_monte_carlo_p_never_zero_and_nan_input():
+    rng = np.random.default_rng(3)
+    x, y = rng.normal(5, 0.1, 12), rng.normal(0, 0.1, 12)  # complete separation, C(24, 12) > B: sampled
+    r = stats.perm_test(x, y, B=999, stat=lambda a, b: a.mean() - b.mean())
+    assert not r["exact"] and r["p_perm"] == pytest.approx(1 / 1000)
+    e = stats.perm_test([1.0, 2.0, 3.0], [4.0, 5.0, 6.0])
+    assert e["exact"] and e["p_perm"] == pytest.approx(0.2)  # exact enumeration keeps #/total
+    n = stats.perm_test([1.0, np.nan, 3.0, 2.0], [4.0, 5.0, np.nan, 6.0])
+    assert n["n_x"] == 3 and n["n_y"] == 3 and n["p_perm"] == pytest.approx(e["p_perm"])  # NaN dropped
+    assert np.isnan(stats.perm_test([np.nan, np.nan], [1.0, 2.0])["p_perm"])  # empty group: NaN, not 0
+    a = stats.arm_contrast([1.0, 2.0, 3.0, np.nan], [4.0, 5.0, 6.0])
+    assert a["n_a"] == 3 and a["hodges_lehmann"] == pytest.approx(-3.0) and np.isfinite(a["loo_min"])
+
+
 def test_composition_zero_fill_and_floor():
     obs = pd.DataFrame({"pt": ["a"] * 60 + ["b"] * 60 + ["c"] * 10, "tp": ["t"] * 130,
                         "ct": ["x"] * 40 + ["y"] * 20 + ["x"] * 60 + ["x"] * 10})

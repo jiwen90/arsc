@@ -339,7 +339,9 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
     """Two-group permutation test on per-patient values (e.g. responders vs non-responders).
 
     Exact enumeration when ``choose(n_x + n_y, n_x) <= B``, otherwise ``B`` random permutations.
-    Two-sided: p = fraction of permutations with ``|stat| >= |observed|``.
+    Two-sided: exact p = fraction of permutations with ``|stat| >= |observed|``; sampled p =
+    ``(1 + #extreme) / (B + 1)``, which is never 0 (the observed labelling counts as one permutation).
+    Non-finite values are dropped first; an empty group or a non-finite observed statistic gives p = NaN.
 
     Parameters
     ----------
@@ -352,8 +354,8 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
 
     Returns
     -------
-    dict with ``n_x``, ``n_y``, ``stat`` (observed) and ``p_perm``. With 3 vs 3 patients the smallest
-    possible p is 2/20 = 0.1 (ties of the median statistic can make it larger, as below).
+    dict with ``n_x``, ``n_y``, ``stat`` (observed), ``p_perm`` and ``exact`` (True when enumerated). With 3 vs 3
+    patients the smallest possible p is 2/20 = 0.1 (ties of the median statistic can make it larger, as below).
 
     Examples
     --------
@@ -369,8 +371,13 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
     default = stat is None
     if default:
         stat = lambda a, b: np.median(a) - np.median(b)  # noqa: E731
+    if nx == 0 or len(y) == 0:
+        return dict(n_x=nx, n_y=len(y), stat=np.nan, p_perm=np.nan, exact=True)
     obs = stat(x, y)
-    if math.comb(len(z), nx) <= B:
+    if not np.isfinite(obs):
+        return dict(n_x=nx, n_y=len(y), stat=float(obs), p_perm=np.nan, exact=True)
+    exact = math.comb(len(z), nx) <= B
+    if exact:
         idxs = np.array(list(itertools.combinations(range(len(z)), nx)))
     else:
         rng = np.random.default_rng(seed)
@@ -383,7 +390,9 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
         null = np.nanmedian(a, axis=1) - np.nanmedian(b, axis=1)
     else:
         null = np.array([stat(z[m], z[~m]) for m in mask])
-    return dict(n_x=nx, n_y=len(y), stat=float(obs), p_perm=float(np.mean(np.abs(null) >= abs(obs) - 1e-12)))
+    hits = int(np.sum(np.abs(null) >= abs(obs) - 1e-12))
+    p = hits / len(null) if exact else (hits + 1) / (len(null) + 1)
+    return dict(n_x=nx, n_y=len(y), stat=float(obs), p_perm=float(p), exact=bool(exact))
 
 
 @records_seed("seed")
@@ -412,6 +421,7 @@ def arm_contrast(a, b, B: int = 20000, seed: int = 1) -> dict:
     (-3.0, 0)
     """
     a = np.asarray(a, float); b = np.asarray(b, float)
+    a = a[np.isfinite(a)]; b = b[np.isfinite(b)]  # same patients as perm_test uses (a NaN made HL and LOO NaN)
     pt = perm_test(a, b, B=B, seed=seed)
     hl = float(np.median(np.subtract.outer(a, b)))
     loo = [np.median(np.delete(a, i)) - np.median(b) for i in range(len(a))] + \
