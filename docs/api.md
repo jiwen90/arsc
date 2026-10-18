@@ -2674,6 +2674,40 @@ Examples
 (1.487, True)
 ```
 
+### `arsc.stats.downsample_counts(X, target, method: 'str' = 'hypergeometric', seed: 'int' = 1)`
+
+```text
+Thin a cells x genes count matrix to a common depth per cell (removes depth differences before a comparison).
+
+``method="hypergeometric"`` draws exactly ``target`` UMIs without replacement from each cell (scanpy
+``pp.downsample_counts``, Seurat ``SampleUMI``, vegan ``rrarefy``): every thinned cell has total ``target``.
+``method="binomial"`` keeps each UMI with probability ``target / total`` (expected total ``target``; the
+variance is larger and totals vary). Cells whose total is at or below ``target`` are returned unchanged:
+drop them (``totals < target``) when an exact common depth matters. Normalise thinned cells by their own
+new total (or by ``target`` for the hypergeometric method, where they are equal).
+
+Parameters
+----------
+X : cells x genes integer counts (CSR or dense).
+target : common depth (int) or one target per cell.
+method : ``"hypergeometric"`` (exact depth) or ``"binomial"``.
+seed : seeds a local ``np.random.default_rng``.
+
+Returns
+-------
+scipy.sparse.csr_matrix of the same shape and dtype float64.
+
+Examples
+--------
+>>> import numpy as np, arsc
+>>> ds = arsc.datasets.toy()
+>>> X = ds.X()
+>>> Y = arsc.stats.downsample_counts(X, 200)
+>>> tot = np.asarray(X.sum(1)).ravel(); new = np.asarray(Y.sum(1)).ravel()
+>>> bool(np.all(new[tot >= 200] == 200)), bool(np.all(new[tot < 200] == tot[tot < 200]))
+(True, True)
+```
+
 ### `arsc.stats.feasibility(sample_ids, parent, positive=None, parent_floor: 'int' = 50, pos_floor: 'int' = 10)`
 
 ```text
@@ -2702,6 +2736,42 @@ Examples
 >>> tab, summ = arsc.stats.feasibility(ds.obs["sample"], ds.obs["cell_type"] == "CD8 T")
 >>> summ["n_samples"], summ["usable"]
 (12, True)
+```
+
+### `arsc.stats.freedman_lane(y, x, covariates=None, B: 'int' = 10000, max_exact: 'int' = 8, alternative: 'str' = 'two-sided', seed: 'int' = 1) -> 'dict'`
+
+```text
+Permutation test of one regression coefficient adjusted for covariates (Freedman & Lane 1983).
+
+Tests ``x`` in ``y ~ 1 + covariates + x``: fit the reduced model ``y ~ 1 + covariates``, permute its residuals,
+add them back to its fitted values, refit the full model and compare the t statistic of ``x``. Permuting
+``y`` itself (or ``x``) ignores the covariates and is not a valid adjusted test when ``x`` and the
+covariates are correlated. All ``n!`` permutations for ``n <= max_exact`` (8! = 40,320), else ``B`` random ones
+with p = (1 + #) / (B + 1). Rows with any missing value are dropped.
+
+Parameters
+----------
+y : outcome per unit (e.g. per patient).
+x : the predictor tested (one column).
+covariates : optional array / DataFrame of nuisance covariates (an intercept is always added).
+B : random permutations beyond ``max_exact``.
+max_exact : enumerate every permutation up to this many units.
+alternative : ``"two-sided"`` (``|t|``), ``"greater"`` or ``"less"``.
+seed : seeds a local ``np.random.default_rng`` (unused when exact).
+
+Returns
+-------
+dict with ``beta`` and ``t`` of ``x`` (OLS), ``p_param`` (the OLS t-test), ``p_perm``, ``n``, ``exact``,
+``n_perm``.
+
+Examples
+--------
+>>> import numpy as np, arsc
+>>> rng = np.random.default_rng(0)
+>>> z = rng.normal(size=30); x = z + rng.normal(scale=0.5, size=30); y = 2 * z + rng.normal(size=30)
+>>> r = arsc.stats.freedman_lane(y, x, covariates=z, B=2000)
+>>> r["p_perm"] > 0.05, bool(r["exact"])
+(True, False)
 ```
 
 ### `arsc.stats.gee_prop(comp: 'pd.DataFrame', fixed: 'str' = 'timepoint', group: 'str' = 'patient_alias', k: 'str' = 'k', n: 'str' = 'n', cov_struct: 'str' = 'exchangeable') -> 'pd.DataFrame'`
@@ -2769,6 +2839,80 @@ Examples
 ['Intercept', 'timepoint[T.post]']
 ```
 
+### `arsc.stats.hodges_lehmann(x, y=None, paired: 'bool' = False, conf_level: 'float' = 0.95, alternative: 'str' = 'two-sided', mu: 'float' = 0.0, exact=None, correct: 'bool' = True, tol_root: 'float' = 0.0001) -> 'dict'`
+
+```text
+Hodges-Lehmann location estimate with its Wilcoxon confidence interval and p, replicating R ``wilcox.test(conf.int = TRUE)``.
+
+One sample (or ``paired=True``): the pseudomedian (median of the Walsh averages) of ``x`` (or ``x - y``).
+Two samples: the median of all ``x_i - y_j`` differences. Exact (n < 50 and no ties or zeros, as R): the CI
+is read off the sorted Walsh averages / differences at the ``qsignrank`` / ``qwilcox`` quantiles; when the
+requested level cannot be reached (tiny n) the achieved level is reported, as R does. Otherwise R's normal
+approximation: the CI inverts the continuity-corrected z by Brent root finding (R's uniroot, ``tol_root``),
+and the estimate is the root without correction. Use this instead of bootstrap CIs of the HL estimate,
+which are degenerate with 4-8 patients (they collapse onto the few distinct resampled medians).
+
+Parameters
+----------
+x : values (one per patient) of group 1, or the paired differences.
+y : values of group 2 (two-sample), or the second member of each pair with ``paired=True``.
+paired : treat ``x`` and ``y`` as pairs (``x - y`` on complete pairs).
+conf_level : requested confidence level.
+alternative : ``"two-sided"``, ``"greater"`` or ``"less"`` (one-sided intervals are half-infinite).
+mu : null location (shift).
+exact : exact distribution (default: n < 50, both groups for two samples; ignored with ties / zeros).
+correct : continuity correction in the normal approximation.
+tol_root : root-finding tolerance (R's ``tol.root``).
+
+Returns
+-------
+dict with ``estimate``, ``ci_lo``, ``ci_hi``, ``conf_level`` (achieved), ``statistic`` (R's V or W),
+``p``, ``method`` (``"exact"`` or ``"normal"``), ``n_x``, ``n_y``.
+
+Examples
+--------
+>>> import arsc
+>>> r = arsc.stats.hodges_lehmann([1.83, 0.50, 1.62, 2.48, 1.68, 1.88, 1.55, 3.06, 1.30],
+...                               [0.878, 0.647, 0.598, 2.05, 1.06, 1.29, 1.06, 3.14, 1.29], paired=True)
+>>> round(r["estimate"], 3), round(r["ci_lo"], 3), round(r["ci_hi"], 3), round(r["p"], 5)
+(0.46, 0.01, 0.786, 0.03906)
+```
+
+### `arsc.stats.icc_oneway(y, groups, strata=None, conf_level: 'float' = 0.95, clamp: 'bool' = False) -> 'dict'`
+
+```text
+One-way random-effects intraclass correlation ICC(1) by ANOVA (unbalanced groups allowed), with its F test and CI.
+
+``ICC = (MSB - MSW) / (MSB + (n0 - 1) MSW)`` with Searle's ``n0 = (N - sum n_i^2 / N) / (k - 1)``
+(e.g. y = a per-cell score, groups = clone: how much of the variance is between clones). With ``strata``
+(e.g. patient) the groups are nested in strata and the strata are removed as fixed effects: sums of squares
+and degrees of freedom are pooled over strata, and ``n0 = sum_s (N_s - sum n_si^2 / N_s) / sum_s (k_s - 1)``,
+the coefficient of the between-group variance in E[MSB]. (A plain mean of per-stratum n0 values, used by
+hand-written versions, is a different and biased weighting when strata differ in size.) The CI is the F-based
+Shrout-Fleiss interval, exact for balanced groups and approximate otherwise. Groups of size 1 add nothing
+to MSW but count in MSB, as in the ANOVA.
+
+Parameters
+----------
+y : per-observation values.
+groups : group label per observation (e.g. clone id).
+strata : optional stratum label per observation (e.g. patient) within which groups are nested.
+conf_level : CI level.
+clamp : truncate a negative estimate (and CI bounds) at 0.
+
+Returns
+-------
+dict with ``icc``, ``ci_lo``, ``ci_hi``, ``F``, ``df_b``, ``df_w``, ``p`` (F test of no between-group
+variance), ``msb``, ``msw``, ``n0``, ``k`` (groups), ``n`` (observations).
+
+Examples
+--------
+>>> import arsc
+>>> r = arsc.stats.icc_oneway([1.0, 1.2, 0.9, 3.0, 3.3, 2.8, 2.0, 2.1, 1.7], list("aaabbbccc"))
+>>> round(r["icc"], 3), round(r["p"], 5)
+(0.958, 7e-05)
+```
+
 ### `arsc.stats.lmm_score(df: 'pd.DataFrame', formula: 'str', group: 'str' = 'patient_alias', reml: 'bool' = True) -> 'pd.DataFrame'`
 
 ```text
@@ -2822,6 +2966,37 @@ Examples
 >>> loo = arsc.stats.loo_effect(cd8, "patient", lambda d: d.prop.mean())
 >>> loo.index.tolist()
 ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']
+```
+
+### `arsc.stats.mantel_haenszel(a, b=None, c=None, d=None, conf_level: 'float' = 0.95, correct: 'bool' = True) -> 'dict'`
+
+```text
+Mantel-Haenszel common odds ratio over strata (e.g. patients) with its CI and the CMH test, as R ``mantelhaen.test``.
+
+Stratum k is the 2 x 2 table ``[[a_k, b_k], [c_k, d_k]]`` (rows = exposure yes/no, columns = outcome yes/no).
+Odds ratio = sum(a d / n) / sum(b c / n); CI from the Robins-Breslow-Greenland variance; the chi-square
+statistic with continuity correction (R's default ``correct = TRUE``, applied when |sum(a - E a)| >= 0.5).
+No pseudo-counts are added (adding 0.5 to every cell, as hand-written versions did, pulls the odds ratio
+towards 1). Strata with fewer than 2 observations carry no information and are dropped (R stops on them).
+
+Parameters
+----------
+a : cell counts a_k, or a K x 2 x 2 array of the tables (then ``b``, ``c``, ``d`` are omitted).
+b, c, d : the other cell counts per stratum.
+conf_level : CI level.
+correct : continuity correction of the CMH statistic.
+
+Returns
+-------
+dict with ``or_mh``, ``ci_lo``, ``ci_hi``, ``log_or``, ``se_log_or``, ``statistic`` (CMH chi-square, 1 df),
+``p``, ``n_strata`` (used), ``n_dropped``.
+
+Examples
+--------
+>>> import arsc
+>>> r = arsc.stats.mantel_haenszel([10, 6, 8], [5, 7, 4], [4, 3, 5], [12, 9, 10])
+>>> round(r["or_mh"], 3), round(r["p"], 4)
+(4.041, 0.006)
 ```
 
 ### `arsc.stats.mde(n, n2=None, sd: 'float' = 1.0, alpha: 'float' = 0.05, power: 'float' = 0.8) -> 'dict'`
@@ -2921,6 +3096,57 @@ Examples
 (-3.0, 0.2)
 ```
 
+### `arsc.stats.poisson_binomial(p) -> 'np.ndarray'`
+
+```text
+Distribution of the number of successes among independent trials with different probabilities.
+
+E.g. the chance that a "at least k of n patients pass" kill rule passes when patient i passes with
+probability ``p_i`` (from a per-patient planted-effect calibration): ``pmf[k:].sum()``. Exact dynamic
+programming over the trials (no normal approximation).
+
+Parameters
+----------
+p : success probability per trial (patient), each in [0, 1].
+
+Returns
+-------
+numpy array ``pmf`` of length ``len(p) + 1``: ``pmf[k] = P(X = k)``.
+
+Examples
+--------
+>>> import arsc
+>>> pmf = arsc.stats.poisson_binomial([0.9, 0.8, 0.7, 0.6])
+>>> round(float(pmf[3:].sum()), 4)          # P(at least 3 of 4 pass)
+0.7428
+```
+
+### `arsc.stats.rarefy_richness(counts, depth, se: 'bool' = False)`
+
+```text
+Expected number of distinct clones (or genes) in a random subsample of ``depth`` cells, as vegan ``rarefy``.
+
+Closed form (Hurlbert 1971; variance Heck et al. 1975): ``E[S_d] = sum_i 1 - C(N - n_i, d) / C(N, d)``. No
+Monte Carlo is needed (repeated random subsampling estimates the same number with noise). A depth above
+the sample total returns the observed richness, as vegan does: check ``depth <= N``.
+
+Parameters
+----------
+counts : clone sizes of one sample (1-D), or samples x clones (2-D; one result per row).
+depth : subsample size (int).
+se : also return the standard error.
+
+Returns
+-------
+float (1-D input) or array (2-D); with ``se=True`` a tuple ``(expected, se)``.
+
+Examples
+--------
+>>> import arsc
+>>> round(float(arsc.stats.rarefy_richness([10, 5, 3, 1, 1], 5)), 4)
+2.8909
+```
+
 ### `arsc.stats.sample_means(obs: 'pd.DataFrame', cols, sample_cols=('patient_alias', 'timepoint'), by=None, min_cells: 'int' = 10)`
 
 ```text
@@ -2946,6 +3172,71 @@ Examples
 >>> sm = arsc.stats.sample_means(obs, ["nUMI"], ["patient", "timepoint"], by="cell_type")
 >>> list(sm.columns)
 ['patient', 'timepoint', 'cell_type', 'nUMI', 'n_cells']
+```
+
+### `arsc.stats.signflip_maxt(D, stat: 'str' = 'mean', method: 'str' = 'step-down', max_exact: 'int' = 16, B: 'int' = 20000, seed: 'int' = 1) -> 'pd.DataFrame'`
+
+```text
+Family-wise sign-flip test over K readouts measured on the same patients (Westfall-Young maxT).
+
+Each permutation flips the sign of a whole patient row (all K readouts together), so the correlation
+between readouts is kept. The family-wise p of readout k is the share of patterns whose maximum
+``|T*|`` over the family (single-step) or over the readouts not yet rejected (free step-down, then
+monotone) reaches ``|t_k|``. Use when a kill rule asks whether "the largest of K channels" moves.
+Missing values (NaN) are allowed: each readout uses its finite patients (``np.nanmean``).
+
+Parameters
+----------
+D : patients x readouts array or DataFrame of per-patient differences (columns = readouts).
+stat : ``"mean"`` (default) or ``"t"`` (studentised mean; use when readouts have different scales).
+method : ``"step-down"`` (default; more powerful, same FWER control) or ``"single-step"``.
+max_exact : enumerate all ``2**n`` patterns up to this many patients.
+B : random patterns beyond ``max_exact`` (Monte Carlo p = (1 + #) / (B + 1)).
+seed : seeds a local ``np.random.default_rng`` for the random patterns (unused when exact).
+
+Returns
+-------
+DataFrame, one row per readout: ``readout, n, stat, p_raw, p_fwer, exact, n_patterns``.
+
+Examples
+--------
+>>> import numpy as np, arsc
+>>> D = np.array([[1.0, 0.2], [0.8, -0.1], [1.3, 0.3], [0.9, 0.1], [1.1, -0.2], [0.7, 0.0]])
+>>> r = arsc.stats.signflip_maxt(D)
+>>> r[["p_raw", "p_fwer"]].round(4).values.tolist()
+[[0.0312, 0.0312], [0.6875, 0.6875]]
+```
+
+### `arsc.stats.signflip_test(d, stat='mean', alternative: 'str' = 'two-sided', max_exact: 'int' = 20, B: 'int' = 100000, seed: 'int' = 1) -> 'dict'`
+
+```text
+One-sample sign-flip (randomisation) test of per-patient differences: H0 = each difference is symmetric about 0.
+
+Exact over all ``2**n`` sign patterns for ``n <= max_exact``; otherwise ``B`` random patterns with the
+never-zero Monte Carlo p-value ``(1 + #extreme) / (B + 1)``. Non-finite values are dropped first (a NaN
+left in a hand-written version makes every comparison False and returns p = 0). "As or more extreme"
+uses a tolerance of 1e-12 + 1e-10 * |observed| so floating-point rounding of equal sums counts as a tie.
+
+Parameters
+----------
+d : per-patient values (e.g. post - pre deltas), one per patient.
+stat : ``"mean"`` (default), ``"sum"`` (same p as the mean), ``"median"`` or a callable on a 1-D array.
+alternative : ``"two-sided"`` (``|null| >= |obs|``), ``"greater"`` or ``"less"``.
+max_exact : enumerate all patterns up to this many patients (2**20 = 1,048,576 patterns, chunked).
+B : number of random patterns beyond ``max_exact``.
+seed : seeds a local ``np.random.default_rng`` for the random patterns (unused when exact).
+
+Returns
+-------
+dict with ``n``, ``stat`` (observed), ``p``, ``exact``, ``n_patterns`` and ``min_p`` (the smallest p the
+design can give: ``2 / 2**n`` two-sided, ``1 / 2**n`` one-sided, exact case; ``1 / (B + 1)`` otherwise).
+
+Examples
+--------
+>>> import arsc
+>>> r = arsc.stats.signflip_test([0.5, 1.2, 0.8, 2.0, 1.1, 0.3])
+>>> r["p"], r["exact"], r["min_p"]
+(0.03125, True, 0.03125)
 ```
 
 ### `arsc.stats.wilcoxon_signed_rank(x, exact: 'bool | None' = None, correct: 'bool' = True) -> 'float'`

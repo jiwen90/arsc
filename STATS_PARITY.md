@@ -40,6 +40,35 @@ Other stats (R refs in `R_small.csv`, `R_glmer.csv`, `R_lmer_*.csv`):
 * `glmm_prop` vs `lme4::glmer(cbind(k,n-k) ~ timepoint + (1|patient) + (1|sample))`: fixed effects max |dEst| 2.2e-4, SE max diff 2e-3, SD(patient) 1.2492 vs 1.2490, SD(sample) 1.1590 vs 1.1589, logLik within 5e-5; 6-16 s per fit.
 * `lmm_score` vs `lmer(logit(prop) ~ timepoint + (1|patient))`: estimates identical (< 1e-6), SE diff <= 0.012 (statsmodels uses the REML Wald SE; lmerTest reports Satterthwaite t/p which are not reproduced), variance components identical to 6 digits.
 
+## Rank, randomisation, stratified and depth helpers (`signflip_test`, `signflip_maxt`, `hodges_lehmann`, `mantel_haenszel`, `icc_oneway`, `freedman_lane`, `downsample_counts`, `rarefy_richness`, `poisson_binomial`)
+
+R references: stats (R 4.3.1) `wilcox.test`, `mantelhaen.test`, `lm`; vegan `rarefy`; lme4 1.1.35.1 `lmer` (REML).
+Synthetic data only: `benchmarks/stats_resampling_cases.py` writes the cases, `benchmarks/r_reference_stats_resampling.R`
+the R outputs, `benchmarks/stats_resampling_parity.py` prints the numbers below; `tests/test_stats_resampling.py`
+(R parity skips without `$ARSC_SCRATCH/stats_resampling`; the closed-form and brute-force checks always run).
+
+| Function | Reference | Cases | Agreement |
+|---|---|---|---|
+| `hodges_lehmann` exact branch (n < 50, no ties / zeros) | `wilcox.test(conf.int = TRUE)`: one-sample, paired, two-sample; all three alternatives; conf 0.90 / 0.95 / 0.99 | 130 | estimate, CI, p, achieved conf level: max abs diff 5e-15 |
+| `hodges_lehmann` normal branch (ties, zeros, n >= 50; `correct` both) | same | 101 | estimate 3e-15, CI 6e-15, p 5e-16 (R's uniroot / zeroin ported, so roots of the step function land on the same points) |
+| `mantel_haenszel` | `mantelhaen.test` (2 x 2 x K, asymptotic, `correct` both) | 40 (K = 2-8) | OR, RGB CI, statistic: max rel 4e-15; p 4e-14 |
+| `rarefy_richness` | `vegan::rarefy(se = TRUE)` | 40 | expected richness max rel 9e-13; se max abs 3e-8 |
+| `icc_oneway` | lme4 REML variance components, balanced designs (with and without fixed strata), estimate > 0 | 45 | max abs 2e-5 (lme4 optimiser tolerance; median 1e-8) |
+| `freedman_lane` observed statistic | `lm` coefficient, t and p of x | 20 | 1e-14 |
+| `signflip_test` | brute-force enumeration (mean / median / sum), n = 1-10; on signed ranks = exact `wilcoxon_signed_rank`; on signs = `binomtest` | 13-30 | identical (<= 1e-12) |
+| `signflip_maxt` | brute-force single-step and free step-down over 2^n patterns | 3 designs | identical; FWER 0.05 held under correlated null readouts (300 simulations) |
+| `freedman_lane` permutation p | no covariates: identical to the exact permutation of y (n = 7, 5,040 permutations); confounded covariate: type I 0.05-0.10 where permuting y rejects > 50% | 200 sims | as stated |
+| `downsample_counts` | hypergeometric: every thinned total = target; per-entry mean and variance = hypergeometric closed form (200 draws, max abs z < 6, mean z < 0.1); binomial: mean = count * target / total | | as stated |
+| `poisson_binomial` | full enumeration (6 trials) and `binom.pmf` for equal p | | <= 1e-14 |
+
+Notes. R's `psignrank` / `pwilcox` / `qsignrank` / `qwilcox` arithmetic (sums of count x f over the shorter tail, the 10 * DBL_EPSILON
+quantile fuzz, `signif(achieved, 2)`) is reproduced, so the reported achieved confidence level matches R when the requested level is
+not attainable with few patients (n = 3: 0.87 rather than 0.95). CSV inputs must be read with `float_precision="round_trip"`: pandas'
+fast float parser is off by 1 ulp on some values, enough to create or break a tie in the normal-approximation CI. Monte Carlo p-values
+of the randomisation tests are `(1 + #) / (B + 1)` (never 0); `perm_test` and `arstats`-style exact-only versions keep `#/B`.
+Not ported: the exact conditional 2 x 2 x K test (`mantelhaen.test(exact = TRUE)`), the Breslow-Day homogeneity test, ICC forms
+other than ICC(1), Freedman-Lane with blocks / several tested columns.
+
 ## Implementation notes and differences
 
 **Composition / paired / perm** (`arsc.stats`): Python versions of earlier in-house R and Python helpers.

@@ -66,6 +66,18 @@ Pseudobulk differential expression (arsc.de).
   - fgsea: Korotkevich G, et al. Fast gene set enrichment analysis. bioRxiv (2021). arsc.de.fgsea
     ports fgsea 1.28.0 (R, MIT; LICENSES/fgsea-MIT.txt).
 
+Rank and stratified tests (arsc.stats.hodges_lehmann, mantel_haenszel). hodges_lehmann translates the
+conf.int branches of wilcox.test.default, psignrank / pwilcox / qsignrank / qwilcox and the zeroin root finder
+(R_zeroin2) of R 4.3.1 stats (GPL-2 | GPL-3); mantel_haenszel follows mantelhaen.test (same licence).
+  - Hodges JL, Lehmann EL. Estimates of location based on rank tests. Ann Math Stat (1963).
+  - Bauer DF. Constructing confidence sets using rank statistics. J Am Stat Assoc (1972).
+  - Mantel N, Haenszel W. J Natl Cancer Inst (1959). Robins J, Breslow N, Greenland S. Biometrics (1986).
+Other arsc.stats helpers are written from the published methods (validated against R; no R code
+translated): Freedman D, Lane D. J Bus Econ Stat (1983) (freedman_lane); Westfall PH, Young SS.
+Resampling-Based Multiple Testing (1993) (signflip_maxt); Hurlbert SH. Ecology (1971) and Heck KL, et al.
+Ecology (1975) (rarefy_richness; compared with vegan::rarefy); Shrout PE, Fleiss JL. Psychol Bull (1979)
+and Searle SR. Variance Components (1992) (icc_oneway).
+
 scanpy-parity functions (arsc.scanpy_extra). Ported from scanpy 1.11 (BSD-3-Clause;
 LICENSES/scanpy-BSD-3-Clause.txt).
   - Wolf FA, Angerer P, Theis FJ. SCANPY: large-scale single-cell gene expression data analysis.

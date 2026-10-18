@@ -7,6 +7,12 @@ All notable changes to arsc are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- `arsc.stats` rank, randomisation, stratified and depth helpers (STATS_PARITY.md): `signflip_test` (exact to n = 20,
+  never-zero Monte Carlo p, NaN dropped), `signflip_maxt` (Westfall-Young single-step / step-down over K readouts),
+  `hodges_lehmann` (estimate + CI + p, port of R `wilcox.test(conf.int = TRUE)`, exact and normal branches),
+  `mantel_haenszel` (R `mantelhaen.test`), `icc_oneway` (ICC(1) with strata, F test, CI), `freedman_lane`
+  (covariate-adjusted permutation of one coefficient), `downsample_counts` (hypergeometric / binomial thinning),
+  `rarefy_richness` (vegan `rarefy`, closed form) and `poisson_binomial`.
 - `arsc.symphony`: Symphony reference mapping (port of R symphony 0.1.1, GPL-3): `build_reference`,
   `reference_from_harmony`, `map_query`, `transfer_labels` (kNN with vote-share confidence), `mapping_score`,
   `Reference.save` / `load_reference`, UMAP placement of query cells. Parity in `SYMPHONY_PARITY.md`.

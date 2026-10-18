@@ -121,6 +121,9 @@ def _q(cp_):
     return ct.filter_and_sparsify(cp_, 0.3)
 
 
+TOY_COUNTS = arsc.datasets.toy().X()[:300]
+
+
 # ------------------------------------------------------------------------------------------ cases
 # id -> (fn(**seedkw), seed parameter name, different seeds give different output?)
 def _cases():
@@ -169,6 +172,13 @@ def _cases():
         "stats.perm_test": (lambda **k: st.perm_test(a12, b12, B=500, **k), "seed", True),
         "stats.perm_test[exact]": (lambda **k: st.perm_test(a12[:4], b12[:4], B=500, **k), "seed", False),
         "stats.arm_contrast": (lambda **k: st.arm_contrast(a12, b12, B=500, **k), "seed", True),
+        "stats.signflip_test": (lambda **k: st.signflip_test(np.r_[a12, b12], max_exact=10, B=500, **k), "seed", True),
+        "stats.signflip_test[exact]": (lambda **k: st.signflip_test(a12[:8], **k), "seed", False),
+        "stats.signflip_maxt": (lambda **k: st.signflip_maxt(np.c_[a12, b12], max_exact=8, B=300, **k), "seed", True),
+        "stats.freedman_lane": (lambda **k: st.freedman_lane(a12, b12, covariates=a12 * b12, B=300, **k), "seed", True),
+        "stats.downsample_counts": (lambda **k: st.downsample_counts(TOY_COUNTS, 150, **k), "seed", True),
+        "stats.downsample_counts[binomial]": (lambda **k: st.downsample_counts(TOY_COUNTS, 150, method="binomial", **k),
+                                              "seed", True),
         "de.fgsea": (lambda **k: arsc.fgsea(stats_ser, gs, nperm=300, **k), "seed", True),
         "clones.clone_expansion_null": (lambda **k: C.clone_expansion_null(META, HD, pairs=((0, 3),),
                                                                            ref_depth=(150, 150), reps=2, **k),

@@ -107,6 +107,15 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 | Stats | minimum detectable effect before testing | `arsc.stats.mde(n_patients) / arsc.stats.mde(n1, n2)` |
 | Stats | leave-one-patient-out effect | `arsc.stats.loo_effect(df, 'patient', fn)` |
 | Stats | Benjamini-Hochberg FDR | `arsc.stats.bh(p)` |
+| Stats | sign-flip test of per-patient deltas (exact to n = 20, never-zero Monte Carlo p) | `arsc.stats.signflip_test(d, stat='mean')` |
+| Stats | family-wise sign-flip over K readouts on the same patients (maxT) | `arsc.stats.signflip_maxt(D)` |
+| Stats | Hodges-Lehmann estimate + Wilcoxon CI (R wilcox.test conf.int) | `arsc.stats.hodges_lehmann(x, y=None, paired=False)` |
+| Stats | common odds ratio over strata (Mantel-Haenszel, R mantelhaen.test) | `arsc.stats.mantel_haenszel(a, b, c, d)` |
+| Stats | intraclass correlation ICC(1), optionally within strata | `arsc.stats.icc_oneway(y, groups, strata=None)` |
+| Stats | covariate-adjusted permutation test of one coefficient (Freedman-Lane) | `arsc.stats.freedman_lane(y, x, covariates=Z)` |
+| Stats | chance that a 'k of n patients' rule passes (Poisson-binomial) | `arsc.stats.poisson_binomial(p)[k:].sum()` |
+| Depth | thin counts to a common depth per cell (hypergeometric / binomial) | `arsc.stats.downsample_counts(X, target)` |
+| Depth | expected clone richness at a common depth (vegan rarefy, closed form) | `arsc.stats.rarefy_richness(sizes, depth)` |
 | Clones | clone counts / frequency per sample | `arsc.clones.clone_table(obs, 'clone_id', sample_cols=[...])` |
 | Clones | clones expanding/contracting between two timepoints (per patient) | `arsc.clones.clone_dynamics(ct, t0, t1, patient=..., time=...)` |
 | Clones | repertoire diversity (rarefied) | `arsc.clones.clone_diversity(ct, sample_cols=[...])` |
@@ -566,6 +575,8 @@ print(adata)
 | `de.fgsea` | ES exact; NES r 0.99995; p sampled (fgseaSimple) |
 | `stats.wilcoxon_signed_rank`, `perm_test` | exact vs R `wilcox.test` / enumeration |
 | `stats.glmm_prop` | fixed effects within 2.2e-4 of `lme4::glmer` |
+| `stats.hodges_lehmann`, `mantel_haenszel`, `rarefy_richness` | exact vs R `wilcox.test(conf.int = TRUE)` / `mantelhaen.test` / vegan `rarefy` (<= 1e-12; rarefy se 3e-8) |
+| `stats.signflip_test`, `signflip_maxt`, `freedman_lane`, `icc_oneway`, `poisson_binomial`, `downsample_counts` | exact vs enumeration / closed forms; ICC = lme4 REML on balanced data (2e-5) |
 | `clones.cyclone`, `startrac`, `clone_dynamics`, `clone_table` | exact (published Cyclone assignment reproduced, ARI 1.0) |
 | `clones.clone_diversity`, `clone_expansion_null` | Monte-Carlo; r > 0.998 vs R |
 
