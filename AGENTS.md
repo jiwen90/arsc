@@ -114,6 +114,9 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 | Stats | intraclass correlation ICC(1), optionally within strata | `arsc.stats.icc_oneway(y, groups, strata=None)` |
 | Stats | covariate-adjusted permutation test of one coefficient (Freedman-Lane) | `arsc.stats.freedman_lane(y, x, covariates=Z)` |
 | Stats | chance that a 'k of n patients' rule passes (Poisson-binomial) | `arsc.stats.poisson_binomial(p)[k:].sum()` |
+| Stats | two-group permutation test within strata (clones within patient, patients within batch) | `arsc.stats.strat_perm_test(y, labels, strata)` |
+| Stats | p of an observed statistic against a null you built (never 0, NaN-safe, tie tolerance) | `arsc.stats.perm_pvalue(null, obs)` |
+| Stats | bootstrap CI of a difference of medians (groups or pairs resampled) | `arsc.stats.boot_ci_diff(x, y, f=np.median, paired=False)` |
 | Depth | thin counts to a common depth per cell (hypergeometric / binomial) | `arsc.stats.downsample_counts(X, target)` |
 | Depth | expected clone richness at a common depth (vegan rarefy, closed form) | `arsc.stats.rarefy_richness(sizes, depth)` |
 | Clones | clone counts / frequency per sample | `arsc.clones.clone_table(obs, 'clone_id', sample_cols=[...])` |
@@ -576,7 +579,7 @@ print(adata)
 | `stats.wilcoxon_signed_rank`, `perm_test` | exact vs R `wilcox.test` / enumeration |
 | `stats.glmm_prop` | fixed effects within 2.2e-4 of `lme4::glmer` |
 | `stats.hodges_lehmann`, `mantel_haenszel`, `rarefy_richness` | exact vs R `wilcox.test(conf.int = TRUE)` / `mantelhaen.test` / vegan `rarefy` (<= 1e-12; rarefy se 3e-8) |
-| `stats.signflip_test`, `signflip_maxt`, `freedman_lane`, `icc_oneway`, `poisson_binomial`, `downsample_counts` | exact vs enumeration / closed forms; ICC = lme4 REML on balanced data (2e-5) |
+| `stats.signflip_test`, `signflip_maxt`, `freedman_lane`, `icc_oneway`, `poisson_binomial`, `downsample_counts`, `perm_pvalue`, `strat_perm_test`, `boot_ci_diff` | exact vs enumeration / closed forms; ICC = lme4 REML on balanced data (2e-5) |
 | `clones.cyclone`, `startrac`, `clone_dynamics`, `clone_table` | exact (published Cyclone assignment reproduced, ARI 1.0) |
 | `clones.clone_diversity`, `clone_expansion_null` | Monte-Carlo; r > 0.998 vs R |
 

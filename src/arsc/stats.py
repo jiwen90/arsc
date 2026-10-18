@@ -32,7 +32,8 @@ from ._seedlog import records_seed
 __all__ = ["composition", "sample_means", "bh", "boot_ci", "wilcoxon_signed_rank", "paired_test", "perm_test",
            "arm_contrast", "glmm_prop", "gee_prop", "lmm_score", "mde", "feasibility", "count_logit_delta",
            "loo_effect", "signflip_test", "signflip_maxt", "hodges_lehmann", "mantel_haenszel", "icc_oneway",
-           "freedman_lane", "downsample_counts", "rarefy_richness", "poisson_binomial"]
+           "freedman_lane", "downsample_counts", "rarefy_richness", "poisson_binomial", "perm_pvalue", "strat_perm_test",
+           "boot_ci_diff"]
 
 
 def _need_cols(df, cols, what: str, args: str) -> None:
@@ -1756,3 +1757,237 @@ def poisson_binomial(p) -> np.ndarray:
         pmf[1:i + 2] = pmf[1:i + 2] * (1 - q) + pmf[0:i + 1] * q
         pmf[0] *= (1 - q)
     return pmf
+
+
+def perm_pvalue(null, obs, alternative: str = "two-sided", exact: bool = False) -> float:
+    """p-value of an observed statistic against a null distribution you built yourself (random gene sets, a custom
+    permutation scheme, shuffled clone labels).
+
+    Use it for the p whenever the null is not one of the standard schemes (:func:`perm_test`,
+    :func:`strat_perm_test`, :func:`signflip_test`, :func:`freedman_lane`): it does the three things hand-written
+    versions got wrong. The Monte Carlo p is ``(1 + #extreme) / (B + 1)`` and never 0 (the observed labelling counts
+    as one draw); non-finite null values are dropped before counting (a NaN makes every comparison False, so a
+    hand count returns p = 0); "as or more extreme" uses a tie tolerance of 1e-12 + 1e-10 * |obs|, so equal sums
+    that differ by floating-point rounding count as ties.
+
+    Parameters
+    ----------
+    null : statistics of the null draws (not including the observed value).
+    obs : the observed statistic.
+    alternative : ``"two-sided"`` (``|null| >= |obs|``: the null must be centred at 0, e.g. a difference or a
+        centred sum), ``"greater"`` (``null >= obs``) or ``"less"`` (``null <= obs``).
+    exact : True when ``null`` is the complete enumeration of the randomisation distribution (every
+        permutation, observed labelling included): then p = ``#extreme / len(null)``.
+
+    Returns
+    -------
+    float p-value; NaN when ``obs`` is not finite or no null value is finite.
+
+    Examples
+    --------
+    >>> import numpy as np, arsc
+    >>> null = np.array([0.1, -0.3, 0.2, np.nan, -0.05, 0.4])
+    >>> arsc.stats.perm_pvalue(null, 0.35)          # (1 + 1) / (5 + 1); the NaN is dropped
+    0.3333333333333333
+    >>> arsc.stats.perm_pvalue(null, 0.35, alternative="less")   # (1 + 4) / (5 + 1)
+    0.8333333333333334
+    """
+    if alternative not in _ALTS:
+        raise ValueError(f"alternative must be one of {_ALTS}")
+    null = np.asarray(null, float).ravel()
+    null = null[np.isfinite(null)]
+    obs = float(obs)
+    if not np.isfinite(obs) or len(null) == 0:
+        return float("nan")
+    hits = int(_extreme(null, obs, alternative).sum())
+    p = hits / len(null) if exact else (hits + 1) / (len(null) + 1)
+    return float(min(p, 1.0))
+
+
+def _strat_mean_diff(y, G, s, info):
+    """Mean over informative strata of mean(y | group 1) - mean(y | group 2), for each row of the 0/1 matrix G."""
+    G = np.atleast_2d(G).astype(float)
+    tot = np.zeros(G.shape[0])
+    for c in info:
+        m = s == c
+        n1 = G[:, m].sum(1)
+        n0 = m.sum() - n1
+        s1 = G[:, m] @ y[m]
+        tot += s1 / n1 - (y[m].sum() - s1) / n0
+    return tot / len(info)
+
+
+@records_seed("seed")
+def strat_perm_test(y, labels, strata, stat="mean_diff", alternative: str = "two-sided", B: int = 20_000,
+                    max_exact: int = 20_000, seed: int = 1) -> dict:
+    """Permutation test of a two-group difference with labels permuted WITHIN strata (blocks).
+
+    For designs where only within-stratum exchangeability holds: clones within patient (each patient's clones keep
+    their patient), patients within batch, sort or cohort, cells within sample. Group sizes are kept in every
+    stratum. Exact enumeration of every within-stratum arrangement when there are at most ``max_exact`` of them,
+    otherwise ``B`` random ones with the never-zero p ``(1 + #extreme) / (B + 1)``. Strata with only one group
+    carry no information and are left out of the statistic (they do not move under the permutation). Units with a
+    non-finite ``y`` or a missing label / stratum are dropped first.
+
+    Parameters
+    ----------
+    y : value per unit (patient, clone, cell).
+    labels : group per unit; exactly two distinct values. The statistic is "first minus second" with the label
+        values in sorted order, or True minus False for boolean labels.
+    strata : stratum per unit (patient for clone-level data, batch for patient-level data).
+    stat : ``"mean_diff"`` (default: mean over informative strata of the within-stratum difference of means),
+        ``"sum"`` (sum of ``y`` in the first group over informative strata, centred at its permutation mean: the
+        stratified linear statistic; it weights strata by size), or a callable
+        ``stat(y, is_first_group, strata) -> float``
+        (applied to the units that remain after dropping missing values).
+    alternative : ``"two-sided"``, ``"greater"`` or ``"less"``.
+    B : random within-stratum permutations when not exact.
+    max_exact : enumerate when the number of arrangements (product of per-stratum binomial coefficients) is at
+        most this.
+    seed : seeds a local ``np.random.default_rng`` for random permutations (unused when exact).
+
+    Returns
+    -------
+    dict with ``stat`` (observed), ``p``, ``exact``, ``n_perm``, ``n_units``, ``n_strata`` (informative strata),
+    ``min_p`` (the smallest p the design can give) and ``groups`` (first, second label).
+
+    Examples
+    --------
+    >>> import numpy as np, arsc
+    >>> y = np.array([5.0, 6.0, 1.0, 2.0, 7.0, 8.0, 3.0, 2.5])
+    >>> g = np.array(["R", "R", "NR", "NR", "R", "R", "NR", "NR"])
+    >>> s = np.array([1, 1, 1, 1, 2, 2, 2, 2])       # two batches; responders compared within batch
+    >>> r = arsc.stats.strat_perm_test(y, g, s)
+    >>> r["groups"], r["exact"], r["n_perm"], round(r["p"], 4)
+    (('NR', 'R'), True, 36, 0.0556)
+    """
+    seed = check_seed(seed)
+    if alternative not in _ALTS:
+        raise ValueError(f"alternative must be one of {_ALTS}")
+    y = np.asarray(y, float).ravel()
+    lab = pd.Series(np.asarray(labels).ravel())
+    sx = pd.Series(np.asarray(strata).ravel())
+    if not (len(y) == len(lab) == len(sx)):
+        raise ValueError("y, labels and strata must have the same length")
+    ok = np.isfinite(y) & lab.notna().to_numpy() & sx.notna().to_numpy()
+    y, lab, sx = y[ok], lab[ok].to_numpy(), sx[ok].to_numpy()
+    vals = list(pd.unique(lab))
+    if len(vals) != 2:
+        raise ValueError(f"labels must have exactly two distinct values (got {len(vals)})")
+    vals = [v.item() if isinstance(v, np.generic) else v for v in vals]  # plain Python labels in the result
+    vals = [True, False] if set(vals) == {True, False} else sorted(vals)
+    g = lab == vals[0]
+    _, s = np.unique(sx, return_inverse=True)
+    info = [c for c in range(s.max() + 1) if 0 < g[s == c].sum() < (s == c).sum()]
+    out = dict(stat=np.nan, p=np.nan, exact=True, n_perm=0, n_units=int(len(y)), n_strata=len(info),
+               min_p=np.nan, groups=(vals[0], vals[1]))
+    if not info:
+        return out
+    inf_mask = np.isin(s, info)
+    if callable(stat):
+        f = lambda G: np.array([stat(y, row.astype(bool), sx) for row in np.atleast_2d(G)], float)  # noqa: E731
+    elif stat == "mean_diff":
+        f = lambda G: _strat_mean_diff(y, G, s, info)  # noqa: E731
+    elif stat == "sum":
+        mu = sum(g[s == c].sum() * y[s == c].mean() for c in info)
+        f = lambda G: np.atleast_2d(G)[:, inf_mask].astype(float) @ y[inf_mask] - mu  # noqa: E731
+    else:
+        raise ValueError("stat must be 'mean_diff', 'sum' or a callable")
+    obs = float(f(g)[0])
+    out["stat"] = obs
+    if not np.isfinite(obs):
+        return out
+    idx = {c: np.flatnonzero(s == c) for c in info}
+    total = 1
+    for c in info:
+        total *= math.comb(len(idx[c]), int(g[idx[c]].sum()))
+    exact = total <= max_exact
+    if exact:
+        per = [list(itertools.combinations(idx[c], int(g[idx[c]].sum()))) for c in info]
+        G = np.zeros((total, len(y)), bool)
+        G[:, ~inf_mask] = g[~inf_mask]
+        for r, combo in enumerate(itertools.product(*per)):
+            for chosen in combo:
+                G[r, list(chosen)] = True
+    else:
+        rng = np.random.default_rng(seed)
+        G = np.broadcast_to(g, (B, len(y))).copy()
+        for c in info:
+            ii = idx[c]
+            G[:, ii] = g[ii][np.argsort(rng.random((B, len(ii))), axis=1)]
+    null = np.concatenate([f(G[i:i + 4096]) for i in range(0, len(G), 4096)])
+    n = len(null)
+    fin = null[np.isfinite(null)]
+    if exact and len(fin):  # the p of the most extreme arrangement (ties and the mirror image count)
+        top = {"two-sided": np.abs(fin).max(), "greater": fin.max(), "less": fin.min()}[alternative]
+        min_p = perm_pvalue(fin, top, alternative, exact=True)
+    else:
+        min_p = 1.0 / (n + 1)
+    out.update(p=perm_pvalue(null, obs, alternative, exact=exact), exact=bool(exact), n_perm=int(n),
+               min_p=float(min_p))
+    return out
+
+
+@records_seed("seed")
+def boot_ci_diff(x, y, f=np.median, paired: bool = False, conf_level: float = 0.95, B: int = 4000,
+                 seed: int = 1) -> tuple:
+    """Percentile bootstrap CI of ``f(x) - f(y)`` (default: the difference of medians) with patients resampled.
+
+    Unpaired: ``x`` and ``y`` are resampled separately, each within its own group (group sizes kept). Paired
+    (``x[i]`` and ``y[i]`` from the same patient): patients are resampled as pairs and the statistic is
+    ``f(x*) - f(y*)``; for the median OF the paired differences use :func:`boot_ci` on ``x - y`` (with
+    ``f=np.mean`` the two agree exactly). At fewer than ~10 patients per group a percentile bootstrap CI of a
+    median is too narrow (it can only take observed values); prefer the exact CI of :func:`hodges_lehmann` for a
+    location shift. Non-finite values are dropped (pairwise when paired); fewer than 3 values in a group gives NaN.
+
+    Parameters
+    ----------
+    x, y : per-patient values of the two groups (or the two conditions when paired).
+    f : statistic of one group; ``np.median`` / ``np.mean`` are vectorised, any other callable is applied per
+        resample.
+    paired : resample pairs (equal lengths required).
+    conf_level : central coverage of the percentile interval.
+    B : bootstrap resamples.
+    seed : seeds a local ``np.random.default_rng``.
+
+    Returns
+    -------
+    tuple ``(lo, hi)``.
+
+    Examples
+    --------
+    >>> import numpy as np, arsc
+    >>> r = np.array([0.8, 1.1, 0.4, 1.6, 0.9, 1.3])
+    >>> nr = np.array([0.2, 0.5, -0.1, 0.3, 0.6])
+    >>> lo, hi = arsc.stats.boot_ci_diff(r, nr)
+    >>> bool(lo < float(np.median(r) - np.median(nr)) < hi)
+    True
+    """
+    seed = check_seed(seed)
+    if not 0 < conf_level < 1:
+        raise ValueError("conf_level must be in (0, 1)")
+    x = np.asarray(x, float).ravel()
+    y = np.asarray(y, float).ravel()
+    if paired:
+        if len(x) != len(y):
+            raise ValueError("paired=True needs x and y of equal length")
+        ok = np.isfinite(x) & np.isfinite(y)
+        x, y = x[ok], y[ok]
+    else:
+        x, y = x[np.isfinite(x)], y[np.isfinite(y)]
+    if len(x) < 3 or len(y) < 3:
+        return (np.nan, np.nan)
+    rng = np.random.default_rng(seed)
+    if f in (np.median, np.mean):
+        stat = lambda M: f(M, axis=1)  # noqa: E731
+    else:
+        stat = lambda M: np.array([f(r) for r in M], float)  # noqa: E731
+    if paired:
+        idx = rng.integers(0, len(x), size=(B, len(x)))
+        b = stat(x[idx]) - stat(y[idx])
+    else:
+        ix = rng.integers(0, len(x), size=(B, len(x)))
+        iy = rng.integers(0, len(y), size=(B, len(y)))
+        b = stat(x[ix]) - stat(y[iy])
+    a = (1 - conf_level) / 2
+    return tuple(np.quantile(b, [a, 1 - a]))

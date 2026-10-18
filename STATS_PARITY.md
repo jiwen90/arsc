@@ -40,7 +40,7 @@ Other stats (R refs in `R_small.csv`, `R_glmer.csv`, `R_lmer_*.csv`):
 * `glmm_prop` vs `lme4::glmer(cbind(k,n-k) ~ timepoint + (1|patient) + (1|sample))`: fixed effects max |dEst| 2.2e-4, SE max diff 2e-3, SD(patient) 1.2492 vs 1.2490, SD(sample) 1.1590 vs 1.1589, logLik within 5e-5; 6-16 s per fit.
 * `lmm_score` vs `lmer(logit(prop) ~ timepoint + (1|patient))`: estimates identical (< 1e-6), SE diff <= 0.012 (statsmodels uses the REML Wald SE; lmerTest reports Satterthwaite t/p which are not reproduced), variance components identical to 6 digits.
 
-## Rank, randomisation, stratified and depth helpers (`signflip_test`, `signflip_maxt`, `hodges_lehmann`, `mantel_haenszel`, `icc_oneway`, `freedman_lane`, `downsample_counts`, `rarefy_richness`, `poisson_binomial`)
+## Rank, randomisation, stratified and depth helpers (`signflip_test`, `signflip_maxt`, `hodges_lehmann`, `mantel_haenszel`, `icc_oneway`, `freedman_lane`, `downsample_counts`, `rarefy_richness`, `poisson_binomial`, `perm_pvalue`, `strat_perm_test`, `boot_ci_diff`)
 
 R references: stats (R 4.3.1) `wilcox.test`, `mantelhaen.test`, `lm`; vegan `rarefy`; lme4 1.1.35.1 `lmer` (REML).
 Synthetic data only: `benchmarks/stats_resampling_cases.py` writes the cases, `benchmarks/r_reference_stats_resampling.R`
@@ -60,6 +60,9 @@ the R outputs, `benchmarks/stats_resampling_parity.py` prints the numbers below;
 | `freedman_lane` permutation p | no covariates: identical to the exact permutation of y (n = 7, 5,040 permutations); confounded covariate: type I 0.05-0.10 where permuting y rejects > 50% | 200 sims | as stated |
 | `downsample_counts` | hypergeometric: every thinned total = target; per-entry mean and variance = hypergeometric closed form (200 draws, max abs z < 6, mean z < 0.1); binomial: mean = count * target / total | | as stated |
 | `poisson_binomial` | full enumeration (6 trials) and `binom.pmf` for equal p | | <= 1e-14 |
+| `perm_pvalue` | exact: the full enumeration of a two-group mean difference (3 v 3 to 5 v 6) = `perm_test` and a brute-force count, all three alternatives; Monte Carlo `(1 + #) / (B + 1)`; NaN null values dropped; a floating-point tie (0.1 + 0.2 + 0.3 vs 0.6) counted | 3 designs x 3 | identical (<= 1e-15) |
+| `strat_perm_test` | brute force: every distinct within-stratum relabelling (itertools.permutations, de-duplicated), 2-4 strata of 2-6 units, mean-difference and centred-sum statistics, three alternatives; one stratum = `perm_test` (mean and median statistics); Monte Carlo (B = 40,000) within 4 SE of the exact p over 70^3 arrangements; strata with one group and missing values dropped; type I error 7/300 where permuting across strata rejects 62/300 (level and group share differ by stratum) | 12 + 4 | identical (<= 1e-12) |
+| `boot_ci_diff` | paired with `f = mean` = `boot_ci(x - y, mean)` with the same seed; the percentile CI of the median difference (B = 200,000) lies within +-0.004 quantile of the complete bootstrap distribution (all 4^4 x 3^3 index tuples), 95% and 90% | | as stated |
 
 Notes. R's `psignrank` / `pwilcox` / `qsignrank` / `qwilcox` arithmetic (sums of count x f over the shorter tail, the 10 * DBL_EPSILON
 quantile fuzz, `signif(achieved, 2)`) is reproduced, so the reported achieved confidence level matches R when the requested level is

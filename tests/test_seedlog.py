@@ -27,6 +27,7 @@ TABLE = [
     ("arsc", "find_all_markers", "random_seed"), ("stats", "boot_ci", "seed"), ("stats", "paired_test", "seed"),
     ("stats", "perm_test", "seed"), ("stats", "arm_contrast", "seed"), ("stats", "signflip_test", "seed"),
     ("stats", "signflip_maxt", "seed"), ("stats", "freedman_lane", "seed"), ("stats", "downsample_counts", "seed"),
+    ("stats", "strat_perm_test", "seed"), ("stats", "boot_ci_diff", "seed"),
     ("de", "fgsea", "seed"),
     ("clones", "clone_expansion_null", "seed"), ("clones", "startrac", "seed"), ("clones", "clone_diversity", "seed"),
     ("clonotrace", "propagate_clones", "seed"), ("clonotrace", "revise_distance", "seed"),

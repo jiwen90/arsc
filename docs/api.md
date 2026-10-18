@@ -2619,6 +2619,42 @@ Examples
 (1.0, 5.0)
 ```
 
+### `arsc.stats.boot_ci_diff(x, y, f=median, paired: 'bool' = False, conf_level: 'float' = 0.95, B: 'int' = 4000, seed: 'int' = 1) -> 'tuple'`
+
+```text
+Percentile bootstrap CI of ``f(x) - f(y)`` (default: the difference of medians) with patients resampled.
+
+Unpaired: ``x`` and ``y`` are resampled separately, each within its own group (group sizes kept). Paired
+(``x[i]`` and ``y[i]`` from the same patient): patients are resampled as pairs and the statistic is
+``f(x*) - f(y*)``; for the median OF the paired differences use :func:`boot_ci` on ``x - y`` (with
+``f=np.mean`` the two agree exactly). At fewer than ~10 patients per group a percentile bootstrap CI of a
+median is too narrow (it can only take observed values); prefer the exact CI of :func:`hodges_lehmann` for a
+location shift. Non-finite values are dropped (pairwise when paired); fewer than 3 values in a group gives NaN.
+
+Parameters
+----------
+x, y : per-patient values of the two groups (or the two conditions when paired).
+f : statistic of one group; ``np.median`` / ``np.mean`` are vectorised, any other callable is applied per
+    resample.
+paired : resample pairs (equal lengths required).
+conf_level : central coverage of the percentile interval.
+B : bootstrap resamples.
+seed : seeds a local ``np.random.default_rng``.
+
+Returns
+-------
+tuple ``(lo, hi)``.
+
+Examples
+--------
+>>> import numpy as np, arsc
+>>> r = np.array([0.8, 1.1, 0.4, 1.6, 0.9, 1.3])
+>>> nr = np.array([0.2, 0.5, -0.1, 0.3, 0.6])
+>>> lo, hi = arsc.stats.boot_ci_diff(r, nr)
+>>> bool(lo < float(np.median(r) - np.median(nr)) < hi)
+True
+```
+
 ### `arsc.stats.composition(obs: 'pd.DataFrame', celltype: 'str', sample_cols=('patient_alias', 'timepoint'), min_parent: 'int' = 50, extra_cols=None) -> 'pd.DataFrame'`
 
 ```text
@@ -3066,6 +3102,42 @@ Examples
 [['R', 3, 0.25], ['NR', 3, 0.25]]
 ```
 
+### `arsc.stats.perm_pvalue(null, obs, alternative: 'str' = 'two-sided', exact: 'bool' = False) -> 'float'`
+
+```text
+p-value of an observed statistic against a null distribution you built yourself (random gene sets, a custom
+permutation scheme, shuffled clone labels).
+
+Use it for the p whenever the null is not one of the standard schemes (:func:`perm_test`,
+:func:`strat_perm_test`, :func:`signflip_test`, :func:`freedman_lane`): it does the three things hand-written
+versions got wrong. The Monte Carlo p is ``(1 + #extreme) / (B + 1)`` and never 0 (the observed labelling counts
+as one draw); non-finite null values are dropped before counting (a NaN makes every comparison False, so a
+hand count returns p = 0); "as or more extreme" uses a tie tolerance of 1e-12 + 1e-10 * |obs|, so equal sums
+that differ by floating-point rounding count as ties.
+
+Parameters
+----------
+null : statistics of the null draws (not including the observed value).
+obs : the observed statistic.
+alternative : ``"two-sided"`` (``|null| >= |obs|``: the null must be centred at 0, e.g. a difference or a
+    centred sum), ``"greater"`` (``null >= obs``) or ``"less"`` (``null <= obs``).
+exact : True when ``null`` is the complete enumeration of the randomisation distribution (every
+    permutation, observed labelling included): then p = ``#extreme / len(null)``.
+
+Returns
+-------
+float p-value; NaN when ``obs`` is not finite or no null value is finite.
+
+Examples
+--------
+>>> import numpy as np, arsc
+>>> null = np.array([0.1, -0.3, 0.2, np.nan, -0.05, 0.4])
+>>> arsc.stats.perm_pvalue(null, 0.35)          # (1 + 1) / (5 + 1); the NaN is dropped
+0.3333333333333333
+>>> arsc.stats.perm_pvalue(null, 0.35, alternative="less")   # (1 + 4) / (5 + 1)
+0.8333333333333334
+```
+
 ### `arsc.stats.perm_test(x, y, stat=None, B: 'int' = 20000, seed: 'int' = 1) -> 'dict'`
 
 ```text
@@ -3239,6 +3311,51 @@ Examples
 >>> r = arsc.stats.signflip_test([0.5, 1.2, 0.8, 2.0, 1.1, 0.3])
 >>> r["p"], r["exact"], r["min_p"]
 (0.03125, True, 0.03125)
+```
+
+### `arsc.stats.strat_perm_test(y, labels, strata, stat='mean_diff', alternative: 'str' = 'two-sided', B: 'int' = 20000, max_exact: 'int' = 20000, seed: 'int' = 1) -> 'dict'`
+
+```text
+Permutation test of a two-group difference with labels permuted WITHIN strata (blocks).
+
+For designs where only within-stratum exchangeability holds: clones within patient (each patient's clones keep
+their patient), patients within batch, sort or cohort, cells within sample. Group sizes are kept in every
+stratum. Exact enumeration of every within-stratum arrangement when there are at most ``max_exact`` of them,
+otherwise ``B`` random ones with the never-zero p ``(1 + #extreme) / (B + 1)``. Strata with only one group
+carry no information and are left out of the statistic (they do not move under the permutation). Units with a
+non-finite ``y`` or a missing label / stratum are dropped first.
+
+Parameters
+----------
+y : value per unit (patient, clone, cell).
+labels : group per unit; exactly two distinct values. The statistic is "first minus second" with the label
+    values in sorted order, or True minus False for boolean labels.
+strata : stratum per unit (patient for clone-level data, batch for patient-level data).
+stat : ``"mean_diff"`` (default: mean over informative strata of the within-stratum difference of means),
+    ``"sum"`` (sum of ``y`` in the first group over informative strata, centred at its permutation mean: the
+    stratified linear statistic; it weights strata by size), or a callable
+    ``stat(y, is_first_group, strata) -> float``
+    (applied to the units that remain after dropping missing values).
+alternative : ``"two-sided"``, ``"greater"`` or ``"less"``.
+B : random within-stratum permutations when not exact.
+max_exact : enumerate when the number of arrangements (product of per-stratum binomial coefficients) is at
+    most this.
+seed : seeds a local ``np.random.default_rng`` for random permutations (unused when exact).
+
+Returns
+-------
+dict with ``stat`` (observed), ``p``, ``exact``, ``n_perm``, ``n_units``, ``n_strata`` (informative strata),
+``min_p`` (the smallest p the design can give) and ``groups`` (first, second label).
+
+Examples
+--------
+>>> import numpy as np, arsc
+>>> y = np.array([5.0, 6.0, 1.0, 2.0, 7.0, 8.0, 3.0, 2.5])
+>>> g = np.array(["R", "R", "NR", "NR", "R", "R", "NR", "NR"])
+>>> s = np.array([1, 1, 1, 1, 2, 2, 2, 2])       # two batches; responders compared within batch
+>>> r = arsc.stats.strat_perm_test(y, g, s)
+>>> r["groups"], r["exact"], r["n_perm"], round(r["p"], 4)
+(('NR', 'R'), True, 36, 0.0556)
 ```
 
 ### `arsc.stats.wilcoxon_signed_rank(x, exact: 'bool | None' = None, correct: 'bool' = True) -> 'float'`

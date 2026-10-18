@@ -68,6 +68,8 @@ number of threads.
 | `stats.signflip_maxt` | `seed` (1) | random whole-row sign patterns when n > `max_exact` (16) | bit-identical |
 | `stats.freedman_lane` | `seed` (1) | random residual permutations when n > `max_exact` (8) | bit-identical |
 | `stats.downsample_counts` | `seed` (1) | hypergeometric (or binomial) thinning draws | bit-identical |
+| `stats.strat_perm_test` | `seed` (1) | random within-stratum permutations when the arrangements exceed `max_exact` (20,000); exact enumeration otherwise | bit-identical |
+| `stats.boot_ci_diff` | `seed` (1) | bootstrap resamples within each group (or of pairs) | bit-identical |
 | `de.fgsea` | `seed` (1) | permutation `i` for set size `k` uses splitmix64 seeded from `(seed, k, i)` inside the numba `prange` kernel | bit-identical and thread-invariant (one independent stream per permutation) |
 | `clones.clone_expansion_null` | `seed` (1) | patient and healthy-donor downsampling (local `default_rng`, consumed in input order) | bit-identical for the same input row order |
 | `clones.startrac` | `seed` (1) | optional per-group `downsample` | bit-identical |

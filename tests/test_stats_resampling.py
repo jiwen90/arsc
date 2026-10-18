@@ -292,3 +292,163 @@ def test_poisson_binomial_enumeration_and_binomial():
         brute[s.sum()] += np.prod(np.where(s == 1, p, 1 - p))
     assert np.allclose(pmf, brute, atol=1e-15)
     assert np.allclose(st.poisson_binomial(np.full(9, 0.3)), sps.binom.pmf(np.arange(10), 9, 0.3), atol=1e-14)
+
+
+# ----------------------------------------------------------------------------- perm_pvalue
+def test_perm_pvalue_matches_exact_enumeration_and_perm_test():
+    rng = np.random.default_rng(21)
+    for nx, ny in ((3, 3), (4, 5), (5, 6)):
+        x, y = rng.normal(0.8, 1, nx), rng.normal(0, 1, ny)
+        z = np.r_[x, y]
+        null = np.array([z[list(c)].mean() - np.delete(z, list(c)).mean()
+                         for c in itertools.combinations(range(len(z)), nx)])
+        obs = x.mean() - y.mean()
+        ref = st.perm_test(x, y, stat=lambda a, b: a.mean() - b.mean())["p_perm"]
+        assert st.perm_pvalue(null, obs, exact=True) == pytest.approx(ref, abs=1e-15)
+        brute = np.mean([abs(v) >= abs(obs) - 1e-9 for v in null])
+        assert st.perm_pvalue(null, obs, exact=True) == pytest.approx(brute, abs=1e-15)
+        assert st.perm_pvalue(null, obs, "greater", exact=True) == pytest.approx(np.mean(null >= obs - 1e-9))
+        assert st.perm_pvalue(null, obs, "less", exact=True) == pytest.approx(np.mean(null <= obs + 1e-9))
+
+
+def test_perm_pvalue_edge_cases():
+    null = np.array([0.1, 0.2, np.nan, -0.1])
+    assert st.perm_pvalue(null, 5.0) == pytest.approx(1 / 4)          # never 0; the NaN is dropped
+    assert st.perm_pvalue(np.full(999, np.nan), 1.0) != st.perm_pvalue(np.full(999, np.nan), 1.0)  # NaN
+    assert np.isnan(st.perm_pvalue([0.1, 0.2], np.nan))
+    a = np.array([0.1, 0.2, 0.3])
+    assert st.perm_pvalue([a.sum()], 0.6, "greater") == pytest.approx(1.0)  # 0.1 + 0.2 + 0.3 != 0.6 in floats: a tie
+    with pytest.raises(ValueError):
+        st.perm_pvalue([0.1], 0.0, alternative="two")
+
+
+# ----------------------------------------------------------------------------- strat_perm_test
+def _brute_strat(y, g, s, f, alternative="two-sided"):
+    """Every distinct within-stratum relabelling (itertools.permutations, de-duplicated)."""
+    strata = sorted(set(s))
+    per = []
+    for c in strata:
+        ii = [i for i in range(len(y)) if s[i] == c]
+        per.append((ii, sorted(set(itertools.permutations([g[i] for i in ii])))))
+    obs = f(y, np.asarray(g), np.asarray(s))
+    vals = []
+    for combo in itertools.product(*[p for _, p in per]):
+        gg = list(g)
+        for (ii, _), lab in zip(per, combo):
+            for i, v in zip(ii, lab):
+                gg[i] = v
+        vals.append(f(y, np.asarray(gg), np.asarray(s)))
+    vals = np.array(vals)
+    if alternative == "two-sided":
+        return float(np.mean(np.abs(vals) >= abs(obs) - 1e-9)), len(vals), obs
+    return float(np.mean(vals >= obs - 1e-9 if alternative == "greater" else vals <= obs + 1e-9)), len(vals), obs
+
+
+def _mean_diff(y, g, s):
+    d = [y[(s == c) & g].mean() - y[(s == c) & ~g].mean() for c in np.unique(s)
+         if 0 < g[s == c].sum() < (s == c).sum()]
+    return float(np.mean(d))
+
+
+def test_strat_perm_matches_brute_force():
+    rng = np.random.default_rng(22)
+    for sizes in ((4, 4), (3, 5, 4), (6, 3), (2, 3, 2, 3)):
+        s = np.repeat(np.arange(len(sizes)), sizes)
+        g = np.concatenate([rng.permutation([True] * max(1, k // 2) + [False] * (k - max(1, k // 2))) for k in sizes])
+        y = rng.normal(0, 1, len(s)) + 0.8 * g + s
+        for alt in ("two-sided", "greater", "less"):
+            r = st.strat_perm_test(y, g, s, alternative=alt)
+            p, n, obs = _brute_strat(y, g, s, _mean_diff, alt)
+            assert r["exact"] and r["n_perm"] == n
+            assert r["stat"] == pytest.approx(obs, abs=1e-12)
+            assert r["p"] == pytest.approx(p, abs=1e-12)
+        lin = lambda yy, gg, ss: float(yy[gg].sum())  # noqa: E731  (the centred sum has the same ordering)
+        p2, _, _ = _brute_strat(y, g, s, lambda yy, gg, ss: lin(yy, gg, ss) - sum(
+            gg[ss == c].sum() * yy[ss == c].mean() for c in np.unique(ss)))
+        assert st.strat_perm_test(y, g, s, stat="sum")["p"] == pytest.approx(p2, abs=1e-12)
+
+
+def test_strat_perm_one_stratum_is_perm_test_and_callable_stat():
+    rng = np.random.default_rng(23)
+    x, y = rng.normal(1, 1, 5), rng.normal(0, 1, 4)
+    v = np.r_[x, y]; g = np.r_[np.ones(5, bool), np.zeros(4, bool)]
+    r = st.strat_perm_test(v, g, np.zeros(9))
+    assert r["p"] == pytest.approx(st.perm_test(x, y, stat=lambda a, b: a.mean() - b.mean())["p_perm"], abs=1e-15)
+    med = st.strat_perm_test(v, g, np.zeros(9), stat=lambda yy, gg, ss: np.median(yy[gg]) - np.median(yy[~gg]))
+    assert med["p"] == pytest.approx(st.perm_test(x, y)["p_perm"], abs=1e-15)
+
+
+def test_strat_perm_monte_carlo_close_to_exact_and_never_zero():
+    rng = np.random.default_rng(24)
+    s = np.repeat(np.arange(3), 8)
+    g = np.tile(np.r_[np.ones(4, bool), np.zeros(4, bool)], 3)
+    y = rng.normal(0, 1, 24) + 0.5 * g
+    ex = st.strat_perm_test(y, g, s, max_exact=10 ** 6)
+    mc = st.strat_perm_test(y, g, s, max_exact=100, B=40_000, seed=3)
+    assert ex["exact"] and not mc["exact"] and ex["n_perm"] == math.comb(8, 4) ** 3
+    assert mc["p"] == pytest.approx(ex["p"], abs=4 * math.sqrt(ex["p"] * (1 - ex["p"]) / 40_000) + 1e-4)
+    sep = st.strat_perm_test(np.r_[np.arange(20) + 100.0, np.arange(20)], np.r_[np.ones(20, bool), np.zeros(20, bool)],
+                             np.zeros(40), B=999)
+    assert not sep["exact"] and sep["p"] == pytest.approx(1 / 1000)
+
+
+def test_strat_perm_drops_missing_and_uninformative_strata():
+    y = np.array([1.0, 2.0, 3.0, 4.0, np.nan, 9.0, 9.5, 5.0, 6.0])
+    g = np.array(["a", "b", "a", "b", "a", "a", "a", "a", "b"])
+    s = np.array([1, 1, 1, 1, 1, 2, 2, 3, 3])      # stratum 2 has one group only
+    r = st.strat_perm_test(y, g, s)
+    assert r["n_units"] == 8 and r["n_strata"] == 2 and r["groups"] == ("a", "b")
+    keep = (s != 2) & np.isfinite(y)
+    p, n, obs = _brute_strat(y[keep], g[keep] == "a", s[keep], _mean_diff)
+    assert r["n_perm"] == n and r["p"] == pytest.approx(p, abs=1e-12) and r["stat"] == pytest.approx(obs)
+    with pytest.raises(ValueError):
+        st.strat_perm_test([1.0, 2.0, 3.0], ["a", "b", "c"], [1, 1, 1])
+
+
+def test_strat_perm_holds_type1_where_pooled_permutation_does_not():
+    # strata differ in level AND in the share of group 1: permuting across strata confounds group with stratum
+    rng = np.random.default_rng(25)
+    s = np.repeat([0, 1], 8)
+    g = np.r_[np.ones(6, bool), np.zeros(2, bool), np.ones(2, bool), np.zeros(6, bool)]
+    rej_strat = rej_pool = 0
+    for _ in range(300):
+        y = rng.normal(0, 1, 16) + 6.0 * s           # no group effect within strata
+        rej_strat += st.strat_perm_test(y, g, s, B=500)["p"] <= 0.05
+        rej_pool += st.perm_test(y[g], y[~g], stat=lambda a, b: a.mean() - b.mean(), B=500)["p_perm"] <= 0.05
+    assert rej_strat / 300 <= 0.09 and rej_pool / 300 >= 0.15  # 7/300 vs 62/300 at seed 25
+
+
+# ----------------------------------------------------------------------------- boot_ci_diff
+def test_boot_ci_diff_paired_mean_equals_boot_ci_of_differences():
+    rng = np.random.default_rng(26)
+    x = rng.normal(1, 1, 7); y = x - rng.normal(0.5, 1, 7)
+    a = st.boot_ci_diff(x, y, f=np.mean, paired=True, seed=4)
+    b = st.boot_ci(x - y, f=np.mean, seed=4)
+    assert a[0] == pytest.approx(b[0], abs=1e-12) and a[1] == pytest.approx(b[1], abs=1e-12)
+
+
+def _exact_boot_cdf(x, y, f):
+    """The complete bootstrap distribution of f(x*) - f(y*): every index tuple of each group, equally weighted."""
+    vx = np.array([f(x[list(i)]) for i in itertools.product(range(len(x)), repeat=len(x))])
+    vy = np.array([f(y[list(i)]) for i in itertools.product(range(len(y)), repeat=len(y))])
+    d = np.sort(np.subtract.outer(vx, vy).ravel())
+    return d
+
+
+def test_boot_ci_diff_matches_the_exact_bootstrap_distribution():
+    x = np.array([0.3, 1.2, 2.0, 2.9]); y = np.array([-0.4, 0.1, 0.9])
+    d = _exact_boot_cdf(x, y, np.median)
+    lo, hi = st.boot_ci_diff(x, y, B=200_000, seed=5)
+    q = lambda a: d[min(len(d) - 1, int(np.ceil(a * len(d))) - 1)]  # noqa: E731  exact quantile function
+    assert q(0.025 - 0.004) - 1e-12 <= lo <= q(0.025 + 0.004) + 1e-12
+    assert q(0.975 - 0.004) - 1e-12 <= hi <= q(0.975 + 0.004) + 1e-12
+    lo9, hi9 = st.boot_ci_diff(x, y, conf_level=0.9, B=200_000, seed=5)
+    assert q(0.05 - 0.004) - 1e-12 <= lo9 <= q(0.05 + 0.004) + 1e-12 and lo9 >= lo and hi9 <= hi
+
+
+def test_boot_ci_diff_missing_and_small():
+    assert all(np.isnan(st.boot_ci_diff([1.0, 2.0], [1.0, 2.0, 3.0])))
+    lo, hi = st.boot_ci_diff([1.0, 2.0, np.nan, 3.0, 4.0], [0.0, 1.0, 2.0], seed=1)
+    assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
+    with pytest.raises(ValueError):
+        st.boot_ci_diff([1.0, 2.0, 3.0], [1.0, 2.0], paired=True)

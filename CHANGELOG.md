@@ -7,6 +7,12 @@ All notable changes to arsc are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- `arsc.stats.perm_pvalue` (the p of an observed statistic against a null you built: never-zero `(1 + #) / (B + 1)`,
+  NaN null values dropped, tie tolerance; `exact=True` for a full enumeration), `strat_perm_test` (two-group
+  permutation test with labels permuted within strata: clones within patient, patients within batch; exact
+  enumeration or Monte Carlo) and `boot_ci_diff` (percentile bootstrap CI of `f(x) - f(y)`, groups or pairs
+  resampled). Validated by brute force (STATS_PARITY.md). They replace hand-written versions found in experiment
+  code (a p without the +1, NaN counted as not extreme, permutation across strata that should have been within).
 - `arsc.stats` rank, randomisation, stratified and depth helpers (STATS_PARITY.md): `signflip_test` (exact to n = 20,
   never-zero Monte Carlo p, NaN dropped), `signflip_maxt` (Westfall-Young single-step / step-down over K readouts),
   `hodges_lehmann` (estimate + CI + p, port of R `wilcox.test(conf.int = TRUE)`, exact and normal branches),
