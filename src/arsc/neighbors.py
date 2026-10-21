@@ -299,11 +299,11 @@ def _snn_count(idx, rev_ptr, rev_idx, n, prune, k, out_ptr, out_idx, out_val, fi
                         touched[nt_] = j
                         nt_ += 1
                     cnt[j] += 1
-            touched_sorted = np.sort(touched[:nt_])
+            touched[:nt_].sort()  # in place: no allocation inside the parallel loop (Windows heap contention)
             w = 0
             base = out_ptr[i]
             for q in range(nt_):
-                j = touched_sorted[q]
+                j = touched[q]
                 s = cnt[j]
                 v = s / (k + (k - s))
                 if v >= prune and v > 0:
