@@ -19,6 +19,7 @@ licences require:
   - LICENSES/Seurat-MIT.txt            Seurat (MIT, Copyright (c) 2021 Seurat authors)
   - LICENSES/fgsea-MIT.txt             fgsea (MIT, Copyright (c) 2016-2019 Alexey Sergushichev)
   - LICENSES/Clonotrace-MIT.txt        Clonotrace (MIT, Copyright (c) 2026 Yuntian Fu)
+  - LICENSES/umap-learn-BSD-3-Clause.txt umap-learn (BSD-3-Clause, Copyright (c) 2017 Leland McInnes)
   - LICENSES/scanpy-BSD-3-Clause.txt   scanpy (BSD-3-Clause, Copyright (c) 2025 scverse;
                                        Copyright (c) 2017 F. Alexander Wolf, P. Angerer, Theis Lab)
 
@@ -101,6 +102,12 @@ Clonal analysis (arsc.clones, arsc.clonotrace).
     Lineage Modeling. bioRxiv 2025.09.01.673503. arsc.clonotrace ports the Clonotrace R package
     v1.2.1 (MIT; LICENSES/Clonotrace-MIT.txt).
 
+UMAP engine (arsc._umap, arsc.umap(engine="arsc"), arsc.fuzzy_simplicial_set). The fuzzy simplicial set,
+the a/b curve fit, the epoch sampling and the initialisation follow umap-learn 0.5 (BSD-3-Clause;
+LICENSES/umap-learn-BSD-3-Clause.txt); the parallel, thread-count-independent layout optimiser is arsc's own.
+  - McInnes L, Healy J, Melville J. UMAP: Uniform Manifold Approximation and Projection for Dimension
+    Reduction. arXiv:1802.03426 (2018).
+
 R-compatible components.
   - arsc._loess reproduces R's stats::loess default fit: the netlib dloess code of Cleveland,
     Grosse and Shyu (AT&T permissive notice) as modified in R's stats package (R: GPL-2 | GPL-3).
@@ -125,6 +132,6 @@ Licence compatibility of the originals with GPL-3.0-or-later
 -------------------------------------------------------------
   - GPL-3 (harmony, presto, UCell), GPL (>= 2) (limma, edgeR, lme4, R's RNG.c), GPL-2 | GPL-3 (R
     stats, statmod) and LGPL (>= 3) (DESeq2): compatible.
-  - MIT (Seurat, fgsea, Clonotrace, palantir) and BSD-3-Clause (scanpy): compatible; their notices are kept in
+  - MIT (Seurat, fgsea, Clonotrace, palantir) and BSD-3-Clause (scanpy, umap-learn): compatible; their notices are kept in
     LICENSES/.
   - A GPL-2.0-only original would NOT be compatible with GPL-3.0-or-later; none is known to be ported.

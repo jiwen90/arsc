@@ -132,7 +132,8 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
 
 @records_seed("seed")
 def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosine", seed: int = 42,
-         n_epochs: int | None = None, spread: float = 1.0, init: str = "spectral", knn=None) -> np.ndarray:
+         n_epochs: int | None = None, spread: float = 1.0, init: str = "spectral", knn=None,
+         engine: str = "umap-learn") -> np.ndarray:
     """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbours, min_dist 0.3).
 
     The k-NN graph is computed exactly by arsc (``knn`` can pass a precomputed
@@ -142,6 +143,14 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     single-threaded, so the same input + seed gives bit-identical coordinates. Pass other
     integers to see alternative layouts. ``seed=None`` (multi-threaded, non-reproducible)
     is rejected.
+
+    ``engine="arsc"`` runs arsc's own UMAP instead (``arsc._umap``): the same fuzzy graph as
+    umap-learn (identical weights on the same kNN), a spectral initialisation, and a layout optimiser
+    that runs on all threads yet gives identical coordinates at any thread count (each epoch reads a
+    snapshot; edges are partitioned by head point; negative samples come from per-edge counter-based
+    random streams). It is several times faster; layouts differ from umap-learn's by about as much as
+    two umap-learn seeds differ from each other (``SEURAT_PARITY.md``, UMAP engines). The default
+    stays ``"umap-learn"`` so existing results reproduce.
 
     Parameters
     ----------
@@ -154,6 +163,7 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     spread : layout ``spread``.
     init : ``"spectral"`` or ``"random"``.
     knn : optional precomputed ``(idx, dist)``.
+    engine : ``"umap-learn"`` (default) or ``"arsc"``.
 
     Returns
     -------
@@ -169,8 +179,8 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     (3000, 2)
     """
     seed = check_seed(seed)
-    import umap as umap_learn
-
+    if engine not in ("umap-learn", "arsc"):
+        raise ValueError(f"unknown engine {engine!r}; use 'umap-learn' or 'arsc'")
     from .neighbors import knn as _knn, l2_normalize
 
     X = np.asarray(emb, dtype=np.float64)
@@ -184,6 +194,13 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
             idx = d = None
     else:
         idx, d = knn
+    if engine == "arsc":
+        if idx is None:
+            raise ValueError("engine='arsc' supports metric 'cosine' or 'euclidean' (or a precomputed knn)")
+        from . import _umap
+        G = _umap.fuzzy_simplicial_set(idx, d, n_neighbors)
+        return _umap.embed(G, 2, min_dist=min_dist, spread=spread, n_epochs=n_epochs, init=init, seed=seed, X=X)
+    import umap as umap_learn
     kw = dict(n_neighbors=n_neighbors, min_dist=min_dist, metric=metric, spread=spread, init=init,
               n_epochs=n_epochs, random_state=seed, transform_seed=seed)
     if idx is not None:

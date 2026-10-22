@@ -42,6 +42,7 @@ from .pseudobulk import Pseudobulk, pseudobulk  # noqa: E402
 from .scores import add_module_score, score_ucell  # noqa: E402
 from .neighbors import find_neighbors, knn, snn_graph, wnn  # noqa: E402
 from .cluster import cluster, umap  # noqa: E402
+from ._umap import fuzzy_simplicial_set  # noqa: E402
 from . import clones, clonotrace, genesets, symphony  # noqa: E402
 from . import stats, de, datasets  # noqa: E402
 from ._help import help, recipes  # noqa: E402,A004  (task map / runnable recipes)
