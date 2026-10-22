@@ -30,23 +30,29 @@ __all__ = ["knn", "snn_graph", "find_neighbors", "wnn", "WNNResult", "l2_normali
 # --------------------------------------------------------------------------- kNN
 @nb.njit(parallel=True, cache=True)
 def _heap_finish(hd, hi, out_idx, out_d2, row0):
+    """Sort each row's heap by (distance, index), in place (insertion sort of k entries: no allocation inside the
+    parallel loop, which contends on the Windows heap)."""
     m, k = hd.shape
-    for r in nb.prange(m):
-        # sort by (distance, index) for determinism
-        o = np.argsort(hd[r] + 0.0, kind="mergesort")
-        dd = hd[r][o]
-        ii = hi[r][o]
-        a = 0
-        while a < k:  # within exact-distance ties order by index
-            b = a + 1
-            while b < k and dd[b] == dd[a]:
-                b += 1
-            if b - a > 1:
-                ii[a:b] = np.sort(ii[a:b])
-            a = b
-        for t in range(k):
-            out_idx[row0 + r, t] = ii[t]
-            out_d2[row0 + r, t] = dd[t] if dd[t] > 0 else 0.0
+    n_chunks = min(m, 256)
+    step = (m + n_chunks - 1) // max(n_chunks, 1)
+    for ch in nb.prange(n_chunks):
+        for r in range(ch * step, min(m, (ch + 1) * step)):
+            for t in range(k):
+                out_d2[row0 + r, t] = hd[r, t]
+                out_idx[row0 + r, t] = hi[r, t]
+            for t in range(1, k):
+                dv = out_d2[row0 + r, t]
+                iv = out_idx[row0 + r, t]
+                u = t - 1
+                while u >= 0 and (out_d2[row0 + r, u] > dv or (out_d2[row0 + r, u] == dv and out_idx[row0 + r, u] > iv)):
+                    out_d2[row0 + r, u + 1] = out_d2[row0 + r, u]
+                    out_idx[row0 + r, u + 1] = out_idx[row0 + r, u]
+                    u -= 1
+                out_d2[row0 + r, u + 1] = dv
+                out_idx[row0 + r, u + 1] = iv
+            for t in range(k):
+                if not out_d2[row0 + r, t] > 0:
+                    out_d2[row0 + r, t] = 0.0
 
 
 @nb.njit(inline="always")
