@@ -683,7 +683,7 @@ def read_10x_contigs(path, *, sample=None, chains=("TRA", "TRB"), productive_onl
                        "CellRanger *_contig_annotations.csv? Set productive_only/high_confidence=False or key= "
                        "to match the columns you have.")
     chains = [str(c) for c in ([chains] if isinstance(chains, str) else chains)]
-    keep = d["chain"].astype(str).isin(chains).to_numpy()
+    keep = d["chain"].astype(str).isin(chains).to_numpy().copy()  # pandas 3 (copy-on-write) returns a read-only view; &= below writes into it
     if productive_only:
         keep &= _truthy(d["productive"])
     if high_confidence:
@@ -983,8 +983,9 @@ def startrac(meta, clone_col="clone_id", state_col="metaclusters_exh", group_col
     d = d[d.clone.notna() & (d.clone.astype(str) != "") & d.state.notna()]
     d["clone"], d["state"] = d.clone.astype(str), d.state.astype(str)
     if downsample is not None:
-        d = d.groupby([*gc, "state"], sort=False, group_keys=False).apply(
-            lambda x: x.sample(n=min(len(x), downsample), random_state=int(rng.integers(2**31))))
+        # explicit loop, not groupby.apply: pandas 3 drops the grouping columns from apply's result
+        d = pd.concat([x.sample(n=min(len(x), downsample), random_state=int(rng.integers(2**31)))
+                       for _, x in d.groupby([*gc, "state"], sort=False)])
     crows, prows = [], []
     for key, g in d.groupby(gc, sort=True, observed=True):
         key = key if isinstance(key, tuple) else (key,)

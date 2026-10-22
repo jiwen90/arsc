@@ -79,6 +79,12 @@ def assert_frame_same(x: pd.DataFrame, y: pd.DataFrame):
     x, y = x.copy(), y.copy()
     x.index, y.index = x.index.astype(str), y.index.astype(str)
     x.index.name = y.index.name = None
+    # pandas 3 infers the str dtype where arsc (_sanitize_frame) and pandas 2 keep object: same values, so compare
+    # string columns as object (values and missing positions are still compared exactly)
+    for f in (x, y):
+        for c in f.columns:
+            if isinstance(f[c].dtype, pd.StringDtype):
+                f[c] = f[c].astype(object)
     pd.testing.assert_frame_equal(x, y, check_index_type=False)
 
 
@@ -256,7 +262,7 @@ def test_seurat_style_store_export(tmp_path):
     st = b.finish()
     a = st.to_anndata()
     assert_matrix_equal(a.X, counts)
-    assert list(a.layers) == ["data"]
+    assert [k for k in a.layers if k is not None] == ["data"]  # anndata >= 0.13 lists X as layer None
     assert a.var.highly_variable.sum() == 2
     assert a.obsm["X_pca"].shape == (n, 5)
     adt = st.to_anndata(assay="ADT")
