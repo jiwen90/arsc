@@ -7,6 +7,16 @@ All notable changes to arsc are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- `arsc.umap(engine="arsc")` and `arsc.fuzzy_simplicial_set`: arsc's own UMAP. The fuzzy graph is umap-learn's
+  (bit-identical weights on the same kNN); the layout runs on all threads with identical coordinates at any thread
+  count (snapshot epochs, edges partitioned by head point, per-edge counter-based negative sampling); about 10x
+  faster than umap-learn's seeded single-threaded layout at 8 threads, same trustworthiness (SEURAT_PARITY.md
+  section 5).
+- `arsc.cluster(engine="arsc")`: arsc's own Leiden (a port of libleidenalg's default optimiser) and Louvain (a port of
+  igraph community_multilevel) in numba, for modularity and `objective="cpm"`. Quality within the references'
+  seed-to-seed range, Leiden 4-6x and Louvain 3-15x faster, labels identical at any thread count. The default engines
+  stay umap-learn / leidenalg and their outputs are unchanged.
+
 - `arsc.stats.perm_pvalue` (the p of an observed statistic against a null you built: never-zero `(1 + #) / (B + 1)`,
   NaN null values dropped, tie tolerance; `exact=True` for a full enumeration), `strat_perm_test` (two-group
   permutation test with labels permuted within strata: clones within patient, patients within batch; exact
@@ -31,6 +41,10 @@ All notable changes to arsc are recorded here. The format follows
   (documented in SEEDS.md, recorded as an expected failure).
 
 ### Changed
+- `arsc.knn` (exact): ring search inside each cluster (1.2-1.5x faster on one thread) and ties at the k-th place
+  resolved by (distance, index), so the neighbour set no longer depends on the partition seed or scan order; the
+  per-row sort no longer allocates inside the parallel loop. `snn_graph` sorts in place; the igraph conversion no
+  longer goes through Python lists; `group_singletons` runs in numba (same rule).
 - `stats.perm_test`: the sampled (Monte Carlo) p is now `(1 + #extreme) / (B + 1)` and can no longer be 0 (it was
   `#extreme / B`); exact enumeration is unchanged. An empty group or a non-finite observed statistic now gives
   p = NaN (it gave 0). The result gains `exact`. `stats.arm_contrast` drops non-finite values before the
