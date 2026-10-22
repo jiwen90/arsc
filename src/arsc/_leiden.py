@@ -499,14 +499,21 @@ def _modularity(indptr, indices, data, memb, ncomm, gamma, two_m):
 
 @nb.njit(cache=True)
 def _louvain_step(ip, ix, w, k, gamma, two_m, state):
-    """igraph ``igraph_i_community_multilevel_step``: returns the level membership and modularity."""
+    """igraph ``igraph_i_community_multilevel_step``: returns the level membership and modularity.
+
+    The modularity after each pass is updated from per-community totals (internal weight ``I``,
+    strength ``K``) instead of a sweep over all edges."""
     n = ip.shape[0] - 1
     order = np.arange(n)
     _shuffle(order, state)
     memb = np.arange(n)
     K = k.copy()
+    selfw = _self_weights(ip, ix, w)
+    I = 2.0 * selfw
     q = _modularity(ip, ix, w, memb, n, gamma, two_m)
     saved = np.empty(n, np.int64)
+    savedK = np.empty(n)
+    savedI = np.empty(n)
     links_w = np.zeros(n)
     added = np.zeros(n, np.bool_)
     comms = np.empty(n, np.int64)
@@ -514,7 +521,8 @@ def _louvain_step(ip, ix, w, k, gamma, two_m, state):
         pass_q = q
         changed = False
         saved[:] = memb
-        savedK = K.copy()
+        savedK[:] = K
+        savedI[:] = I
         for i in range(n):
             v = order[i]
             nc = 0
@@ -531,26 +539,32 @@ def _louvain_step(ip, ix, w, k, gamma, two_m, state):
             c0 = memb[v]
             kv = k[v]
             K[c0] -= kv
+            I[c0] -= 2.0 * (links_w[c0] + selfw[v])
             best = c0
             best_gain = 0.0
-            cs = np.sort(comms[:nc])  # igraph sorts the links by community
+            comms[:nc].sort()  # igraph sorts the links by community (in place: no allocation)
             for t in range(nc):
-                c = cs[t]
+                c = comms[t]
                 gain = links_w[c] - gamma * K[c] * kv / two_m
                 if gain > best_gain:
                     best_gain = gain
                     best = c
+            K[best] += kv
+            I[best] += 2.0 * (links_w[best] + selfw[v])
             for t in range(nc):
                 links_w[comms[t]] = 0.0
                 added[comms[t]] = False
-            K[best] += kv
             memb[v] = best
             if best != c0:
                 changed = True
-        q = _modularity(ip, ix, w, memb, n, gamma, two_m)
+        q = 0.0
+        for c in range(n):
+            q += I[c] - gamma * K[c] * K[c] / two_m
+        q /= two_m
         if not (changed and q > pass_q):
             memb[:] = saved
             K[:] = savedK
+            I[:] = savedI
             q = pass_q
             break
     return memb, q
