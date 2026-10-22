@@ -51,14 +51,15 @@ def _heap_finish(hd, hi, out_idx, out_d2, row0):
 
 @nb.njit(inline="always")
 def _heap_push(hd, hi, r, d, j, k):
+    """Replace the top of row r's max-heap, keyed by (distance, index), with (d, j) and sift down."""
     pos = 0
     while True:
         c = 2 * pos + 1
         if c >= k:
             break
-        if c + 1 < k and hd[r, c + 1] > hd[r, c]:
+        if c + 1 < k and (hd[r, c + 1] > hd[r, c] or (hd[r, c + 1] == hd[r, c] and hi[r, c + 1] > hi[r, c])):
             c += 1
-        if hd[r, c] <= d:
+        if hd[r, c] < d or (hd[r, c] == d and hi[r, c] < j):
             break
         hd[r, pos] = hd[r, c]
         hi[r, pos] = hi[r, c]
@@ -69,16 +70,33 @@ def _heap_push(hd, hi, r, d, j, k):
 
 @nb.njit(inline="always")
 def _scan_cluster(Q, r, Xp, ids, starts, rpt, c, dcc, hd, hi, k, d):
+    """Scan cluster c for query r. The cluster's points are sorted by their distance to its centre (``rpt``), so
+    only the ring |rpt - dcc| <= current k-th distance can hold neighbours: binary search to its inner edge, stop
+    past its outer edge. A point enters on (distance, index) order, so ties at the k-th place resolve to the
+    smaller index whatever the scan order."""
     top = hd[r, 0]
-    for p in range(starts[c], starts[c + 1]):
-        b = dcc - rpt[p]
-        if b * b > top:
+    a = starts[c]
+    e = starts[c + 1]
+    if top < np.inf:
+        lo_v = dcc - np.sqrt(top)
+        b = e
+        while a < b:
+            m = (a + b) >> 1
+            if rpt[m] < lo_v:
+                a = m + 1
+            else:
+                b = m
+    for p in range(a, e):
+        b = rpt[p] - dcc
+        if b > 0 and b * b > top:
+            break
+        if (dcc - rpt[p]) ** 2 > top:
             continue
         acc = 0.0
         for t in range(d):
             df = Q[r, t] - Xp[p, t]
             acc += df * df
-        if acc < top:
+        if acc < top or (acc == top and ids[p] < hi[r, 0]):
             _heap_push(hd, hi, r, acc, ids[p], k)
             top = hd[r, 0]
 
@@ -153,11 +171,12 @@ def _partition(X, n_clusters, seed, iters=3, chunk=65536):
         np.add.at(sums, assign, X)
         nz = counts > 0
         centers[nz] = sums[nz] / counts[nz, None]
-    order = np.argsort(assign, kind="stable")
     counts = np.bincount(assign, minlength=C)
     starts = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
+    rpt_all = np.sqrt(((X - centers[assign]) ** 2).sum(1))
+    order = np.lexsort((np.arange(n), rpt_all, assign))  # by cluster, then distance to its centre (ring search)
     Xp = np.ascontiguousarray(X[order])
-    rpt = np.sqrt(((Xp - centers[assign[order]]) ** 2).sum(1))
+    rpt = rpt_all[order]
     radius = np.zeros(C)
     np.maximum.at(radius, assign[order], rpt)
     return Xp, order.astype(np.int64), starts, centers, radius, rpt
