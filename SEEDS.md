@@ -48,8 +48,8 @@ number of threads.
 | `knn` | `seed` (0) | `"exact"`: k-means partition used only for pruning, so the answer is exact and the same for every seed (tested). `"pynndescent"`: `random_state` | bit-identical. pynndescent output depends on the seed and on the thread count (see below) |
 | `find_neighbors` | `seed` (0) | passed to `knn` | as `knn` |
 | `wnn` | `seed` (0) | passed to `knn` for every modality | as `knn` |
-| `cluster` | `seed` (0) | Leiden: leidenalg `seed`. Louvain: start `s` uses a private `random.Random(seed + s)` as the igraph RNG | bit-identical |
-| `umap` | `seed` (42) | umap-learn `random_state` and `transform_seed`; also the `knn` seed | bit-identical. umap-learn runs its layout single-threaded when seeded. `seed=None`, the old fast parallel mode, is no longer allowed |
+| `cluster` | `seed` (0) | `engine="arsc"` (default): numpy `SeedSequence(seed)`, Louvain start `s` its `s`-th child. `engine="leidenalg"`: Leiden uses leidenalg `seed`; Louvain start `s` uses a private `random.Random(seed + s)` as the igraph RNG | bit-identical; arsc engine also thread-invariant |
+| `umap` | `seed` (42) | `engine="arsc"` (default): spectral-init noise and per-edge counter-based negative-sampling streams; `engine="umap-learn"`: `random_state` and `transform_seed`; also the `knn` seed | bit-identical; arsc engine identical at any thread count, umap-learn runs its layout single-threaded when seeded. `seed=None`, the old fast parallel mode, is no longer allowed |
 | `scanpy_extra.score_genes` | `random_state` (0) | control-gene sampling from a local `RandomState(random_state)`. This is the same MT19937 stream scanpy draws after `np.random.seed`, so scanpy parity is kept (tested) | bit-identical |
 | `scanpy_extra.neighbors` | `random_state` (0) | passed to `knn` (matters only for `method="pynndescent"`) | bit-identical |
 | `scanpy_extra.leiden` | `random_state` (0) | leidenalg `seed`; with `flavor="igraph"`, a private `random.Random` as the igraph RNG | bit-identical |

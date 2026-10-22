@@ -6,6 +6,27 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-21
+
+### Changed (defaults; pass the old values to reproduce results computed with 0.2.x)
+- `arsc.umap` runs arsc's own engine by default (`engine="arsc"`; was `"umap-learn"`). Re-checked before the switch
+  (SEURAT_PARITY.md section 5): the fuzzy graph is bit-identical to umap-learn's, the layout's trustworthiness and
+  kNN preservation equal umap-learn's, and the coordinates are identical at any thread count. `engine="umap-learn"`
+  stays available (and is needed for metrics other than cosine / euclidean).
+- `arsc.cluster` runs arsc's own engine by default (`engine="arsc"`; was `"leidenalg"`), with Louvain at resolution
+  0.6 (`method="louvain"`, `resolution=0.6`; was Leiden at 0.8), Seurat `FindClusters(resolution = 0.6,
+  algorithm = 1)`. The ARI of arsc's Leiden / Louvain against leidenalg / igraph lies within the references' own
+  seed-to-seed range and labels are identical at any thread count. `engine="leidenalg"` stays available.
+- `pp.pca` computes 30 components by default (was 50).
+- These defaults are the settings of the CD8 T-cell workflow (Seurat 4) that arsc was validated on: LogNormalize
+  (scale factor 1e4), vst variable genes (2,000), 30 PCs, Louvain (`algorithm = 1`) at resolution 0.6, RunUMAP with
+  30 neighbours, min_dist 0.3, cosine metric, spread 1, seed 42. `log_normalize`, `hvg_vst`, `find_neighbors`
+  (k = 20) and `umap`'s layout parameters already had these values and are unchanged.
+- `clonotrace.revise_distance`'s default Leiden ladder pins `method="leiden"`, `engine="leidenalg"` (its documented
+  scanpy-style behaviour), so its output does not change.
+- To reproduce 0.2.x results: `arsc.cluster(snn, method="leiden", resolution=0.8, engine="leidenalg")`,
+  `arsc.umap(emb, engine="umap-learn")`, `arsc.pp.pca(Z, n_comps=50)` (or the values the call passed).
+
 ### Added
 - `arsc.umap(engine="arsc")` and `arsc.fuzzy_simplicial_set`: arsc's own UMAP. The fuzzy graph is umap-learn's
   (bit-identical weights on the same kNN); the layout runs on all threads with identical coordinates at any thread
@@ -14,8 +35,8 @@ All notable changes to arsc are recorded here. The format follows
   section 5).
 - `arsc.cluster(engine="arsc")`: arsc's own Leiden (a port of libleidenalg's default optimiser) and Louvain (a port of
   igraph community_multilevel) in numba, for modularity and `objective="cpm"`. Quality within the references'
-  seed-to-seed range, Leiden 4-6x and Louvain 3-15x faster, labels identical at any thread count. The default engines
-  stay umap-learn / leidenalg and their outputs are unchanged.
+  seed-to-seed range, Leiden 4-6x and Louvain 3-15x faster, labels identical at any thread count (the default
+  engine since 0.3.0, see above).
 
 - `arsc.stats.perm_pvalue` (the p of an observed statistic against a null you built: never-zero `(1 + #) / (B + 1)`,
   NaN null values dropped, tie tolerance; `exact=True` for a full enumeration), `strat_perm_test` (two-group

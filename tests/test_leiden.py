@@ -76,9 +76,9 @@ def test_quality_not_below_reference(method):
 def test_cpm_quality_not_below_leidenalg():
     pytest.importorskip("leidenalg")
     G = _snn()
-    ours = [L.quality(G, arsc.cluster(G, resolution=0.05, seed=s, engine="arsc", objective="cpm",
+    ours = [L.quality(G, arsc.cluster(G, method="leiden", resolution=0.05, seed=s, engine="arsc", objective="cpm",
                                       group_singletons=False), 0.05, "cpm") for s in range(8)]
-    ref = [L.quality(G, arsc.cluster(G, resolution=0.05, seed=s, engine="leidenalg", objective="cpm",
+    ref = [L.quality(G, arsc.cluster(G, method="leiden", resolution=0.05, seed=s, engine="leidenalg", objective="cpm",
                                      group_singletons=False), 0.05, "cpm") for s in range(8)]
     assert np.median(ours) >= min(ref)  # CPM optima vary by about 1% between seeds in both
 

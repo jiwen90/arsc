@@ -59,4 +59,4 @@ from .seurat_extra import (find_markers, find_all_markers, fold_change, average_
 
 set_threads(_default_threads())  # also caps BLAS pools that were already loaded (threadpoolctl)
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

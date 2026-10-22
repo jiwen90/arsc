@@ -21,12 +21,13 @@ st = arsc.open("stores/obj")                   # afterwards: memory-mapped, no R
 | `NormalizeData(normalization.method = "CLR", margin = 2)` (ADT) | `arsc.pp.clr(adt_counts)` | exact |
 | `FindVariableFeatures` (vst) | `arsc.pp.hvg_vst(counts, nfeatures=2000, features=genes)` | identical 2,000 genes |
 | `ScaleData` (`vars.to.regress`, `split.by`) | `arsc.pp.scale(X)` / `arsc.scale_data(X, vars_to_regress=..., latent_data=obs)` | 1e-11 to 1e-10 |
-| `RunPCA` | `arsc.pp.pca(Z, n_comps=50)` | subspace cos >= 0.9999 |
+| `RunPCA` | `arsc.pp.pca(Z, n_comps=50)` (default 30) | subspace cos >= 0.9999 |
 | `RunHarmony` | `arsc.run_harmony(pcs, obs, "batch")` | objective path as R; r 0.989-0.998 |
 | `FindNeighbors` | `arsc.find_neighbors(emb, k=20)` (exact kNN; Seurat's Annoy is approximate) | Leiden ARI 0.92 |
 | `FindMultiModalNeighbors` | `arsc.wnn([rna_emb, adt_emb])` | ARI 0.87; 28x faster |
+| `FindClusters(resolution = 0.6, algorithm = 1)` | `arsc.cluster(snn)` (default: Louvain 0.6, arsc engine) | ARI within the reference's seed-to-seed range |
 | `FindClusters(algorithm = 4)` | `arsc.cluster(snn, method="leiden", resolution=0.8)` | |
-| `RunUMAP` | `arsc.umap(emb)` | |
+| `RunUMAP` | `arsc.umap(emb)` (arsc engine; `engine="umap-learn"` for umap-learn) | same fuzzy graph as umap-learn |
 | `FindMarkers(ident.1, ident.2)` | `arsc.find_markers(L, idents, "A", "B", features=genes)` | p within 1e-13 |
 | `FindMarkers(test.use = "LR", latent.vars = ...)` | `arsc.find_markers(..., test_use="LR", latent_vars=obs[[...]])` | 1e-11 |
 | `FindAllMarkers(only.pos = TRUE)` | `arsc.find_all_markers(L, idents, features=genes, only_pos=True)` | same rows |

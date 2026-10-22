@@ -99,3 +99,30 @@ def test_knn_ties_resolve_by_index_whatever_the_scan_order():
     i, _ = arsc.knn(X, 8)
     # the point itself first, then (distance, index) order
     assert np.array_equal(i[:300, 1:], np.array([[j for j in r if j != q][:7] for q, r in enumerate(ref)]))
+
+
+def test_defaults_are_arsc_engines_and_cd8_workflow_settings():
+    """0.3.0 defaults: arsc's own UMAP / Leiden-Louvain engines, Louvain at 0.6, 30 PCs; the reference engines
+    stay selectable (CHANGELOG 0.3.0)."""
+    import inspect
+
+    import arsc
+    sig = {f: inspect.signature(getattr(arsc, f)).parameters for f in ("cluster", "umap")}
+    assert sig["cluster"]["engine"].default == "arsc" and sig["umap"]["engine"].default == "arsc"
+    assert sig["cluster"]["method"].default == "louvain" and sig["cluster"]["resolution"].default == 0.6
+    assert sig["cluster"]["seed"].default == 0 and sig["umap"]["seed"].default == 42
+    assert (sig["umap"]["n_neighbors"].default, sig["umap"]["min_dist"].default, sig["umap"]["metric"].default,
+            sig["umap"]["spread"].default) == (30, 0.3, "cosine", 1.0)
+    assert inspect.signature(arsc.pp.pca).parameters["n_comps"].default == 30
+    assert inspect.signature(arsc.pp.hvg_vst).parameters["nfeatures"].default == 2000
+    assert inspect.signature(arsc.pp.log_normalize).parameters["scale_factor"].default == 1e4
+    assert inspect.signature(arsc.find_neighbors).parameters["k"].default == 20
+    rng = np.random.default_rng(0)
+    X = np.vstack([rng.normal(c, 1.0, (150, 6)) for c in (0.0, 6.0, 12.0)])
+    g = arsc.find_neighbors(X, k=20)["snn"]
+    assert np.array_equal(arsc.cluster(g), arsc.cluster(g, method="louvain", resolution=0.6, engine="arsc"))
+    pytest.importorskip("igraph")
+    ref = arsc.cluster(g, method="louvain", resolution=0.6, engine="leidenalg")
+    assert len(np.unique(ref)) == len(np.unique(arsc.cluster(g)))
+    a = arsc.umap(X, n_neighbors=10, n_epochs=30)
+    assert np.array_equal(a, arsc.umap(X, n_neighbors=10, n_epochs=30, engine="arsc"))

@@ -1034,7 +1034,8 @@ def _leiden_ladder(X, resolutions, k, seed):
     from .scanpy_extra import neighbors
     nb_ = neighbors(X, n_neighbors=int(k), random_state=seed)
     G = nb_["connectivities"] if isinstance(nb_, dict) else nb_[1]
-    return pd.DataFrame({f"leiden_r{r}": cluster(G, resolution=r, seed=seed, n_iterations=-1, group_singletons=False)
+    return pd.DataFrame({f"leiden_r{r}": cluster(G, method="leiden", resolution=r, seed=seed,
+                                                   n_iterations=-1, group_singletons=False, engine="leidenalg")
                          for r in resolutions})
 
 

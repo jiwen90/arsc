@@ -80,7 +80,7 @@ def run_arsc(step, data, out, T):
         E = np.load(common / "pca.npy").astype(np.float64)
         with T:
             nn = arsc.find_neighbors(E, k=K_NN)
-            lab = arsc.cluster(nn["snn"], method="leiden", resolution=RES)
+            lab = arsc.cluster(nn["snn"], method="leiden", resolution=RES, engine="leidenalg")  # as measured for 0.2.0
         np.save(out / "cluster.npy", np.asarray(lab, np.int32))
     elif step == "markers":
         L = arsc.pp.log_normalize(st.X("RNA", "counts"))

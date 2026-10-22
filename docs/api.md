@@ -860,7 +860,7 @@ Examples
 (3000, 300)
 ```
 
-### `arsc.pp.pca(Z: 'np.ndarray', n_comps: 'int' = 50, method: 'str' = 'auto', seed: 'int' = 42, n_oversamples: 'int | None' = None, n_iter: 'int' = 15) -> 'PCAResult'`
+### `arsc.pp.pca(Z: 'np.ndarray', n_comps: 'int' = 30, method: 'str' = 'auto', seed: 'int' = 42, n_oversamples: 'int | None' = None, n_iter: 'int' = 15) -> 'PCAResult'`
 
 ```text
 Truncated PCA of an already-centered (scaled) matrix, Seurat ``RunPCA`` conventions.
@@ -885,7 +885,8 @@ or the Gaussian test matrix (``"randomized"``); ``"gram"`` is deterministic and 
 Parameters
 ----------
 Z : cells x features dense, centered (scaled) matrix, e.g. the first output of :func:`scale`.
-n_comps : number of components (capped at ``min(n, p) - 1``).
+n_comps : number of components (capped at ``min(n, p) - 1``; default 30 since 0.3.0, the RunPCA
+    npcs of the CD8 T-cell workflow arsc was validated on; 0.2.x defaulted to Seurat's 50).
 method : ``"auto"``, ``"gram"``, ``"arpack"`` or ``"randomized"`` (see above).
 seed : integer seed (``None`` is rejected).
 n_oversamples : randomized-SVD oversampling.

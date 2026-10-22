@@ -1,9 +1,14 @@
 """Graph clustering and UMAP wrappers with deterministic seeds.
 
-``cluster(graph, method="leiden"|"louvain")`` clusters an SNN/WNN graph
+``cluster(graph, method="louvain"|"leiden")`` clusters an SNN/WNN graph
 (Seurat ``FindClusters``: labels are renumbered by decreasing cluster size,
-singletons are merged into their most connected cluster). ``umap()`` wraps
-umap-learn with Seurat ``RunUMAP`` defaults, reusing arsc's exact k-NN.
+singletons are merged into their most connected cluster). ``umap()`` gives a
+layout with Seurat ``RunUMAP`` defaults on arsc's exact k-NN.
+
+Both run arsc's own engines by default (``engine="arsc"``, since 0.3.0; validated in
+``SEURAT_PARITY.md`` section 5). The reference engines stay available:
+``cluster(engine="leidenalg")`` and ``umap(engine="umap-learn")`` reproduce results computed
+with arsc 0.2.x, whose defaults were those engines (and Leiden at resolution 0.8).
 """
 from __future__ import annotations
 
@@ -52,28 +57,33 @@ def _group_singletons(labels: np.ndarray, G: sp.csr_matrix) -> np.ndarray:
 
 
 @records_seed("seed")
-def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 0, n_iterations: int = 2,
-            n_start: int = 10, group_singletons: bool = True, engine: str = "leidenalg",
+def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int = 0, n_iterations: int = 2,
+            n_start: int = 10, group_singletons: bool = True, engine: str = "arsc",
             objective: str = "modularity") -> np.ndarray:
     """Cluster a weighted graph (e.g. ``find_neighbors(...)["snn"]`` or ``wnn(...).wsnn``).
 
     Seurat ``FindClusters``: labels are renumbered by decreasing cluster size (0 = largest) and
     singletons are merged into their most connected cluster.
 
-    Two engines run the same algorithms. ``engine="leidenalg"`` (default, unchanged so recorded results
-    reproduce) calls leidenalg / igraph. ``engine="arsc"`` runs arsc's own numba ports
+    Defaults (since 0.3.0): Louvain at resolution 0.6 (Seurat ``FindClusters(resolution = 0.6,
+    algorithm = 1)``, the setting of the CD8 T-cell workflow arsc was validated on) on arsc's own engine.
+
+    Two engines run the same algorithms. ``engine="arsc"`` (default) runs arsc's own numba ports
     (:mod:`arsc._leiden`: libleidenalg's optimiser and igraph's multilevel, step for step) with no
-    igraph / leidenalg import; it is several times faster and its quality matches the references
-    within their own seed-to-seed range (``SEURAT_PARITY.md``), but a seed gives a different (equally
-    good) partition than the same seed in leidenalg.
+    igraph / leidenalg import; it is several times faster, its labels do not depend on the thread count,
+    and its quality matches the references within their own seed-to-seed range (``SEURAT_PARITY.md``),
+    but a seed gives a different (equally good) partition than the same seed in leidenalg.
+    ``engine="leidenalg"`` calls leidenalg / igraph; pass it (with ``method`` and ``resolution``) to
+    reproduce labels computed with arsc 0.2.x, whose defaults were ``method="leiden"``,
+    ``resolution=0.8``, ``engine="leidenalg"``.
 
     Parameters
     ----------
     graph : n x n sparse weighted graph.
-    method : ``"leiden"`` (RBConfiguration = modularity with resolution, as Seurat ``algorithm = 4``)
-        or ``"louvain"`` (igraph multilevel; best modularity over ``n_start`` seeded runs, as Seurat
-        ``algorithm = 1``).
-    resolution : modularity resolution (Seurat ``resolution``; higher = more clusters).
+    method : ``"louvain"`` (default; igraph multilevel, best modularity over ``n_start`` seeded runs, as
+        Seurat ``algorithm = 1``) or ``"leiden"`` (RBConfiguration = modularity with resolution, as Seurat
+        ``algorithm = 4``).
+    resolution : modularity resolution (Seurat ``resolution``; higher = more clusters; default 0.6).
     n_iterations : Leiden iterations (leidenalg default 2; -1 = until stable).
     n_start : Louvain random starts (Seurat ``n.start``).
     group_singletons : merge singleton clusters (Seurat ``group.singletons``).
@@ -84,9 +94,9 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
         ``SeedSequence(seed)`` (Louvain start ``s``: its ``s``-th child); the result does not depend on
         the thread count. Same graph + seed -> identical labels; vary ``seed`` to check a clustering's
         stability.
-    engine : ``"leidenalg"`` (leidenalg / igraph) or ``"arsc"`` (own implementation).
+    engine : ``"arsc"`` (default, own implementation) or ``"leidenalg"`` (leidenalg / igraph).
     objective : Leiden quality, ``"modularity"`` (default) or ``"cpm"`` (constant Potts model;
-        leidenalg ``CPMVertexPartition``).
+        leidenalg ``CPMVertexPartition``; needs ``method="leiden"``).
 
     Returns
     -------
@@ -98,7 +108,7 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
     >>> ds = arsc.datasets.toy()
     >>> Z, _, _ = arsc.pp.scale(arsc.pp.log_normalize(ds.X("RNA", "counts")))
     >>> g = arsc.find_neighbors(arsc.pp.pca(Z, n_comps=10).embedding, k=20)
-    >>> labels = arsc.cluster(g["snn"], resolution=0.5, seed=0, engine="arsc")
+    >>> labels = arsc.cluster(g["snn"], resolution=0.5, seed=0)
     >>> int(labels.min())
     0
     """
@@ -108,7 +118,7 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
     if objective not in ("modularity", "cpm"):
         raise ValueError(f"unknown objective {objective!r}; use 'modularity' or 'cpm'")
     if method == "louvain" and objective != "modularity":
-        raise ValueError("louvain optimises modularity only")
+        raise ValueError("louvain optimises modularity only; pass method=\"leiden\" for objective=\"cpm\"")
     G = _check_graph(graph)
     if engine == "arsc":
         from . import _leiden
@@ -161,24 +171,24 @@ def cluster(graph, method: str = "leiden", resolution: float = 0.8, seed: int = 
 @records_seed("seed")
 def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosine", seed: int = 42,
          n_epochs: int | None = None, spread: float = 1.0, init: str = "spectral", knn=None,
-         engine: str = "umap-learn") -> np.ndarray:
+         engine: str = "arsc") -> np.ndarray:
     """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbours, min_dist 0.3).
 
-    The k-NN graph is computed exactly by arsc (``knn`` can pass a precomputed
-    ``(idx, dist)``), so only the layout optimisation runs in umap-learn.
-    ``seed`` (default 42 = Seurat ``RunUMAP(seed.use = 42)``) seeds umap-learn's
-    ``random_state`` and ``transform_seed``; with a seed umap-learn runs its layout
-    single-threaded, so the same input + seed gives bit-identical coordinates. Pass other
-    integers to see alternative layouts. ``seed=None`` (multi-threaded, non-reproducible)
+    The k-NN graph is computed exactly by arsc (``knn`` can pass a precomputed ``(idx, dist)``).
+    ``seed`` (default 42 = Seurat ``RunUMAP(seed.use = 42)``) seeds the layout; the same input + seed
+    gives bit-identical coordinates. Pass other integers to see alternative layouts. ``seed=None``
     is rejected.
 
-    ``engine="arsc"`` runs arsc's own UMAP instead (``arsc._umap``): the same fuzzy graph as
-    umap-learn (identical weights on the same kNN), a spectral initialisation, and a layout optimiser
-    that runs on all threads yet gives identical coordinates at any thread count (each epoch reads a
-    snapshot; edges are partitioned by head point; negative samples come from per-edge counter-based
-    random streams). It is several times faster; layouts differ from umap-learn's by about as much as
-    two umap-learn seeds differ from each other (``SEURAT_PARITY.md``, UMAP engines). The default
-    stays ``"umap-learn"`` so existing results reproduce.
+    ``engine="arsc"`` (default since 0.3.0) runs arsc's own UMAP (``arsc._umap``): the same fuzzy
+    graph as umap-learn (identical weights on the same kNN), a spectral initialisation, and a layout
+    optimiser that runs on all threads yet gives identical coordinates at any thread count (each epoch
+    reads a snapshot; edges are partitioned by head point; negative samples come from per-edge
+    counter-based random streams). It is several times faster; layouts differ from umap-learn's by
+    about as much as two umap-learn seeds differ from each other (``SEURAT_PARITY.md``, UMAP engines).
+    It supports ``metric="cosine"`` or ``"euclidean"`` (or a precomputed ``knn``).
+    ``engine="umap-learn"`` runs the layout in umap-learn (seeded, single-threaded; ``random_state``
+    and ``transform_seed`` = ``seed``) and accepts its other metrics; pass it to reproduce layouts
+    computed with arsc 0.2.x, whose default it was.
 
     Parameters
     ----------
@@ -191,7 +201,7 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     spread : layout ``spread``.
     init : ``"spectral"`` or ``"random"``.
     knn : optional precomputed ``(idx, dist)``.
-    engine : ``"umap-learn"`` (default) or ``"arsc"``.
+    engine : ``"arsc"`` (default) or ``"umap-learn"``.
 
     Returns
     -------
@@ -224,7 +234,8 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
         idx, d = knn
     if engine == "arsc":
         if idx is None:
-            raise ValueError("engine='arsc' supports metric 'cosine' or 'euclidean' (or a precomputed knn)")
+            raise ValueError(f"engine='arsc' supports metric 'cosine' or 'euclidean' (or a precomputed knn), "
+                             f"got {metric!r}; pass engine='umap-learn' for other metrics")
         from . import _umap
         G = _umap.fuzzy_simplicial_set(idx, d, n_neighbors)
         return _umap.embed(G, 2, min_dist=min_dist, spread=spread, n_epochs=n_epochs, init=init, seed=seed, X=X)

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # NOTE: the name "arsc" is already taken on PyPI by an unrelated package (quickARSC). Choose a
 # distribution name before the first upload (the import name `arsc` can stay). See CHANGELOG / NOTICE.
 name = "arsc"
-version = "0.2.0"
+version = "0.3.0"
 description = "Fast, validated single-cell compute: memory-mapped stores, Seurat/scanpy-parity methods, pseudobulk DE, patient-level statistics and clonal (TCR) analysis"
 readme = "README.md"
 requires-python = ">=3.10"

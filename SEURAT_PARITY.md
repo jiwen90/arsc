@@ -213,5 +213,20 @@ igraph construction and 12 s of leidenalg, sequential at every count). The 8-thr
 machine, where 14 s of sequential work and parallel regions waiting for their slowest thread suffer most. The new
 engine removes the sequential bottleneck: kNN + SNN + graph + Leiden = 26.6 / 15.9 / 9.9 / 7.0 s, Leiden 2.6 s.
 
-**Defaults.** `arsc.umap` and `arsc.cluster` keep `engine="umap-learn"` / `"leidenalg"` by default so that results
-recorded with earlier arsc versions reproduce; `engine="arsc"` needs neither umap-learn, leidenalg nor igraph.
+**Defaults.** Since 0.3.0, `arsc.umap` and `arsc.cluster` run `engine="arsc"` by default (it needs neither
+umap-learn, leidenalg nor igraph), and `arsc.cluster` defaults to Louvain at resolution 0.6. Before the switch the
+fast suite and both parity benchmarks were re-run on the release candidate (2026-10-21; synthetic and toy data, 1 and
+2 threads; the tables above were measured on real data and are unchanged): see the re-check below.
+`engine="umap-learn"` / `"leidenalg"` stay available and reproduce results recorded with 0.2.x (whose defaults they
+were, with Leiden at resolution 0.8 and 50 PCs).
+
+Re-check before the default switch (2026-10-21, on the commit that added the engines; 2 threads available on a
+shared machine, so thread determinism was checked at 1 and 2 threads):
+
+| check | result |
+|---|---|
+| fast suite (`pytest -m "not slow"`) | 420 passed, 49 skipped (reference data not present), 0 failed |
+| UMAP, synthetic 20,000 x 10 (`benchmarks/umap_parity.py`, seeds 0-4) | fuzzy graph: same edges, max weight difference 0.0; a, b equal; trustworthiness arsc 0.9584 (0.9577-0.9588) / umap-learn 0.9587 (0.9585-0.9591); kNN preservation 0.0473 / 0.0488; disparity arsc-arsc 0.42, ref-ref 0.69, arsc-ref 0.85; identical coordinates at 1 and 2 threads; layout 6.6 s (1 thread) and 3.8 s (2) vs umap-learn 8.4 s |
+| Leiden / Louvain, planted 8x1000 and toy SNN k20 (`benchmarks/leiden_parity.py`, seeds 0-9) | every row equal to the table above (quality, cluster counts, ARI arsc-arsc / ref-ref / arsc-ref); same labels at 1 and 2 threads in every row |
+
+The real-data rows (80,000 events) were not re-run: those data are not distributed with the benchmark.
