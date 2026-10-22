@@ -31,3 +31,15 @@ def test_pynndescent_not_all_cores():
     import inspect
     from arsc import neighbors
     assert "n_jobs=-1" not in inspect.getsource(neighbors)
+
+
+def test_numba_imported_before_arsc_still_compiles():
+    """numba imported first (scanpy first, or a pytest plugin) fixed its pool size; arsc must not then set
+    NUMBA_NUM_THREADS, or numba's next compile raises "Cannot set NUMBA_NUM_THREADS ... threads launched"."""
+    code = ("import numba, arsc\n@numba.njit\ndef f(x):\n    return x + 1\n"
+            "print(f(1), arsc.get_threads())")
+    e = {k: v for k, v in os.environ.items() if not k.endswith("_THREADS") and k != "AR_THREADS"}
+    e["AR_THREADS"] = "2"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=e)
+    assert out.returncode == 0, out.stderr[-2000:]
+    assert out.stdout.split() == ["2", "2"]

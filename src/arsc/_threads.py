@@ -33,9 +33,17 @@ def default_threads() -> int:
 
 def preconfigure_env() -> None:
     """Before numba/numpy load: map AR_THREADS (or the small default) onto the libraries' own env vars.
-    Variables the caller already set are kept."""
+    Variables the caller already set are kept.
+
+    When numba was imported before arsc (``import scanpy`` first, or a pytest plugin), its pool size is already
+    fixed and ``NUMBA_NUM_THREADS`` is left alone: setting it now would make numba's next compile fail with
+    "Cannot set NUMBA_NUM_THREADS ... once the threads have been launched". ``set_threads`` then caps the threads
+    numba uses with ``numba.set_num_threads``."""
+    import sys
     n = default_threads()
     for var in _ENV_VARS:
+        if var == "NUMBA_NUM_THREADS" and "numba" in sys.modules:
+            continue
         os.environ.setdefault(var, str(n))
 
 
