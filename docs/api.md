@@ -114,7 +114,7 @@ Examples
 ('seurat', 'h5ad')
 ```
 
-### `arsc.export_seurat(obj_path, out_dir, *, assays=None, layers=('counts',), graphs: 'bool' = True, reductions: 'bool' = True, rscript: 'str' = 'Rscript', threads: 'int' = 16) -> 'Path'`
+### `arsc.export_seurat(obj_path, out_dir, *, assays=None, layers=('counts',), graphs: 'bool' = True, reductions: 'bool' = True, rscript: 'str' = 'Rscript', threads: 'int' = 16, full: 'bool' = False, scale_f64: 'bool' = False) -> 'Path'`
 
 ```text
 Run the R exporter on a ``.rds``/``.qs`` Seurat object (v4 or v5); prefer :func:`arsc.read_seurat`.
@@ -128,6 +128,11 @@ layers : layers to export (``"counts"``, ``"data"``, ``"scale.data"``).
 graphs, reductions : export graphs / reductions.
 rscript : path of ``Rscript``.
 threads : R threads.
+full : export everything the object holds (every assay and layer, scale.data as a dense array,
+    per-feature metadata, Idents, reductions with projected loadings, graphs, Neighbor objects,
+    misc/commands/tools as ``uns``); what cannot be converted is listed in
+    ``manifest["unconvertible"]``. ``assays``/``layers``/``graphs``/``reductions`` are ignored.
+scale_f64 : with ``full``, keep scale.data as float64 (default float32: half the disk).
 
 Returns
 -------
@@ -498,7 +503,7 @@ True
 True
 ```
 
-### `arsc.Reduction(embedding: 'np.ndarray', columns: 'list', loadings: 'pd.DataFrame | None' = None, stdev: 'np.ndarray | None' = None, assay: 'str | None' = None) -> None`
+### `arsc.Reduction(embedding: 'np.ndarray', columns: 'list', loadings: 'pd.DataFrame | None' = None, stdev: 'np.ndarray | None' = None, assay: 'str | None' = None, projected: 'pd.DataFrame | None' = None, key: 'str | None' = None) -> None`
 
 ```text
 Cell embedding (cells x k), optional feature loadings and stdev.
@@ -510,6 +515,8 @@ columns : column names (e.g. ``PC_1``...).
 loadings : optional features x k DataFrame.
 stdev : optional per-component s.d.
 assay : assay the reduction was computed from.
+projected : optional projected loadings (features x k DataFrame; Seurat ``ProjectDim``).
+key : column key (e.g. ``PC_``).
 
 Examples
 --------
@@ -1361,7 +1368,7 @@ Examples
 300
 ```
 
-### `arsc.io.export_seurat(obj_path, out_dir, *, assays=None, layers=('counts',), graphs: 'bool' = True, reductions: 'bool' = True, rscript: 'str' = 'Rscript', threads: 'int' = 16) -> 'Path'`
+### `arsc.io.export_seurat(obj_path, out_dir, *, assays=None, layers=('counts',), graphs: 'bool' = True, reductions: 'bool' = True, rscript: 'str' = 'Rscript', threads: 'int' = 16, full: 'bool' = False, scale_f64: 'bool' = False) -> 'Path'`
 
 ```text
 Run the R exporter on a ``.rds``/``.qs`` Seurat object (v4 or v5); prefer :func:`arsc.read_seurat`.
@@ -1375,6 +1382,11 @@ layers : layers to export (``"counts"``, ``"data"``, ``"scale.data"``).
 graphs, reductions : export graphs / reductions.
 rscript : path of ``Rscript``.
 threads : R threads.
+full : export everything the object holds (every assay and layer, scale.data as a dense array,
+    per-feature metadata, Idents, reductions with projected loadings, graphs, Neighbor objects,
+    misc/commands/tools as ``uns``); what cannot be converted is listed in
+    ``manifest["unconvertible"]``. ``assays``/``layers``/``graphs``/``reductions`` are ignored.
+scale_f64 : with ``full``, keep scale.data as float64 (default float32: half the disk).
 
 Returns
 -------
@@ -1491,7 +1503,7 @@ Examples
 3000
 ```
 
-### `arsc.io.Reduction(embedding: 'np.ndarray', columns: 'list', loadings: 'pd.DataFrame | None' = None, stdev: 'np.ndarray | None' = None, assay: 'str | None' = None) -> None`
+### `arsc.io.Reduction(embedding: 'np.ndarray', columns: 'list', loadings: 'pd.DataFrame | None' = None, stdev: 'np.ndarray | None' = None, assay: 'str | None' = None, projected: 'pd.DataFrame | None' = None, key: 'str | None' = None) -> None`
 
 ```text
 Cell embedding (cells x k), optional feature loadings and stdev.
@@ -1503,6 +1515,8 @@ columns : column names (e.g. ``PC_1``...).
 loadings : optional features x k DataFrame.
 stdev : optional per-component s.d.
 assay : assay the reduction was computed from.
+projected : optional projected loadings (features x k DataFrame; Seurat ``ProjectDim``).
+key : column key (e.g. ``PC_``).
 
 Examples
 --------

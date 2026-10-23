@@ -6,6 +6,25 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Full Seurat export: `arsc.export_seurat(obj, out, full=True)` / `arsc.read_seurat(..., full=True)` /
+  `export_seurat.R --full` writes everything a Seurat v3/v4/v5 object holds: every assay and layer (v5 split layers
+  joined with the per-cell split recorded; a v3 `data` slot that repeats `counts` stored as an alias, not a copy),
+  `scale.data` as a dense array (float32 by default, `scale_f64=True`), per-feature metadata, VariableFeatures, every
+  meta.data column typed with all factor levels, Idents, reductions with projected loadings, graphs with their assay,
+  Neighbor objects, and misc / commands / tools / images / assay extras (SCT models) as `uns`. Anything it cannot
+  convert (an R environment, an external pointer) is listed in `manifest["unconvertible"]`. Reads `.rds` files that
+  were gzipped a second time (GEO `.rds.gz`).
+- `Store.dense()` / `dense_layers()`, `Store.split()`, `Store.neighbors` / `neighbor()`, `Store.idents`,
+  `Store.unconvertible`; `Reduction.projected` and `Reduction.key`; `Store.var()` reads a full export's `var.csv`
+  (and writes `var.parquet` on finalize); `Store.uns` resolves arrays with shape/levels, data frames and the files
+  under `uns/` (npy, csv, mtx, txt).
+
+### Fixed
+- `export_seurat.R`: a reduction or graph that does not cover every cell no longer fails with a subscript error in
+  full mode (NaN rows, or listed as unconvertible); a typed obs/var csv whose manifest names a column the csv lacks
+  reads instead of raising.
+
 ## [0.3.0] - 2026-10-21
 
 ### Changed (defaults; pass the old values to reproduce results computed with 0.2.x)

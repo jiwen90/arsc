@@ -20,8 +20,11 @@ Layout (written by ``arsc/R/export_seurat.R``; Python adds the files marked *)::
     assays/<A>/features.txt  [variable_features.txt]
     assays/<A>/<layer>.csr.{data,indices,indptr}.npy      cells x features
     assays/<A>/<layer>.csc.{data,indices,indptr}.npy*     per-feature slices
-    reductions/<R>.npy  [<R>.loadings.npy, <R>.loadings_features.txt]
+    reductions/<R>.npy  [<R>.loadings.npy, <R>.loadings_features.txt, <R>.projected.npy]
     graphs/<G>.csr.{data,indices,indptr}.npy
+    full Seurat exports (``export_seurat(..., full=True)``) also hold:
+    assays/<A>/<layer>.dense.npy (scale.data), <layer>.split.txt (v5 split layers), var.csv,
+    neighbors/<N>.{idx,dist}.npy, uns.json + uns/*, and manifest "unconvertible"
 
 The ``*`` files are produced once by the first :func:`open` (atomically, under
 a lock, so concurrent first opens are safe).
@@ -63,7 +66,8 @@ def exporter_script() -> Path:
 
 
 def export_seurat(obj_path, out_dir, *, assays=None, layers=("counts",), graphs: bool = True,
-                  reductions: bool = True, rscript: str = "Rscript", threads: int = 16) -> Path:
+                  reductions: bool = True, rscript: str = "Rscript", threads: int = 16, full: bool = False,
+                  scale_f64: bool = False) -> Path:
     """Run the R exporter on a ``.rds``/``.qs`` Seurat object (v4 or v5); prefer :func:`arsc.read_seurat`.
 
     Parameters
@@ -75,6 +79,11 @@ def export_seurat(obj_path, out_dir, *, assays=None, layers=("counts",), graphs:
     graphs, reductions : export graphs / reductions.
     rscript : path of ``Rscript``.
     threads : R threads.
+    full : export everything the object holds (every assay and layer, scale.data as a dense array,
+        per-feature metadata, Idents, reductions with projected loadings, graphs, Neighbor objects,
+        misc/commands/tools as ``uns``); what cannot be converted is listed in
+        ``manifest["unconvertible"]``. ``assays``/``layers``/``graphs``/``reductions`` are ignored.
+    scale_f64 : with ``full``, keep scale.data as float64 (default float32: half the disk).
 
     Returns
     -------
@@ -85,6 +94,12 @@ def export_seurat(obj_path, out_dir, *, assays=None, layers=("counts",), graphs:
     >>> import arsc
     >>> arsc.export_seurat("obj.qs", "stores/obj", layers=("counts", "data"))   # doctest: +SKIP
     """
+    if full:
+        cmd = [rscript, str(exporter_script()), str(obj_path), str(out_dir), "--full", "--threads", str(threads)]
+        if scale_f64:
+            cmd.append("--scale-f64")
+        subprocess.run(cmd, check=True)
+        return Path(out_dir)
     cmd = [rscript, str(exporter_script()), str(obj_path), str(out_dir),
            "--layers", ",".join(layers), "--threads", str(threads)]
     if assays:
@@ -160,6 +175,8 @@ class Reduction:
     loadings : optional features x k DataFrame.
     stdev : optional per-component s.d.
     assay : assay the reduction was computed from.
+    projected : optional projected loadings (features x k DataFrame; Seurat ``ProjectDim``).
+    key : column key (e.g. ``PC_``).
 
     Examples
     --------
@@ -174,6 +191,8 @@ class Reduction:
     loadings: pd.DataFrame | None = None
     stdev: np.ndarray | None = None
     assay: str | None = None
+    projected: pd.DataFrame | None = None
+    key: str | None = None
 
     def to_frame(self, index=None) -> pd.DataFrame:
         """Embedding as a DataFrame (``index`` = cell barcodes, e.g. ``ds.cells``)."""
@@ -470,24 +489,33 @@ def _mmap_sparse(prefix: str, shape, fmt: str = "csr"):
 
 # --------------------------------------------------------------------------- obs
 def _read_obs_csv(d: Path, manifest: dict, cells: list) -> pd.DataFrame:
+    obs = _read_typed_csv(d / "obs.csv", manifest.get("obs", {}) or {}, "cell")
+    if not obs.index.equals(pd.Index(cells)):
+        raise ValueError("obs.csv row order does not match cells.txt")
+    return obs
+
+
+def _read_typed_csv(path: Path, spec: dict, index_col: str) -> pd.DataFrame:
+    """A csv written by the R exporter, typed by its manifest spec ({column: {type, levels}})."""
     import pyarrow as pa
     import pyarrow.csv as pacsv
 
-    spec = manifest.get("obs", {}) or {}
-    types = {"cell": pa.string()}
+    types = {index_col: pa.string()}
     for col, s in spec.items():
         types[col] = {"double": pa.float64(), "integer": pa.int64(), "logical": pa.bool_()}.get(s["type"], pa.string())
     tbl = pacsv.read_csv(
-        d / "obs.csv",
+        path,
         convert_options=pacsv.ConvertOptions(column_types=types, null_values=["NA"], strings_can_be_null=True,
                                              quoted_strings_can_be_null=False, true_values=["TRUE"],
                                              false_values=["FALSE"]),
         read_options=pacsv.ReadOptions(block_size=1 << 26),
     )
     obs = tbl.to_pandas(types_mapper={pa.int64(): pd.Int64Dtype(), pa.bool_(): pd.BooleanDtype()}.get)
-    obs = obs.set_index("cell")
+    obs = obs.set_index(index_col)
     obs.index.name = None
     for col, s in spec.items():
+        if col not in obs.columns:  # a column the manifest names but the csv lacks (store parity reports it)
+            continue
         if s["type"] == "factor":
             lev = s.get("levels") or []
             lev = [lev] if isinstance(lev, str) else list(lev)  # jsonlite auto_unbox writes a 1-level factor as a string
@@ -501,8 +529,6 @@ def _read_obs_csv(d: Path, manifest: dict, cells: list) -> pd.DataFrame:
             # (Python str objects cost ~60 B each; 260k cells x 24 columns ~ 0.5 GB per process)
             nun = obs[col].nunique(dropna=True)
             obs[col] = obs[col].astype("category" if nun <= max(1000, len(obs) // 2) else "string[pyarrow]")
-    if not obs.index.equals(pd.Index(cells)):
-        raise ValueError("obs.csv row order does not match cells.txt")
     return obs
 
 
@@ -625,9 +651,14 @@ class Store:
         todo = []
         if not (self.path / "obs.parquet").exists():
             todo.append(("obs", None, None))
+        for a in (self.manifest.get("assays") or {}):
+            if (self.path / "assays" / a / "var.csv").exists() and not (self.path / "assays" / a / "var.parquet").exists():
+                todo.append(("var", a, None))
         if build_csc:
             for a, entry in (self.manifest.get("assays") or {}).items():
-                for l in (entry.get("layers") or {}):
+                for l, info in (entry.get("layers") or {}).items():
+                    if info.get("alias_of"):
+                        continue
                     if not (self.path / "assays" / a / f"{l}.csc.indptr.npy").exists():
                         todo.append(("csc", a, l))
         return todo
@@ -643,6 +674,11 @@ class Store:
                     tmp = self.path / f"obs.parquet.tmp{os.getpid()}"
                     obs.to_parquet(tmp)
                     os.replace(tmp, self.path / "obs.parquet")
+                elif kind == "var":
+                    v = self._var_csv(a)
+                    tmp = self.path / "assays" / a / f"var.parquet.tmp{os.getpid()}"
+                    v.reset_index(drop=True).to_parquet(tmp)
+                    os.replace(tmp, self.path / "assays" / a / "var.parquet")
                 else:
                     info = self.manifest["assays"][a]["layers"][l]
                     base = str(self.path / "assays" / a / l)
@@ -709,14 +745,23 @@ class Store:
         return self._features[assay]
 
     def var(self, assay: str = "RNA") -> pd.DataFrame:
-        """Per-feature annotations (``var.parquet`` from h5ad/10x imports; else an empty frame)."""
+        """Per-feature annotations (``var.parquet`` from h5ad/10x imports or a full Seurat export's
+        ``meta.features``; else an empty frame)."""
         p = self.path / "assays" / assay / "var.parquet"
         feats = self.features(assay)
         if p.exists():
             v = pd.read_parquet(p)
             v.index = pd.Index(feats, dtype=object)
             return v
+        if (self.path / "assays" / assay / "var.csv").exists():
+            return self._var_csv(assay)
         return pd.DataFrame(index=pd.Index(feats, dtype=object))
+
+    def _var_csv(self, assay: str) -> pd.DataFrame:
+        spec = ((self.manifest["assays"][assay].get("var") or {}).get("columns") or {})
+        v = _read_typed_csv(self.path / "assays" / assay / "var.csv", spec, "feature")
+        v.index = pd.Index(self.features(assay), dtype=object)
+        return v
 
     def varm(self, assay: str, key: str) -> np.ndarray:
         """Per-feature matrix imported from AnnData ``varm`` (memory-mapped)."""
@@ -730,7 +775,7 @@ class Store:
             p = self.path / "uns.json"
             if p.exists():
                 from .formats import _uns_from_json
-                self._uns = _uns_from_json(json.loads(p.read_text(encoding="utf-8")))
+                self._uns = _uns_from_json(json.loads(p.read_text(encoding="utf-8")), base=self.path)
             else:
                 self._uns = {}
         return self._uns
@@ -740,14 +785,105 @@ class Store:
         p = self.path / "assays" / assay / "variable_features.txt"
         return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
 
+    def dense_layers(self, assay: str = "RNA") -> list:
+        """Names of an assay's dense layers (a full Seurat export's ``scale.data``).
+
+        Examples
+        --------
+        >>> import arsc
+        >>> arsc.datasets.toy(store="toy_store_dl").dense_layers("RNA")
+        []
+        """
+        self._check_assay(assay)
+        return list(self.manifest["assays"][assay].get("dense") or {})
+
+    def dense(self, assay: str = "RNA", layer: str = "scale.data") -> pd.DataFrame:
+        """A dense layer (cells x its own features, e.g. scale.data on the variable genes), memory-mapped.
+
+        Returns a DataFrame whose values are the read-only memory map; rows are ``st.cells``.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> st = arsc.datasets.toy(store="toy_store_dn")
+        >>> "scale.data" in st.dense_layers("RNA")
+        False
+        """
+        self._check_assay(assay)
+        info = (self.manifest["assays"][assay].get("dense") or {}).get(layer)
+        if info is None:
+            raise KeyError(f"no dense layer {layer!r} in assay {assay!r} (has {self.dense_layers(assay)})")
+        d = self.path / "assays" / assay
+        M = np.load(d / info["file"], mmap_mode="r")
+        feats = (d / info["features_file"]).read_text(encoding="utf-8").splitlines()
+        return pd.DataFrame(M, index=self.cells, columns=pd.Index(feats, dtype=object), copy=False)
+
+    def split(self, assay: str = "RNA", layer: str = "counts") -> pd.Series | None:
+        """The Seurat v5 split each cell's values came from (layers ``counts.P1``, ``counts.P2`` ... are joined at
+        export), or None when the layer was not split.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> arsc.datasets.toy(store="toy_store_sp").split("RNA", "counts") is None
+        True
+        """
+        self._check_assay(assay)
+        e = self.manifest["assays"][assay]
+        info = ((e.get("layers") or {}).get(layer) or (e.get("dense") or {}).get(layer) or {}).get("split")
+        if not info:
+            return None
+        lab = (self.path / "assays" / assay / info["file"]).read_text(encoding="utf-8").split("\n")[: self.n_cells]
+        return pd.Series(pd.Categorical(lab), index=self.cells, name=f"{assay}/{layer} split")
+
+    @property
+    def neighbors(self) -> list:
+        """Names of the stored Seurat Neighbor objects (``FindNeighbors(return.neighbor = TRUE)``)."""
+        return list(self.manifest.get("neighbors") or {})
+
+    def neighbor(self, name: str) -> tuple:
+        """``(idx, dist)`` of a Neighbor object: cells x k arrays, ``idx`` as 0-based positions in ``st.cells``
+        (``dist`` is None if the object had none). Memory-mapped.
+
+        Examples
+        --------
+        >>> import arsc
+        >>> arsc.datasets.toy(store="toy_store_nb").neighbors
+        []
+        """
+        info = (self.manifest.get("neighbors") or {}).get(name)
+        if info is None:
+            raise KeyError(f"no neighbors {name!r} in store (has {self.neighbors})")
+        d = self.path / "neighbors"
+        idx = np.load(d / info["idx"], mmap_mode="r")
+        dist = np.load(d / info["dist"], mmap_mode="r") if info.get("dist") else None
+        return idx, dist
+
+    @property
+    def idents(self) -> pd.Series | None:
+        """Seurat ``Idents(obj)`` at export (a full export writes it as an obs column), or None."""
+        col = self.manifest.get("idents_column")
+        return self.obs[col] if col and col in self.obs.columns else None
+
+    @property
+    def unconvertible(self) -> list:
+        """What a full Seurat export could not convert: ``[{path, class, reason}]`` (empty when everything was)."""
+        return list(self.manifest.get("unconvertible") or [])
+
     def _layer(self, assay, layer):
         if assay not in (self.manifest.get("assays") or {}):
             raise KeyError(f"assay {assay!r} not in store (has {self.assays})")
         layers = self.manifest["assays"][assay].get("layers") or {}
         layer = layer or _default_layer(layers)
         if layer not in layers:
-            raise KeyError(f"layer {layer!r} not in assay {assay!r} (has {list(layers)})")
-        return layer, layers[layer]
+            dense = list(self.manifest["assays"][assay].get("dense") or {})
+            raise KeyError(f"layer {layer!r} not in assay {assay!r} (has {list(layers)}"
+                           + (f"; dense layers {dense}: st.dense({assay!r}, {dense[0]!r})" if dense else "") + ")")
+        info = layers[layer]
+        if info.get("alias_of"):  # a v3 data slot that only repeated counts: the same arrays
+            layer = info["alias_of"]
+            info = layers[layer]
+        return layer, info
 
     # -- matrices (zero-copy) ---------------------------------------------------------
     def X(self, assay: str = "RNA", layer: str | None = None) -> sp.csr_matrix:
@@ -823,8 +959,14 @@ class Store:
             L = np.load(rd / f"{name}.loadings.npy", mmap_mode="r")
             lf = (rd / f"{name}.loadings_features.txt").read_text(encoding="utf-8").splitlines()
             loadings = pd.DataFrame(np.asarray(L), index=lf, columns=e["columns"])
-        stdev = np.asarray(e["stdev"]) if e.get("stdev") is not None else None
-        return Reduction(self.embedding(name), list(e["columns"]), loadings, stdev, e.get("assay"))
+        stdev = np.asarray(e["stdev"], dtype=np.float64).ravel() if e.get("stdev") is not None else None
+        projected = None
+        if "projected_shape" in e:
+            P = np.load(rd / f"{name}.projected.npy", mmap_mode="r")
+            pf = (rd / f"{name}.projected_features.txt").read_text(encoding="utf-8").splitlines()
+            projected = pd.DataFrame(np.asarray(P), index=pf, columns=e["columns"])
+        return Reduction(self.embedding(name), list(e["columns"]), loadings, stdev, e.get("assay"), projected,
+                         e.get("key"))
 
     @property
     def reductions(self) -> list:
@@ -882,7 +1024,8 @@ class Store:
         if reductions:
             for r in self.reductions:
                 rr = self.reduction(r)
-                reds[r] = Reduction(np.asarray(rr.embedding[idx]), rr.columns, rr.loadings, rr.stdev, rr.assay)
+                reds[r] = Reduction(np.asarray(rr.embedding[idx]), rr.columns, rr.loadings, rr.stdev, rr.assay,
+                                    rr.projected, rr.key)
         gr = {}
         if graphs:
             for g in self.graphs:

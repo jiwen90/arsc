@@ -203,15 +203,55 @@ def _uns_to_json(x: Any, path: str, skipped: list) -> Any:
 _SKIP = object()
 
 
-def _uns_from_json(x: Any) -> Any:
+def _uns_from_json(x: Any, base: Path | None = None) -> Any:
+    """Inverse of :func:`_uns_to_json`, plus the shapes the R exporter writes for a full Seurat export: arrays with
+    ``shape``/``order``/``levels``, ``__dataframe__``, and files under ``uns/`` (``__npy__``, ``__csv__``, ``__mtx__``,
+    ``__txt__``; resolved against the store folder ``base``, memory-mapped where possible). ``__deparsed__`` (an R
+    formula or function) stays a dict with its R source text."""
     if isinstance(x, dict):
         if "__ndarray__" in x:
+            vals = x["__ndarray__"]
+            vals = vals if isinstance(vals, list) else [vals]
             if x.get("dtype") == "str":
-                return np.array(x["__ndarray__"], dtype=object)
-            return np.array(x["__ndarray__"], dtype=np.dtype(x["dtype"]))
-        return {k: _uns_from_json(v) for k, v in x.items()}
+                a = np.array(vals, dtype=object)
+            else:
+                dt = np.dtype(x.get("dtype", "<f8"))
+                a = np.array([np.nan if v is None and dt.kind == "f" else v for v in vals], dtype=dt)
+            shape = x.get("shape")
+            if shape is not None:
+                shape = [int(v) for v in (shape if isinstance(shape, list) else [shape])]
+                if len(shape) > 1 and int(np.prod(shape)) == a.size:
+                    a = a.reshape(shape, order=x.get("order", "C"))
+            if x.get("levels") is not None:
+                lev = x["levels"] if isinstance(x["levels"], list) else [x["levels"]]
+                return pd.Categorical(a.ravel(), categories=lev)
+            if x.get("names") is not None and a.ndim == 1:
+                return pd.Series(a, index=x["names"] if isinstance(x["names"], list) else [x["names"]])
+            return a
+        if "__dataframe__" in x:
+            cols = {k: _uns_from_json(v, base) for k, v in (x["__dataframe__"] or {}).items()}
+            idx = x.get("index")
+            idx = idx if isinstance(idx, list) or idx is None else [idx]
+            cols = {k: (np.asarray(v).ravel() if isinstance(v, np.ndarray) else v) for k, v in cols.items()}
+            return pd.DataFrame(cols, index=idx)
+        if base is not None:
+            if "__npy__" in x:
+                a = np.load(Path(base) / x["__npy__"], mmap_mode="r")
+                return a.astype(bool) if x.get("logical") else a
+            if "__csv__" in x:
+                df = pd.read_csv(Path(base) / x["__csv__"], keep_default_na=True, na_values=["NA"])
+                return df.set_index("_index") if "_index" in df.columns else df
+            if "__mtx__" in x:
+                import scipy.io
+                m = sp.csr_matrix(scipy.io.mmread(str(Path(base) / x["__mtx__"])))
+                return {"matrix": m, "rownames": x.get("rownames"), "colnames": x.get("colnames")}
+            if "__txt__" in x:
+                vals = (Path(base) / x["__txt__"]).read_text(encoding="utf-8").split("\n")
+                vals = vals[:-1] if vals and vals[-1] == "" else vals
+                return np.array([None if v == x.get("na") else v for v in vals], dtype=object)
+        return {k: _uns_from_json(v, base) for k, v in x.items()}
     if isinstance(x, list):
-        return [_uns_from_json(v) for v in x]
+        return [_uns_from_json(v, base) for v in x]
     return x
 
 
