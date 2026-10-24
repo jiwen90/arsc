@@ -38,6 +38,8 @@
 #   reductions/<R>.loadings.npy + .loadings_features.txt   (+ .projected.npy / .projected_features.txt)
 #   graphs/<G>.csr.{data,indices,indptr}.npy   cells x cells (stored transposed-CSC = CSR of t(G))
 #   neighbors/<N>.idx.npy, <N>.dist.npy   (--full) cells x k, 0-based positions in cells.txt
+#                                         (index_space "cells"); a query -> reference Neighbor keeps
+#                                         its 0-based reference positions (index_space "other")
 #   uns.json, uns/*                       (--full) misc, commands, tools, images, seurat extras
 #
 # Python's first `arsc.open()` adds obs.parquet and the per-feature CSC copies
@@ -132,6 +134,12 @@ cells <- colnames(obj)
 writeLines(cells, file.path(out, "cells.txt"), useBytes = TRUE)
 
 unconvertible <- list()
+# What a Neighbor object's nn.idx values index: "cells" (its own cells, the FindNeighbors case) or "other" (another
+# object's cells: a query -> reference Neighbor such as Azimuth's "query_ref.nn", or any value beyond its cell count).
+# tools/R/store_stats.R in autoresearch applies the same rule on the source side.
+neighbor_index_space <- function(name, idx, n_cells) {
+  if (grepl("query_ref|ref\\.nn$", name) || isTRUE(max(idx, na.rm = TRUE) > n_cells)) "other" else "cells"
+}
 note_unconv <- function(path, x, why) {
   unconvertible[[length(unconvertible) + 1]] <<- list(path = path, class = paste(class(x), collapse = "/"), reason = why)
   msg("  NOT CONVERTED ", path, " (", paste(class(x), collapse = "/"), "): ", why)
@@ -551,11 +559,19 @@ if (full && length(obj@neighbors)) {
       note_unconv(paste0("neighbors/", nn), nb, "the neighbor graph does not cover exactly the object's cells"); next
     }
     pos <- match(cn, cells)  # row i of nn.idx is cell cn[i]; values are row numbers in cn
-    idx0 <- matrix(pos[idx] - 1L, nrow(idx))
     ord <- order(pos)
+    # A query -> reference Neighbor (Azimuth / MapQuery "query_ref.nn"): rows are this object's cells, but the values
+    # are row numbers in ANOTHER object's cells (the reference), so they cannot be mapped through cn. Kept as they
+    # are (0-based), flagged index_space = "other". Mapping them through cn wrote NA (-2^31) and wrong positions.
+    other <- neighbor_index_space(nn, idx, length(cn)) == "other"
+    idx0 <- if (other) matrix(as.integer(idx) - 1L, nrow(idx)) else matrix(pos[idx] - 1L, nrow(idx))
+    if (anyNA(idx0)) {
+      note_unconv(paste0("neighbors/", nn), nb, "nn.idx holds NA or values outside its cells"); next
+    }
     idx0 <- idx0[ord, , drop = FALSE]
     write_npy(as.vector(idx0), file.path(out, "neighbors", paste0(nn, ".idx.npy")), "i4", dim(idx0), fortran = TRUE)
-    e <- list(shape = dim(idx0), index_base = 0L, idx = paste0(nn, ".idx.npy"))
+    e <- list(shape = dim(idx0), index_base = 0L, idx = paste0(nn, ".idx.npy"),
+              index_space = if (other) "other" else "cells")
     if (!is.null(dist) && length(dist)) {
       write_npy(as.vector(dist[ord, , drop = FALSE]), file.path(out, "neighbors", paste0(nn, ".dist.npy")), "f8", dim(dist), fortran = TRUE)
       e$dist <- paste0(nn, ".dist.npy")

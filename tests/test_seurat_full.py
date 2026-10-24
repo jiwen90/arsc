@@ -101,6 +101,9 @@ o[["pca"]]@feature.loadings.projected <- ld * 2
 G <- Matrix::sparseMatrix(i = 1:nc, j = c(2:nc, 1), x = 1, dims = c(nc, nc), dimnames = list(cells, cells))
 o[["RNA_nn"]] <- as.Graph(G)
 o[["RNA.nn"]] <- new("Neighbor", nn.idx = cbind(1:nc, c(2:nc, 1)), nn.dist = matrix(0.5, nc, 2), cell.names = cells)
+# a query -> reference Neighbor (Azimuth): values index a 500-cell reference, not this object's cells
+o[["query_ref.nn"]] <- new("Neighbor", nn.idx = cbind(rep(500L, nc), 1:nc + 100L), nn.dist = matrix(1, nc, 2),
+                           cell.names = cells)
 o@misc <- list(note = "x", env = new.env())
 Idents(o) <- "grp"
 if (!inherits(o@assays$RNA, "Assay5")) o@assays$RNA <- as(o@assays$RNA, "Assay5")
@@ -136,9 +139,13 @@ def test_export_seurat_full(tmp_path):
     rd = st.reduction("pca")
     assert rd.key == "PC_" and rd.projected is not None and np.allclose(rd.projected.values, rd.loadings.values * 2)
     assert np.allclose(rd.stdev, [3, 2, 1])
-    assert st.graphs == ["RNA_nn"] and st.neighbors == ["RNA.nn"]
+    assert st.graphs == ["RNA_nn"] and st.neighbors == ["RNA.nn", "query_ref.nn"]
     idx, dist = st.neighbor("RNA.nn")
     assert idx[0, 1] == 1 and idx[59, 1] == 0 and np.allclose(dist, 0.5)  # 0-based positions in st.cells
+    assert st.manifest["neighbors"]["RNA.nn"]["index_space"] == "cells"
+    qi, _ = st.neighbor("query_ref.nn")  # reference positions kept as they are (0-based), never mapped or NA
+    assert st.manifest["neighbors"]["query_ref.nn"]["index_space"] == "other"
+    assert qi.min() >= 0 and qi[0, 0] == 499 and qi[0, 1] == 100 and qi[59, 1] == 159
     assert st.uns["misc"]["note"] == "x"
     assert [u["path"] for u in st.unconvertible] == ["misc/env"]
     assert st.manifest["export"]["mode"] == "full"

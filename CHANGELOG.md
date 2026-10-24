@@ -6,6 +6,13 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Full Seurat export of a query -> reference Neighbor object (Azimuth / MapQuery `query_ref.nn`): its `nn.idx` values
+  index the reference's cells, but the exporter mapped them through the object's own cells, writing NA (-2^31) for
+  every reference row beyond the object's cell count and wrong positions for the rest. Such a Neighbor now keeps its
+  0-based reference positions with `index_space: "other"` in the manifest (own-cell Neighbors: `"cells"`), and a
+  Neighbor whose positions would hold NA is listed as unconvertible instead of written.
+
 ### Added
 - Full Seurat export: `arsc.export_seurat(obj, out, full=True)` / `arsc.read_seurat(..., full=True)` /
   `export_seurat.R --full` writes everything a Seurat v3/v4/v5 object holds: every assay and layer (v5 split layers

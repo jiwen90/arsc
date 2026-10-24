@@ -843,7 +843,9 @@ class Store:
 
     def neighbor(self, name: str) -> tuple:
         """``(idx, dist)`` of a Neighbor object: cells x k arrays, ``idx`` as 0-based positions in ``st.cells``
-        (``dist`` is None if the object had none). Memory-mapped.
+        (``dist`` is None if the object had none). Memory-mapped. A query -> reference Neighbor (Azimuth's
+        ``query_ref.nn``) has ``manifest["neighbors"][name]["index_space"] == "other"``: its ``idx`` values are
+        0-based positions in the reference's cells, not rows of this store.
 
         Examples
         --------
