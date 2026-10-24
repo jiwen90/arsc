@@ -30,7 +30,7 @@ import scipy.sparse as sp
 
 from ._utils import check_seed
 
-__all__ = ["toy", "toy_h5ad", "TOY_EFFECT_GENES", "TOY_MARKERS"]
+__all__ = ["toy", "toy_h5ad", "toy_view", "TOY_EFFECT_GENES", "TOY_MARKERS"]
 
 #: marker genes per cell type in :func:`toy` (up-regulated about 8x in that type)
 TOY_MARKERS = {
@@ -205,3 +205,48 @@ def toy_h5ad(path, n_cells: int = 3000, n_genes: int = 300, *, seed: int = 0) ->
     """
     ds = toy(n_cells, n_genes, seed=seed)
     return Path(ds.write_h5ad(path, assay="RNA"))
+
+
+def toy_view(path, n_cells: int = 600, *, seed: int = 0) -> dict:
+    """A toy parent store, a full subset store of every other cell, and a view of that subset on the parent.
+
+    Parameters
+    ----------
+    path : a new or empty directory; ``parent/``, ``full/`` (the subset as a full copy) and ``view/`` are written
+        inside it (an existing set is reused).
+    n_cells : cells of the parent (the subset keeps every other one).
+    seed : integer seed of the toy data.
+
+    Returns
+    -------
+    dict with the three store paths (``parent``, ``full``, ``view``) and the subset's parent rows (``rows``).
+
+    Examples
+    --------
+    >>> import arsc, tempfile
+    >>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+    >>> v = arsc.open(t["view"])
+    >>> v.is_view, v.n_cells
+    (True, 300)
+    """
+    from . import views
+    from .formats import StoreBuilder
+    from .io import Store
+    path = Path(path)
+    out = {"parent": path / "parent", "full": path / "full", "view": path / "view"}
+    rows = np.arange(0, n_cells, 2)
+    out["rows"] = rows
+    if (out["view"] / views.VIEW_FILE).is_file():
+        return out
+    P = toy(n_cells, seed=seed, store=out["parent"], overwrite=True)
+    sub = P.subset(rows)
+    b = StoreBuilder(out["full"])
+    b.set_cells(list(sub.obs.index), sub.obs)
+    for a in sub.assays:
+        b.add_assay(a, list(sub.features(a)))
+        for l in sub.layers(a):
+            b.add_layer(a, l, sub.X(a, l))
+    b.finish(open_store=False)
+    F = Store(out["full"])
+    views.build(F, [out["parent"]], out["view"], {0: (np.arange(rows.size), rows)}, log=lambda *a: None)
+    return out

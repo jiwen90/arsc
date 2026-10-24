@@ -6,6 +6,18 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Subset stores as views (`arsc.views`): a store whose cells are rows of other (parent) stores keeps only what is new
+  (metadata, reductions, graphs, neighbors, `uns`, dense layers, features, and every layer whose values differ) and
+  reads each layer row that equals a parent row bit for bit from the parent, through a feature map and the store's own
+  dtypes, with rows from several parents and rows kept locally. `arsc.open(view)` returns a normal `Store`
+  (`is_view`, `view_parents`); `manifest.json` and `cells.txt` stay byte-identical to the full store. `views.build`
+  (row candidates in, bit-for-bit row matching, dry run), `views.compare` (every accessor of a view against the full
+  store it replaces), `views.materialize` (back to a full store), `views.array_sha256`, `datasets.toy_view`. A view's
+  parent that is missing or changed raises `ViewError` at the first matrix read. `st.X()` of an inherited layer
+  gathers the view's rows into read-only RAM once per process; `get_features` reads only the requested parent
+  columns; `subset` gathers only the requested rows.
+
 ### Fixed
 - Full Seurat export of a query -> reference Neighbor object (Azimuth / MapQuery `query_ref.nn`): its `nn.idx` values
   index the reference's cells, but the exporter mapped them through the object's own cells, writing NA (-2^31) for

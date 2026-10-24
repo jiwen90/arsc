@@ -18,7 +18,7 @@ import pytest
 import arsc
 
 MODULES = ["preprocessing", "io", "formats", "markers", "pseudobulk", "scores", "neighbors", "cluster", "harmony", "symphony",
-           "clones", "clonotrace", "genesets", "stats", "de", "scanpy_extra", "seurat_extra", "datasets"]
+           "clones", "clonotrace", "genesets", "stats", "de", "scanpy_extra", "seurat_extra", "datasets", "views"]
 
 
 def _public_objects():

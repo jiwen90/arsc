@@ -24,6 +24,10 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 * **Store** (`arsc.open(dir)`): a directory of `.npy` files opened with `mmap`. Nothing is read until you ask;
   `st.X()` costs no RAM of its own, and N processes share one physical copy. Build a store once with
   `arsc.read(file, store=dir)` from `.h5ad`, a 10x `.h5` or `mtx` directory, or a Seurat `.qs`/`.rds` (Seurat needs R).
+* **View** (`arsc.views`): a store whose cells are rows of another store keeps only what is new and reads the
+  rest from its parent store; `arsc.open(view)` is an ordinary Store with the same values (`st.is_view`). Its
+  inherited matrices are gathered into RAM by `st.X()` (once per process); `get_features` and `subset` read only
+  what they need. Never read a store's `.npy` files directly: a view does not have the inherited ones.
 * **Dataset**: the same interface held in memory. `arsc.read(file)` (no `store=`), `st.subset(mask)` and
   `arsc.datasets.toy()` return one.
 * Both have `.obs` (a cell metadata DataFrame indexed by barcode), `.X(assay="RNA", layer=None)` (a cells x features

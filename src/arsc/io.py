@@ -643,6 +643,8 @@ class Store:
         self._uns = None
         self._features: dict[str, pd.Index] = {}
         _warn_if_source_changed(self.path)
+        from . import views as _views
+        self._view = _views.attach(self)  # a subset store kept as a view of its parent(s) (arsc.views), else None
         if finalize:
             self.finalize(build_csc=build_csc)
 
@@ -657,7 +659,7 @@ class Store:
         if build_csc:
             for a, entry in (self.manifest.get("assays") or {}).items():
                 for l, info in (entry.get("layers") or {}).items():
-                    if info.get("alias_of"):
+                    if info.get("alias_of") or self._inherited(a, l):
                         continue
                     if not (self.path / "assays" / a / f"{l}.csc.indptr.npy").exists():
                         todo.append(("csc", a, l))
@@ -872,6 +874,27 @@ class Store:
         """What a full Seurat export could not convert: ``[{path, class, reason}]`` (empty when everything was)."""
         return list(self.manifest.get("unconvertible") or [])
 
+    def _inherited(self, assay: str, layer: str) -> bool:
+        return self._view is not None and self._view.has(assay, layer)
+
+    @property
+    def is_view(self) -> bool:
+        """True when this store is a view: its inherited layers' rows live in parent stores (see arsc.views).
+
+        Examples
+        --------
+        >>> import arsc
+        >>> arsc.datasets.toy(store="toy_store_isv").is_view
+        False
+        """
+        return self._view is not None
+
+    @property
+    def view_parents(self) -> list:
+        """Paths of the parent stores of a view (``[]`` for a full store)."""
+        from . import views as _views
+        return _views.parent_paths(self.path) if self._view is not None else []
+
     def _layer(self, assay, layer):
         if assay not in (self.manifest.get("assays") or {}):
             raise KeyError(f"assay {assay!r} not in store (has {self.assays})")
@@ -899,11 +922,15 @@ class Store:
         (3000, 300)
         """
         layer, info = self._layer(assay, layer)
+        if self._inherited(assay, layer):  # a view: the rows are gathered from the parent(s) once, read-only
+            return self._view.layer(assay, layer).X()
         return _mmap_sparse(str(self.path / "assays" / assay / f"{layer}.csr"), info["shape"], "csr")
 
     def X_csc(self, assay: str = "RNA", layer: str | None = None) -> sp.csc_matrix:
         """Cells x features CSC (column slices = features) backed by memory maps."""
         layer, info = self._layer(assay, layer)
+        if self._inherited(assay, layer):
+            return self._view.layer(assay, layer).X_csc()
         base = self.path / "assays" / assay / f"{layer}.csc"
         if not Path(str(base) + ".indptr.npy").exists():
             self.finalize(build_csc=True)
@@ -928,6 +955,11 @@ class Store:
         if (fidx < 0).any():
             raise KeyError(f"not in {assay}: {[n for n, i in zip(names, fidx) if i < 0]} (gene symbols are "
                            "case-sensitive; check st.features(assay))")
+        real, _ = self._layer(assay, layer)
+        if self._inherited(assay, real):  # a view: only these columns of the parent(s) are read
+            ptr, rows, data = self._view.layer(assay, real).col_parts(fidx)
+            sub = sp.csc_matrix((data, rows, ptr), shape=(self.n_cells, len(names)))
+            return sub if not dense else pd.DataFrame(sub.toarray(), index=self.cells, columns=names)
         C = self.X_csc(assay, layer)
         indptr = np.asarray(C.indptr)
         parts_i, parts_x, ptr = [], [], [0]
@@ -1020,7 +1052,7 @@ class Store:
         for a in self.assays:
             if assays is not None and a not in assays:
                 continue
-            lay = {l: _take_rows(self.X(a, l), idx) for l in self.layers(a) if layers is None or l in layers}
+            lay = {l: self._take(a, l, idx) for l in self.layers(a) if layers is None or l in layers}
             out_assays[a] = self._assay(a, lay)
         reds = {}
         if reductions:
@@ -1035,6 +1067,12 @@ class Store:
                 gr[g] = _take_rows(G, idx)[:, idx].tocsr()
         return Dataset(self.obs.iloc[idx].copy(), out_assays, reds, gr, self.manifest, dict(self.uns))
 
+    def _take(self, assay: str, layer: str, idx: np.ndarray) -> sp.csr_matrix:
+        real, _ = self._layer(assay, layer)
+        if self._inherited(assay, real):
+            return self._view.layer(assay, real).take(idx)
+        return _take_rows(self.X(assay, layer), idx)
+
     # -- hand-off -------------------------------------------------------------------
     def to_anndata(self, cells=None, genes=None, **kw):
         """In-memory ``anndata.AnnData`` of all or selected cells/genes (see :func:`arsc.to_anndata`)."""
@@ -1048,6 +1086,8 @@ class Store:
 
     def __repr__(self) -> str:
         lines = [f"arsc.Store({str(self.path)!r}): {self.n_cells:,} cells (memory-mapped)"]
+        if self._view is not None:
+            lines[0] += "; a view of " + ", ".join(p["name"] for p in self._view.spec["parents"]) +                 f" (inherited: {', '.join(self._view.inherited)})"
         for a in self.assays:
             ls = ", ".join(f"{l} (nnz={i['nnz']:,}, {i['dtype']})"
                            for l, i in (self.manifest['assays'][a].get('layers') or {}).items())

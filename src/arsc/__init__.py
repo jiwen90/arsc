@@ -45,6 +45,7 @@ from .cluster import cluster, umap  # noqa: E402
 from ._umap import fuzzy_simplicial_set  # noqa: E402
 from . import clones, clonotrace, genesets, symphony  # noqa: E402
 from . import stats, de, datasets  # noqa: E402
+from . import views  # noqa: E402  (subset stores kept as views of their parent stores)
 from ._help import help, recipes  # noqa: E402,A004  (task map / runnable recipes)
 from ._seedlog import reset_seeds_used, seeds_used  # noqa: E402  (seed of every stochastic call, SEEDS.md)
 from .stats import composition, paired_test, perm_test, glmm_prop  # noqa: E402

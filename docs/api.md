@@ -7,6 +7,7 @@ Generated from the docstrings by `docs/build_docs.py`; do not edit by hand. Star
 * [arsc.pp](#arscpp): Preprocessing (Seurat conventions)
 * [arsc.formats](#arscformats): Readers and writers
 * [arsc.io](#arscio): Store, Dataset and the Seurat bridge
+* [arsc.views](#arscviews): Subset stores as views of their parent stores
 * [arsc.markers](#arscmarkers): Markers (presto)
 * [arsc.scores](#arscscores): Signature scores
 * [arsc.neighbors](#arscneighbors): Neighbours and WNN
@@ -771,6 +772,31 @@ Examples
 >>> f = arsc.datasets.toy_h5ad(os.path.join(tempfile.mkdtemp(), "toy.h5ad"), n_cells=500)
 >>> arsc.read(f).n_cells
 500
+```
+
+### `arsc.datasets.toy_view(path, n_cells: 'int' = 600, *, seed: 'int' = 0) -> 'dict'`
+
+```text
+A toy parent store, a full subset store of every other cell, and a view of that subset on the parent.
+
+Parameters
+----------
+path : a new or empty directory; ``parent/``, ``full/`` (the subset as a full copy) and ``view/`` are written
+    inside it (an existing set is reused).
+n_cells : cells of the parent (the subset keeps every other one).
+seed : integer seed of the toy data.
+
+Returns
+-------
+dict with the three store paths (``parent``, ``full``, ``view``) and the subset's parent rows (``rows``).
+
+Examples
+--------
+>>> import arsc, tempfile
+>>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+>>> v = arsc.open(t["view"])
+>>> v.is_view, v.n_cells
+(True, 300)
 ```
 
 ## arsc.pp
@@ -1579,6 +1605,202 @@ Examples
 >>> import arsc, pandas as pd
 >>> arsc.write_table(pd.DataFrame({"a": [1, 2]}), "out/table.csv").name
 'table.csv'
+```
+
+## arsc.views
+
+Subset stores as views of their parent stores.
+
+### `arsc.views.array_sha256(a) -> 'str'`
+
+```text
+sha256 of an array's data bytes (C order); equal for a file's array and the view's reconstruction.
+
+Parameters
+----------
+a : array-like.
+
+Returns
+-------
+str (hex digest).
+
+Examples
+--------
+>>> import numpy as np, arsc
+>>> arsc.views.array_sha256(np.arange(3)) == arsc.views.array_sha256(np.array([0, 1, 2]))
+True
+```
+
+### `arsc.views.build(full, parents, out, rows, *, min_fraction: 'float' = 0.1, min_bytes: 'int' = 0, dry_run: 'bool' = False, log=<built-in function print>) -> 'dict'`
+
+```text
+Build a view of the full store ``full`` on ``parents``.
+
+Parameters
+----------
+full : path of the full store (or an open Store) whose content the view must reproduce exactly.
+parents : list of parent store paths (full stores, not views).
+out : the new view directory (must not exist; ignored with ``dry_run``).
+rows : ``{parent index: (view_rows, parent_rows)}`` candidate pairs (int arrays). Each pair is only a candidate:
+    a layer inherits a row only when the parent row equals it bit for bit (indices and values, after the
+    feature map and the full store's dtype).
+min_fraction : a layer inherits from parents only when at least this fraction of its rows matched (else it stays
+    whole in the view).
+min_bytes : no view when it would save fewer bytes than this (the report says so).
+dry_run : only match and report.
+
+log : a function taking one message (default print).
+
+Returns
+-------
+dict report: per layer the rows matched per source, whether it is inherited and the bytes saved; ``view``
+(built or not, with ``why_not``), ``out`` and the full and view sizes.
+
+Examples
+--------
+>>> import arsc, tempfile, numpy as np
+>>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+>>> rep = arsc.views.build(t["full"], [t["parent"]], None, {0: (np.arange(300), t["rows"])}, dry_run=True,
+...                        log=lambda *a: None)
+>>> rep["layers"]["RNA/counts"]["matched"], rep["layers"]["RNA/counts"]["inherit"]
+(300, True)
+```
+
+### `arsc.views.compare(view, full, *, feature_batch: 'int' = 4096, subset_n: 'int' = 2000, seed: 'int' = 0, log=None) -> 'list'`
+
+```text
+Compare a view with the full store it replaces on every accessor, bit for bit.
+
+Returns a list of ``{"check", "ok", "detail"}``; all ``ok`` means the view is a drop-in replacement. Checked:
+manifest, cells, n_cells, obs, assays, layers, features, var, varm, variable_features, dense layers, splits,
+neighbors, idents, unconvertible, uns, reductions (embedding, loadings, projected, stdev, key, assay, columns),
+graphs, ``X`` and ``X_csc`` of every layer (aliases included), ``get_features`` of every feature (sparse) and of
+one batch (dense), ``subset`` of random cells (every layer, obs, reductions) and the parent store files' sizes.
+
+Parameters
+----------
+view : the view (path or Store).
+full : the full store it replaces (path or Store).
+feature_batch : features per ``get_features`` call.
+subset_n : random cells for the ``subset`` check.
+seed : integer seed of that draw.
+log : optional function called with each failure.
+
+Returns
+-------
+list of dict (``check``, ``ok``, ``detail``).
+
+Examples
+--------
+>>> import arsc, tempfile
+>>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+>>> res = arsc.views.compare(t["view"], t["full"])
+>>> all(r["ok"] for r in res), len(res) > 30
+(True, True)
+```
+
+### `arsc.views.is_view(path) -> 'bool'`
+
+```text
+True when ``path`` is a store directory holding a view (``view.json``).
+
+Parameters
+----------
+path : a store directory.
+
+Returns
+-------
+bool.
+
+Examples
+--------
+>>> import arsc, tempfile
+>>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+>>> arsc.views.is_view(t["view"]), arsc.views.is_view(t["full"])
+(True, False)
+```
+
+### `arsc.views.logical_bytes(path) -> 'int'`
+
+```text
+Bytes the full store would take on disk (recorded at build; the store's own size for a full store).
+
+Parameters
+----------
+path : a store directory.
+
+Returns
+-------
+int.
+
+Examples
+--------
+>>> import arsc, tempfile
+>>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+>>> arsc.views.logical_bytes(t["view"]) > 0
+True
+```
+
+### `arsc.views.materialize(view, out) -> 'Path'`
+
+```text
+Write the full store a view stands for (every file of the view except view files, plus each inherited layer's
+CSR and CSC arrays in the dtypes of the original files). Its arrays and other files equal the store the view was
+built from.
+
+Parameters
+----------
+view : the view (path or Store); its parents must be reachable.
+out : the new full store directory (must not exist).
+
+Returns
+-------
+Path of the full store.
+
+Examples
+--------
+>>> import arsc, tempfile, os
+>>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+>>> m = arsc.views.materialize(t["view"], os.path.join(tempfile.mkdtemp(), "full_again"))
+>>> arsc.open(m).is_view
+False
+```
+
+### `arsc.views.parent_paths(path) -> 'list'`
+
+```text
+Resolved parent store directories of a view (``[]`` for a full store). Raises ViewError when one is missing.
+
+Parameters
+----------
+path : a store directory.
+
+Returns
+-------
+list of Path.
+
+Examples
+--------
+>>> import arsc, tempfile
+>>> t = arsc.datasets.toy_view(tempfile.mkdtemp())
+>>> [p.name for p in arsc.views.parent_paths(t["view"])]
+['parent']
+```
+
+### `arsc.views.ViewError(...)`
+
+```text
+A view's parent is missing or changed, or a view cannot be built.
+
+Attributes
+----------
+args : the message (as for any exception).
+
+Examples
+--------
+>>> from arsc.views import ViewError
+>>> issubclass(ViewError, RuntimeError)
+True
 ```
 
 ## arsc.markers

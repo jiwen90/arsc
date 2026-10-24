@@ -25,6 +25,7 @@ API_MODULES = [
     ("arsc.pp", "Preprocessing (Seurat conventions)"),
     ("arsc.formats", "Readers and writers"),
     ("arsc.io", "Store, Dataset and the Seurat bridge"),
+    ("arsc.views", "Subset stores as views of their parent stores"),
     ("arsc.markers", "Markers (presto)"),
     ("arsc.pseudobulk", "Pseudobulk"),
     ("arsc.scores", "Signature scores"),
