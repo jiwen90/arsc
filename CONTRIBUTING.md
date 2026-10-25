@@ -45,6 +45,17 @@ listed in `tests/conftest.py`; `benchmarks/README.md` has the table of sets). Ke
 `tests/local.env` (KEY=VALUE lines), never in the code, and never under a `scratch` folder. Never commit a dataset
 (toy, synthetic or R output): commit the script that regenerates it (`tests/test_repo_hygiene.py`).
 
+## Working in a git worktree
+
+The autoresearch framework's agents change arsc in git worktrees (`vendor/arsc-wt/<name>`). The venv's editable
+install points at the main checkout, so a plain `import arsc` inside a worktree loads **main's** code. The tests
+handle this: `tests/conftest.py` puts the worktree's own `src` first (and on `PYTHONPATH` for child processes) and
+stops the run if `arsc` would still load from elsewhere; `tests/testsel.py` sets `PYTHONPATH` for its pytest run
+(`tests/test_source_pin.py` checks both). A script or timing run outside pytest needs it by hand:
+`PYTHONPATH=<worktree>/src python benchmarks/x.py` (in the framework, `python tools/wtenv.py <worktree>` prints the
+line, and `python tools/jobs.py start` from inside a worktree sets it). Check with
+`python -c 'import arsc; print(arsc.__file__)'`: the path must be under the worktree.
+
 ## Rules for code
 
 1. **Validated ports only.** A new method that reproduces another package needs a parity table:

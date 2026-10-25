@@ -19,9 +19,36 @@ variables and skip when they are unset or missing:
 A test whose reference is missing skips with a message that names the missing file and the regen_refs.py command.
 A local, untracked ``tests/local.env`` (KEY=VALUE lines) is read first, so a workstation can keep its paths
 out of the repository. Existing environment variables win.
+
+The tests import THIS checkout's ``src``: it goes first on ``sys.path`` (and on ``PYTHONPATH`` for child processes)
+before anything imports arsc, and the run stops if ``arsc`` would still load from elsewhere. An editable install
+points at one checkout (the main one); without this, tests run in a git worktree silently exercised main's code.
 """
+import importlib.util
 import os
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+
+
+def pin_source(src=SRC, pkg="arsc"):
+    """Put `src` first on sys.path and PYTHONPATH; raise if `pkg` resolves (or was already imported) elsewhere."""
+    s = str(src)
+    sys.path[:] = [s] + [p for p in sys.path if os.path.normcase(os.path.abspath(p or ".")) != os.path.normcase(s)]
+    os.environ["PYTHONPATH"] = os.pathsep.join([s] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep)
+                                                       if p and os.path.normcase(p) != os.path.normcase(s)])
+    mod = sys.modules.get(pkg)
+    origin = getattr(mod, "__file__", None) if mod is not None else getattr(importlib.util.find_spec(pkg), "origin", None)
+    if origin is None or not Path(origin).resolve().is_relative_to(Path(src).resolve()):
+        raise RuntimeError(f"{pkg} {'was imported' if mod is not None else 'resolves'} from {origin}, not from this "
+                           f"checkout's {src}: the tests would exercise another checkout's code. Run pytest from "
+                           f"this checkout (PYTHONPATH={src}) and import {pkg} only after tests/conftest.py.")
+    return origin
+
+
+pin_source()
 
 _env = Path(__file__).with_name("local.env")
 if _env.exists():

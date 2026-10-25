@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import ast
 import fnmatch
+import os
 import re
 import subprocess
 import sys
@@ -40,6 +41,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG = {
     "full_env": "ARSC_FULL",
     # suites: each runs as `python -m pytest -q <files>` from its own directory (paths relative to ROOT)
+    # source dirs put first on PYTHONPATH for the pytest child: this checkout"s packages, never an editable
+    # install of another checkout (tests run in a git worktree silently exercised main"s code)
+    "src_paths": ["src"],
     "suites": [{"dir": ".", "tests": "tests"}],
     # importable packages -> their source directory
     "packages": {"arsc": "src/arsc"},
@@ -59,7 +63,8 @@ CONFIG = {
         "AGENTS.md": ["tests/test_docs_snippets.py::test_generated_docs_up_to_date"],
         "docs/api.md": ["tests/test_docs_snippets.py::test_generated_docs_up_to_date"],
         "docs/recipes.md": ["tests/test_docs_snippets.py::test_generated_docs_up_to_date"],
-        "tests/conftest.py": ["tests/test_repo_hygiene.py"],
+        "tests/conftest.py": ["tests/test_repo_hygiene.py", "tests/test_source_pin.py"],
+        "tests/testsel.py": ["tests/test_source_pin.py"],
         ".gitignore": ["tests/test_repo_hygiene.py"],
         "SEEDS.md": ["tests/test_seeds.py"],
     },
@@ -300,9 +305,19 @@ class Repo:
         if test_file not in self._collected:
             r = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
                                 *self.cfg.get("collect_args", []), test_file], cwd=str(self.root),
+                               env=child_env(self.cfg, self.root),
                                capture_output=True, text=True, encoding="utf-8", errors="replace")
             self._collected[test_file] = [l.strip() for l in r.stdout.splitlines() if "::" in l]
         return self._collected[test_file]
+
+
+def child_env(cfg=CONFIG, root=ROOT):
+    """os.environ with this checkout's source dirs (cfg["src_paths"]) first on PYTHONPATH."""
+    env = dict(os.environ)
+    srcs = [str(root / s) for s in cfg.get("src_paths", [])]
+    keep = [q for q in env.get("PYTHONPATH", "").split(os.pathsep) if q and q not in srcs]
+    env["PYTHONPATH"] = os.pathsep.join(srcs + keep)
+    return env
 
 
 def select(paths, repo=None, deep=False):
@@ -431,7 +446,7 @@ def main(argv=None):
         print(("(cd " + cwd + " && " if cwd != "." else "") + "python -m pytest -q " + " ".join(ts + extra)
               + (")" if cwd != "." else ""), flush=True)
         if not a.list:
-            rc = subprocess.run(cmd, cwd=str(ROOT / cwd)).returncode or rc
+            rc = subprocess.run(cmd, cwd=str(ROOT / cwd), env=child_env()).returncode or rc
     return rc
 
 
