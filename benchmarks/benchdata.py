@@ -121,7 +121,7 @@ class Bench:
         if shm:
             from multiprocessing import shared_memory
             name, r, c = shm.split(":")
-            self._shm = shared_memory.SharedMemory(name=name)
+            self._shm = attach_shm(name)
             return np.array(np.ndarray((int(r), int(c)), dtype=np.float32, buffer=self._shm.buf))
         import arsc
         L = arsc.pp.log_normalize(self.X)[:, self.hvg_index(self.genes)]
@@ -154,6 +154,20 @@ class Bench:
         X = sp.csr_matrix((X.data.copy(), X.indices.astype(idt), X.indptr.astype(idt)), shape=X.shape)
         a = ad.AnnData(X=X, obs=self.obs.copy(), var=pd.DataFrame(index=pd.Index(self.genes, dtype=str)))
         return a
+
+
+def attach_shm(name):
+    """Attach the parent's shared-memory block without letting this process's resource tracker unlink it at exit
+    (POSIX, Python < 3.13: the first child to exit would otherwise remove the block for every later child)."""
+    from multiprocessing import shared_memory
+    try:
+        return shared_memory.SharedMemory(name=name, track=False)   # Python >= 3.13
+    except TypeError:
+        shm = shared_memory.SharedMemory(name=name)
+        if os.name != "nt":
+            from multiprocessing import resource_tracker
+            resource_tracker.unregister(shm._name, "shared_memory")
+        return shm
 
 
 def share_pca(E: np.ndarray):

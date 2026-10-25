@@ -29,9 +29,10 @@ import json, os, sys, time
 t0 = time.time()
 sys.path.insert(0, sys.argv[4])
 import numpy as np
-from multiprocessing import shared_memory
+sys.path.insert(0, sys.argv[5])
+from benchdata import attach_shm
 name, r, c = sys.argv[2].split(":")
-shm = shared_memory.SharedMemory(name=name)
+shm = attach_shm(name)
 E = np.array(np.ndarray((int(r), int(c)), dtype=np.float32, buffer=shm.buf))
 k = int(sys.argv[3])
 if sys.argv[1] in ("arsc", "arsc_knn"):
@@ -72,7 +73,7 @@ def main():
         for rep in range(a.repeats):
             for tool in ((me, "scanpy") if rep % 2 == 0 else ("scanpy", me)):
                 st = machine_state()
-                p = subprocess.run([sys.executable, "-c", CHILD, tool, spec, str(a.k), str(HERE.parent / "src")],
+                p = subprocess.run([sys.executable, "-c", CHILD, tool, spec, str(a.k), str(HERE.parent / "src"), str(HERE)],
                                    env=child_env(a.threads), check=True, capture_output=True, text=True)
                 r = json.loads(next(l for l in p.stdout.splitlines() if l.startswith("@@RESULT "))[9:])
                 r.update(tool=tool, rep=rep, n=a.n, k=a.k, threads=a.threads, **st)
