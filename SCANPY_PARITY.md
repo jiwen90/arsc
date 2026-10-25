@@ -42,7 +42,22 @@ counts), harmony PCs for graph steps (3,000 cells, because scanpy switches from 
 | `sc.tl.paga`, `sc.tl.embedding_density` (not used) | | none | not implemented | not used in the notebooks |
 | `sc.pl.*` (294), `palantir.plot.*` (36), `sm.set_array` | | plotting libraries | out of scope | |
 
-## Speed (32-thread workstation)
+## Speed: paired runs (same session, same threads)
+
+<!-- PAIRED:START -->
+<!-- PAIRED:END -->
+
+k-NN: `arsc.knn` (and `find_neighbors`, `scanpy_extra.neighbors`) searches exactly up to 4,096 cells and with
+pynndescent above, with the settings scanpy passes (UMAP's `nearest_neighbors`), seeded; distances are re-computed
+in float64. Library choice (2026-10-25, 2 threads each, a 1M-cell Gaussian copy of the benchmark PCA, 500 random
+queries against brute force; one run each, machine shared): pynndescent 105 s, recall 0.951; FAISS IVFFlat
+(nlist 2,000 / nprobe 64) 251 s, 0.961; FAISS HNSW (M 16, efSearch 48) 128 s, 0.776; hnswlib (M 16, ef 48) 181 s,
+0.854; scanpy `pp.neighbors` 121 s, 0.913. pynndescent was the fastest established library at scanpy's quality, so
+it is the only backend (no GPU path: pynndescent has none, and FAISS GPU wheels exist only for Linux).
+Reproducibility: the same seed and thread count give the same graph; another thread count changes about 2% of the
+neighbour entries (pynndescent's parallel updates).
+
+## Speed, earlier single measurements (32-thread workstation, not paired)
 
 | step | scanpy | arsc |
 |---|---|---|
@@ -51,7 +66,7 @@ counts), harmony PCs for graph steps (3,000 cells, because scanpy switches from 
 | t-test (either), 20k cells | 1.0 s | 0.15-0.18 s (6x) |
 | `score_genes`, 20k cells | 0.12 s | 0.03 s |
 | `neighbors` (3,000 cells, scanpy includes numba compile) | 16 s | 1.3 s |
-| `neighbors`, all 132,989 cells (30 NN, harmony PCs) | 55 s (pynndescent, approximate) | 24 s (exact kNN) |
+| `neighbors`, all 132,989 cells (30 NN, harmony PCs) | 55 s (pynndescent, approximate) | 24 s (exact kNN; arsc 0.3 default, now `method="exact"`) |
 | `leiden` res 2.0, `n_iterations=-1`, 133k cells (22 clusters) | 880 s | 1,086 s (same leidenalg; single-threaded; no gain). Use `n_iterations=2` for speed |
 | `calculate_qc_metrics`, 20k cells | 0.12 s | 0.02 s |
 | `regress_out` (2 covariates) | 3-10 s | 1.1 s |

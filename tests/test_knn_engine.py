@@ -92,3 +92,7 @@ def test_snn_graph_matches_reference_definition():
     J[J < 1 / 15] = 0
     assert G.has_sorted_indices
     assert np.allclose(G.toarray(), J, rtol=0, atol=1e-15)
+    # prune 0 keeps every pair with an overlap: more pairs per row than the first-pass buffer holds
+    G0 = arsc.snn_graph(idx, prune=0.0)
+    J0 = S / (24 - S)
+    assert G0.has_sorted_indices and np.allclose(G0.toarray(), J0, rtol=0, atol=1e-15)

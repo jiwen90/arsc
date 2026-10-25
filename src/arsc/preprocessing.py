@@ -38,12 +38,15 @@ def _lognorm_kernel(indptr, data, out, scale_factor):
     for i in nb.prange(n):
         s = 0.0
         for p in range(indptr[i], indptr[i + 1]):
-            s += data[p]
+            s += np.float64(data[p])  # float32 counts widen exactly; same sums as converting the array first
         if s > 0:
             # same operation order as Seurat's C++ LogNorm: log1p(x / colSum * sf);
             # x * (sf / s) differs by 1 ulp and changes tie structure downstream
             for p in range(indptr[i], indptr[i + 1]):
-                out[p] = np.log1p(data[p] / s * scale_factor)
+                out[p] = np.log1p(np.float64(data[p]) / s * scale_factor)
+        else:
+            for p in range(indptr[i], indptr[i + 1]):
+                out[p] = 0.0
 
 
 def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matrix:
@@ -77,8 +80,9 @@ def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matr
         warnings.warn("log_normalize: input is non-integer with small values; it looks already log-normalised. "
                       "Pass raw counts (e.g. st.X('RNA', 'counts'); an h5ad's .X arrives as layer 'X')",
                       stacklevel=2)
-    out = np.zeros(X.data.shape, dtype=dtype)
-    _lognorm_kernel(X.indptr, X.data.astype(np.float64, copy=False), out, float(scale_factor))
+    out = np.empty(X.data.shape, dtype=dtype)
+    data = X.data if X.data.dtype in (np.float32, np.float64, np.int32, np.int64) else X.data.astype(np.float64)
+    _lognorm_kernel(X.indptr, data, out, float(scale_factor))  # no float64 copy of the counts
     return sp.csr_matrix((out, X.indices.copy(), X.indptr.copy()), shape=X.shape)
 
 

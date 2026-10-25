@@ -215,7 +215,12 @@ def deseq2(counts: pd.DataFrame, coldata: pd.DataFrame, design: str, contrast, m
     contrast_m = [var, _make_names(lvl), _make_names(ref)]
     cd = cd[[c for c in cd.columns if c in _vars_in(design)]]
     inf = DefaultInference(n_cpus=n_cpus)
-    dds = _desq2_dataset()(counts=cnt.T, metadata=cd, design=design, refit_cooks=True, inference=inf, quiet=quiet)
+    # counts go in as an AnnData with an integer array: pydeseq2 then validates them with numpy instead of a
+    # per-gene pandas apply (2 s at 10,000 genes); same values and checks (raw counts were already checked above)
+    import anndata as ad
+    adata = ad.AnnData(X=cnt.T.astype(int).to_numpy(), obs=cd.copy(),  # same array (and layout) as counts=
+                       var=pd.DataFrame(index=pd.Index(cnt.index.astype(str), name=None)))
+    dds = _desq2_dataset()(adata=adata, design=design, refit_cooks=True, inference=inf, quiet=quiet)
     dds.deseq2()
     st = DeseqStats(dds, contrast=contrast_m, alpha=alpha, inference=inf, quiet=quiet)
     st.summary()

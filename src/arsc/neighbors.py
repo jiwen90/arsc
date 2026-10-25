@@ -94,7 +94,7 @@ def _knn_pynndescent(X, Q, k, seed):
     n = X.shape[0]
     index = NNDescent(X, n_neighbors=k, metric="euclidean", random_state=seed, n_jobs=get_threads(),  # never -1
                       n_trees=min(64, 5 + int(round(n ** 0.5 / 20.0))), n_iters=max(5, int(round(np.log2(n)))),
-                      max_candidates=60, low_memory=True, verbose=False)
+                      low_memory=True, verbose=False)
     if Q is X:
         cand, _ = index.neighbor_graph
     else:
@@ -208,45 +208,81 @@ def l2_normalize(X: np.ndarray) -> np.ndarray:
 
 
 # --------------------------------------------------------------------------- SNN
+@nb.njit(cache=True)
+def _reverse_lists(idx, n):
+    """For each cell m, the cells i (increasing) that have m among their neighbours (CSR; a neighbour listed twice
+    in a row enters m's list once, as with scipy's sum_duplicates in earlier versions)."""
+    m, k = idx.shape
+    ptr = np.zeros(n + 1, dtype=np.int64)
+    for i in range(m):
+        for a in range(k):
+            if not _seen_before(idx, i, a):
+                ptr[idx[i, a] + 1] += 1
+    for i in range(n):
+        ptr[i + 1] += ptr[i]
+    pos = ptr[:-1].copy()
+    out = np.empty(ptr[n], dtype=np.int32)
+    for i in range(m):
+        for a in range(k):
+            if not _seen_before(idx, i, a):
+                j = idx[i, a]
+                out[pos[j]] = i
+                pos[j] += 1
+    return ptr, out
+
+
+@nb.njit(inline="always")
+def _seen_before(idx, i, a):
+    for b in range(a):
+        if idx[i, b] == idx[i, a]:
+            return True
+    return False
+
+
 @nb.njit(parallel=True, cache=True)
-def _snn_count(idx, rev_ptr, rev_idx, n, prune, k, out_ptr, out_idx, out_val, fill, nt):
-    """Shared-neighbour Jaccard |N(i) & N(j)| / (2k - |N(i) & N(j)|) for all pairs with overlap."""
-    chunk = (n + nt - 1) // nt
+def _snn_blocks(idx, rev_ptr, rev_idx, n, smin, B, cap, buf_j, buf_s, rowcnt, blk_used, nt):
+    """One pass over the shared-neighbour counts: block b (rows b*B..) writes its rows' pairs with at least smin
+    shared neighbours, each row sorted by column, into its own region of buf_j / buf_s (cap entries per row of
+    the block); blk_used[b] = entries written, or -1 when the region overflowed (the caller then counts first)."""
+    nblk = (n + B - 1) // B
     for t in nb.prange(nt):
         cnt = np.zeros(n, dtype=np.int32)
-        touched = np.empty(n, dtype=np.int64)
-        surv = np.empty(n, dtype=np.int64)
-        for i in range(t * chunk, min(n, (t + 1) * chunk)):
-            nt_ = 0
-            for a in range(idx.shape[1]):
-                m = idx[i, a]
-                for p in range(rev_ptr[m], rev_ptr[m + 1]):
-                    j = rev_idx[p]
-                    if cnt[j] == 0:
-                        touched[nt_] = j
-                        nt_ += 1
-                    cnt[j] += 1
-            # keep the pairs that pass the cutoff; only those are sorted (by column), and only when filling
-            w = 0
-            for q in range(nt_):
-                j = touched[q]
-                s = cnt[j]
-                v = s / (k + (k - s))
-                if v >= prune and v > 0:
-                    surv[w] = j
-                    w += 1
-            if fill:
-                surv[:w].sort()  # in place: no allocation inside the parallel loop (Windows heap contention)
-                base = out_ptr[i]
-                for q in range(w):
-                    j = surv[q]
+        touched = np.empty(n, dtype=np.int32)
+        for b in range(t, nblk, nt):
+            base = b * B * cap
+            lim = base + min(B, n - b * B) * cap
+            w = base
+            over = False
+            for i in range(b * B, min(n, (b + 1) * B)):
+                nt_ = 0
+                for a in range(idx.shape[1]):
+                    m = idx[i, a]
+                    for p in range(rev_ptr[m], rev_ptr[m + 1]):
+                        j = rev_idx[p]
+                        if cnt[j] == 0:
+                            touched[nt_] = j
+                            nt_ += 1
+                        cnt[j] += 1
+                w0 = w
+                for q in range(nt_):
+                    j = touched[q]
                     s = cnt[j]
-                    out_idx[base + q] = j
-                    out_val[base + q] = s / (k + (k - s))
-            for q in range(nt_):
-                cnt[touched[q]] = 0
-            if not fill:
-                out_ptr[i + 1] = w
+                    cnt[j] = 0
+                    if s >= smin and not over:
+                        if w < lim:
+                            # insertion into the row's sorted run (rows have tens of entries)
+                            u = w - 1
+                            while u >= w0 and buf_j[u] > j:
+                                buf_j[u + 1] = buf_j[u]
+                                buf_s[u + 1] = buf_s[u]
+                                u -= 1
+                            buf_j[u + 1] = j
+                            buf_s[u + 1] = s
+                            w += 1
+                        else:
+                            over = True
+                rowcnt[i] = w - w0
+            blk_used[b] = -1 if over else w - base
 
 
 def snn_graph(idx: np.ndarray, prune: float = 1 / 15) -> sp.csr_matrix:
@@ -275,20 +311,64 @@ def snn_graph(idx: np.ndarray, prune: float = 1 / 15) -> sp.csr_matrix:
     """
     idx = np.ascontiguousarray(idx, dtype=np.int64)
     n, k = idx.shape
-    # reverse index: for each cell m, the cells i having m among their neighbours
-    rows = np.repeat(np.arange(n, dtype=np.int64), k)
-    A = sp.csr_matrix((np.ones(n * k, dtype=np.int8), (idx.ravel(), rows)), shape=(n, n))
-    A.sum_duplicates()
-    rev_ptr, rev_idx = A.indptr.astype(np.int64), A.indices.astype(np.int64)
-    counts = np.zeros(n + 1, dtype=np.int64)
-    _snn_count(idx, rev_ptr, rev_idx, n, float(prune), float(k), counts, np.empty(0, np.int64),
-               np.empty(0), False, nb.get_num_threads())
+    rev_ptr, rev_idx = _reverse_lists(idx, n)
+    # s shared neighbours pass when s / (2k - s) >= prune, i.e. s >= 2k * prune / (1 + prune)
+    smin = 1
+    while smin <= k and not (smin / (k + (k - smin)) >= prune):
+        smin += 1
+    nt = nb.get_num_threads()
+    B, cap = 2048, max(8, 2 * k)
+    buf_j = np.empty(n * cap, dtype=np.int32)
+    buf_s = np.empty(n * cap, dtype=np.int32)
+    rowcnt = np.zeros(n, dtype=np.int64)
+    nblk = (n + B - 1) // B
+    used = np.zeros(nblk, dtype=np.int64)
+    _snn_blocks(idx, rev_ptr, rev_idx, n, smin, B, cap, buf_j, buf_s, rowcnt, used, nt)
+    if (used < 0).any():
+        # some block had more pairs than its region: size every row exactly and fill again
+        cap = int(_snn_rowmax(idx, rev_ptr, rev_idx, n, smin, nt)) + 1
+        buf_j = np.empty(n * cap, dtype=np.int32)
+        buf_s = np.empty(n * cap, dtype=np.int32)
+        _snn_blocks(idx, rev_ptr, rev_idx, n, smin, B, cap, buf_j, buf_s, rowcnt, used, nt)
     ptr = np.zeros(n + 1, dtype=np.int64)
-    np.cumsum(counts[1:], out=ptr[1:])
-    out_idx = np.empty(ptr[-1], dtype=np.int64)
-    out_val = np.empty(ptr[-1])
-    _snn_count(idx, rev_ptr, rev_idx, n, float(prune), float(k), ptr, out_idx, out_val, True, nb.get_num_threads())
+    np.cumsum(rowcnt, out=ptr[1:])
+    out_idx = np.empty(ptr[-1], dtype=np.int32)
+    sv = np.empty(ptr[-1], dtype=np.int32)
+    for b in range(nblk):
+        r0 = b * B
+        o = ptr[r0]
+        out_idx[o:o + used[b]] = buf_j[r0 * cap:r0 * cap + used[b]]
+        sv[o:o + used[b]] = buf_s[r0 * cap:r0 * cap + used[b]]
+    del buf_j, buf_s
+    out_val = sv / (k + (k - sv.astype(np.float64)))
     return sp.csr_matrix((out_val, out_idx, ptr), shape=(n, n))
+
+
+@nb.njit(parallel=True, cache=True)
+def _snn_rowmax(idx, rev_ptr, rev_idx, n, smin, nt):
+    """Largest number of passing pairs in any row (sizes the buffers when a block overflowed)."""
+    best = np.zeros(nt, dtype=np.int64)
+    chunk = (n + nt - 1) // nt
+    for t in nb.prange(nt):
+        cnt = np.zeros(n, dtype=np.int32)
+        touched = np.empty(n, dtype=np.int32)
+        for i in range(t * chunk, min(n, (t + 1) * chunk)):
+            nt_ = 0
+            for a in range(idx.shape[1]):
+                m = idx[i, a]
+                for p in range(rev_ptr[m], rev_ptr[m + 1]):
+                    j = rev_idx[p]
+                    if cnt[j] == 0:
+                        touched[nt_] = j
+                        nt_ += 1
+                    cnt[j] += 1
+            c = 0
+            for q in range(nt_):
+                if cnt[touched[q]] >= smin:
+                    c += 1
+                cnt[touched[q]] = 0
+            best[t] = max(best[t], c)
+    return best.max()
 
 
 def _nn_matrix(idx: np.ndarray, n: int) -> sp.csr_matrix:

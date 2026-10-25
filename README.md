@@ -31,6 +31,19 @@ arsc computes; it does not plot. Results are arrays and tidy `pandas` tables for
 
 ## Benchmarks
 
+### arsc vs scanpy, same session and threads
+
+Every step arsc shares with scanpy, timed in pairs (`benchmarks/paired_bench.py`; the speed gate
+`tests/test_speed_gate.py` reruns it and fails if arsc is slower):
+
+<!-- PAIRED:START -->
+<!-- PAIRED:END -->
+
+### Earlier full suite (arsc 0.2.0, 2026-10-15; each tool at its default threading, not paired)
+
+Kept for the Seurat columns and memory. Its k-NN rows timed arsc 0.2's exact search at every size (13 min at
+1M cells); arsc now searches like scanpy (exact up to 4,096 cells, pynndescent above): see the paired table above.
+
 <!-- BENCH:START -->
 Synthetic data generated in code (`benchmarks/suite_sim.py`: 20,000 genes, negative-binomial counts, ~1,600 genes detected per cell, 10 cell types, 8 patients x 2 timepoints). Time = wall time of the analysis call only; memory = peak resident memory of the process during that call (GB, includes the loaded data). Shared inputs (HVGs, PCs, pseudobulk) are computed once so every step is compared on identical input. Speed-up = the other tool's time / arsc's time.
 
