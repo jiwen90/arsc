@@ -2,7 +2,7 @@
 
 Python versions of an in-house R library of TCR / clonal methods (the R functions are named `ar_*` below). No plotting.
 Data: cell metadata of a longitudinal clinical CD8 T-cell TCR dataset (83,287 cells, 18 patients, 32,080 clones) with a
-published Cyclone trajectory assignment. R references: an R script that runs the `ar_*` functions (not yet in the repo). Tests: `tests/test_clones.py` (23 pass, ~13 s).
+published Cyclone trajectory assignment. R references: `benchmarks/r_reference_clones.R`, which runs the `ar_*` functions (`python benchmarks/regen_refs.py clones_ref`). Tests: `tests/test_clones.py` (23 pass, ~13 s).
 Timing: `benchmarks/bench_clones.py`.
 
 | Python | R reference | Agreement |

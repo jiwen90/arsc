@@ -1,6 +1,8 @@
 """Synthetic inputs for the R parity of arsc.stats resampling / rank helpers (STATS_PARITY.md, 'Rank, randomisation
-and stratified helpers'). Writes CSVs to $ARSC_SCRATCH/stats_resampling/; then run
-``Rscript benchmarks/r_reference_stats_resampling.R <that dir>`` and ``pytest tests/test_stats_resampling.py``.
+and stratified helpers'). ``build()`` returns the seeded input tables in memory (tests/test_stats_resampling.py uses
+it); ``python benchmarks/stats_resampling_cases.py <dir>`` writes them as CSVs for
+``Rscript benchmarks/r_reference_stats_resampling.R <dir>`` (benchmarks/regen_refs.py stats_resampling does both, keeps
+only the R_*.csv outputs and deletes the inputs).
 """
 import os
 import sys
@@ -10,8 +12,8 @@ import numpy as np
 import pandas as pd
 
 
-def main(out: Path) -> None:
-    out.mkdir(parents=True, exist_ok=True)
+def build() -> dict:
+    tabs = {}
     rng = np.random.default_rng(20261017)
     cases, vals = [], []
     cid = 0
@@ -50,8 +52,8 @@ def main(out: Path) -> None:
         add("two", x, y, alternative=alts[rep % 3], conf=[0.9, 0.95, 0.99][rep // 30])
     for rep in range(9):
         add("two", rng.normal(0.3, 1, 55), rng.normal(0, 1, 52), alternative=alts[rep % 3], correct=bool(rep % 2))
-    pd.DataFrame(cases).to_csv(out / "hl_cases.csv", index=False)
-    pd.DataFrame(vals).to_csv(out / "hl_values.csv", index=False)
+    tabs["hl_cases"] = pd.DataFrame(cases)
+    tabs["hl_values"] = pd.DataFrame(vals)
 
     # Mantel-Haenszel: K strata of 2x2 tables
     mh = []
@@ -64,7 +66,7 @@ def main(out: Path) -> None:
             p1 = 1 / (1 + np.exp(-(np.log(p0 / (1 - p0)) + lor)))
             a = int(rng.binomial(n1, p1)); c = int(rng.binomial(n0, p0))
             mh.append(dict(case=case, stratum=k, a=a, b=n1 - a, c=c, d=n0 - c, correct=bool(case % 2)))
-    pd.DataFrame(mh).to_csv(out / "mh_tables.csv", index=False)
+    tabs["mh_tables"] = pd.DataFrame(mh)
 
     # rarefaction: clone-size vectors and depths
     rf = []
@@ -74,7 +76,7 @@ def main(out: Path) -> None:
         N = int(sizes.sum())
         depth = int(rng.integers(1, N + 1))
         rf.extend(dict(case=case, depth=depth, clone=i, size=int(v)) for i, v in enumerate(sizes))
-    pd.DataFrame(rf).to_csv(out / "rarefy_counts.csv", index=False)
+    tabs["rarefy_counts"] = pd.DataFrame(rf)
 
     # ICC: balanced one-way data (k groups x m) with between-group SD > 0
     ic = []
@@ -94,7 +96,7 @@ def main(out: Path) -> None:
             for g in range(k):
                 for v in off + mu[g] + rng.normal(0, 1, m):
                     ic.append(dict(case=case, group=f"s{s_}g{g}", stratum=f"s{s_}", y=v))
-    pd.DataFrame(ic).to_csv(out / "icc_values.csv", index=False)
+    tabs["icc_values"] = pd.DataFrame(ic)
 
     # OLS t for Freedman-Lane observed statistic
     fl = []
@@ -104,10 +106,17 @@ def main(out: Path) -> None:
         for i in range(n):
             fl.append(dict(case=case, i=i, y=y[i], x=x[i], **{f"z{j}": Z[i, j] for j in range(2)} if q == 2 else
                            ({"z0": Z[i, 0], "z1": np.nan} if q == 1 else {"z0": np.nan, "z1": np.nan})))
-    pd.DataFrame(fl).to_csv(out / "fl_values.csv", index=False)
+    tabs["fl_values"] = pd.DataFrame(fl)
+    return tabs
+
+
+def main(out: Path) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    for name, df in build().items():
+        df.to_csv(out / f"{name}.csv", index=False)
 
 
 if __name__ == "__main__":
-    base = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(os.environ["ARSC_SCRATCH"]) / "stats_resampling"
+    base = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(os.environ.get("ARSC_REFS") or os.environ["ARSC_SCRATCH"]) / "stats_resampling"
     main(base)
     print("wrote", base)

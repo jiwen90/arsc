@@ -7,9 +7,9 @@ github.com/yuntianf/Clonotrace, MIT, v1.2.1, commit f0c397a. The R code is sourc
 
 **Reference data:** the public demo bundled with Clonotrace (Weinreb et al. 2020, GSE140802). The
 script `benchmarks/r_reference_clonotrace.R` writes the reference outputs to
-`$ARSC_SCRATCH/clonotrace_ref`. It uses a deterministic subset: 30 clones with at least 15 cells
+`$ARSC_REFS/clonotrace_ref` (`python benchmarks/regen_refs.py clonotrace_ref`). It uses a deterministic subset: 30 clones with at least 15 cells
 plus 1,200 background cells, 2,032 cells in total. To run it, set `CLONOTRACE_SRC` (a checkout of
-the repo), `ARSC_SCRATCH`, and `ARSC_RLIB` (an R library with dbscan and transport).
+the repo), `ARSC_REFS`, and `ARSC_RLIB` (an R library with dbscan and transport).
 
 **Tests:** `tests/test_clonotrace.py`, 18 tests. 11 are R-parity tests, which skip when the
 references are absent. 7 are synthetic tests that always run.

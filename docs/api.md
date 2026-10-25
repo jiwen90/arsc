@@ -5318,7 +5318,7 @@ MSigDB gene sets from a local GMT cache (no network).
 Looks for ``<collection>[.<subcollection>].gmt`` (case-insensitive, ``:`` replaced by ``_``) or any GMT
 whose name follows the MSigDB convention (``h.all*``, ``c2.cp.reactome*``) in ``cache_dir``, else in
 ``$ARSC_MSIGDB_DIR``, ``<cache>/msigdb`` (``$ARSC_CACHE``, ``$AR_ROOT/.cache`` or ``~/.cache/arsc``) and, when
-``AR_ROOT`` is set, ``$AR_ROOT/scratch/arsc/msigdb`` and ``$AR_ROOT/data/msigdb``. Raises FileNotFoundError
+``AR_ROOT`` is set, ``$AR_ROOT/data/msigdb``. Raises FileNotFoundError
 listing the searched folders when absent (fill them with :func:`export_msigdb_gmt` or GMTs downloaded from
 gsea-msigdb.org). For the R-msigdbr route with a csv cache see :func:`arsc.de.msigdb`.
 

@@ -77,7 +77,7 @@ Behaviours worth knowing (all verified against R):
 
 ## 3. Validation (a 38,440-cell gamma-delta T-cell CITE-seq dataset; `tests/test_seurat_extra.py`, 17 tests, all pass)
 
-R references: `benchmarks/r_reference_seurat_extra.R` -> `$ARSC_SCRATCH/ref_extra` (run with
+R references: `benchmarks/r_reference_seurat_extra.R` -> `$ARSC_REFS/ref_extra` (`python benchmarks/regen_refs.py ref_extra`) (run with
 `Rscript benchmarks/r_reference_seurat_extra.R`). Python timings: `benchmarks/bench_seurat_extra.py`
 (`benchmarks/results/seurat_extra_timings.json`). Agreement = max |diff| over all rows/cells.
 

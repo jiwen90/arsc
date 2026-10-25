@@ -1,6 +1,6 @@
 """arsc.symphony vs R symphony 0.1.1 on the package's vignette data (reference 3pv1 + 3pv2, query 5p).
 
-Run benchmarks/r_reference_symphony.R first (writes $ARSC_SCRATCH/symphony_ref); then
+Run benchmarks/r_reference_symphony.R first (writes $ARSC_REFS/symphony_ref); then
     python benchmarks/symphony_parity.py
 prints the SYMPHONY_PARITY.md table and writes symphony_parity.csv next to the R outputs.
 """
@@ -15,7 +15,7 @@ import scipy.io
 import arsc  # noqa: E402
 from arsc import symphony as sy  # noqa: E402
 
-D = os.path.join(os.environ.get("ARSC_SCRATCH", "."), "symphony_ref")
+D = os.path.join((os.environ.get("ARSC_REFS") or os.environ.get("ARSC_SCRATCH", ".")), "symphony_ref")
 r = lambda f: np.loadtxt(os.path.join(D, f), delimiter=",", ndmin=2)  # noqa: E731
 rows = []
 

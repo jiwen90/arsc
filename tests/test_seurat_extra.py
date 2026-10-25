@@ -1,4 +1,5 @@
-"""arsc.seurat_extra vs Seurat 4.3 (references: benchmarks/r_reference_seurat_extra.R -> $ARSC_SCRATCH/ref_extra).
+"""arsc.seurat_extra vs Seurat 4.3 (references: benchmarks/r_reference_seurat_extra.R -> $ARSC_REFS/ref_extra;
+benchmarks/regen_refs.py ref_extra), on the shared input store $ARSC_STORE_GD..
 
 Run: .venv/Scripts/python.exe -m pytest -q tests/test_seurat_extra.py
 """
@@ -10,15 +11,15 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
-from refutil import EXP_GD, REF_GD, SCRATCH, read_dense  # noqa: E402
+from refutil import EXP_GD, REF_EXTRA, missing, read_dense, store_gd_missing  # noqa: E402
 
 import arsc  # noqa: E402
 from arsc import preprocessing as pp  # noqa: E402
 from arsc import seurat_extra as se  # noqa: E402
 
-REF = SCRATCH / "ref_extra"
-pytestmark = pytest.mark.skipif(not ((EXP_GD / "manifest.json").exists() and (REF / "timings_r.json").exists()),
-                                reason="R reference outputs not built (benchmarks/r_reference_seurat_extra.R)")
+REF = REF_EXTRA
+SKIP = store_gd_missing() or missing(REF / "timings_r.json", regen="ref_extra")
+pytestmark = pytest.mark.skipif(bool(SKIP), reason=SKIP or "")
 
 
 @pytest.fixture(scope="module")
@@ -160,7 +161,7 @@ def test_average_expression(ds, lognorm, adt):
 
 
 def test_cell_cycle_scoring(ds, lognorm, feats):
-    ref = pd.read_csv(REF / "cellcycle.csv", index_col=0)
+    ref = pd.read_csv(REF / "cellcycle.csv.gz", index_col=0)
     r = se.cell_cycle_scoring(lognorm, feats, cells=ds.obs.index)
     assert np.abs(r["S.Score"] - ref["S.Score"]).max() < 1e-12
     assert np.abs(r["G2M.Score"] - ref["G2M.Score"]).max() < 1e-12
@@ -169,6 +170,13 @@ def test_cell_cycle_scoring(ds, lognorm, feats):
 
 def _scale_ref(name):
     return read_dense(REF / name)
+
+
+def _ref_cols(ds, ref):
+    """Positions of the reference's stored cells (every 10th cell; r_reference_seurat_extra.R) in the dataset."""
+    j = pd.Index(ds.obs.index).get_indexer(ref.columns)
+    assert (j >= 0).all() and len(j) > 3000
+    return j
 
 
 def _scale_args(ds, lognorm, feats):
@@ -181,24 +189,27 @@ def test_scale_plain_and_options(ds, lognorm, feats):
     sel = _scale_args(ds, lognorm, feats)
     Z, nm = se.scale_data(lognorm, feats, select=sel)
     ref = _scale_ref("scale_plain")
+    j = _ref_cols(ds, ref)
     assert list(nm) == list(ref.index)
-    assert np.abs(Z.T - ref.values).max() < 1e-9
+    assert np.abs(Z.T[:, j] - ref.values).max() < 1e-9
     Z, _ = se.scale_data(lognorm, feats, select=sel, do_center=False, scale_max=3)
-    assert np.abs(Z.T - _scale_ref("scale_nocenter_max3").values).max() < 1e-9
+    assert np.abs(Z.T[:, j] - _scale_ref("scale_nocenter_max3").values).max() < 1e-9
 
 
 def test_scale_regress_numeric(ds, lognorm, feats):
     sel = _scale_args(ds, lognorm, feats)
     Z, _ = se.scale_data(lognorm, feats, select=sel, vars_to_regress=["nCount_RNA", "percent.mt"],
                          latent_data=ds.obs)
-    assert np.abs(Z.T - _scale_ref("scale_regress_num").values).max() < 1e-7
+    ref = _scale_ref("scale_regress_num")
+    assert np.abs(Z.T[:, _ref_cols(ds, ref)] - ref.values).max() < 1e-7
 
 
 def test_scale_regress_factor(ds, lognorm, feats):
     sel = _scale_args(ds, lognorm, feats)
     Z, _ = se.scale_data(lognorm, feats, select=sel, vars_to_regress=["patient_alias", "nFeature_RNA"],
                          latent_data=ds.obs)
-    assert np.abs(Z.T - _scale_ref("scale_regress_factor").values).max() < 1e-7
+    ref = _scale_ref("scale_regress_factor")
+    assert np.abs(Z.T[:, _ref_cols(ds, ref)] - ref.values).max() < 1e-7
 
 
 def test_scale_regress_split_by(ds, lognorm, feats):
@@ -206,10 +217,11 @@ def test_scale_regress_split_by(ds, lognorm, feats):
     Z, nm = se.scale_data(lognorm, feats, select=sel, vars_to_regress=["percent.mt"], latent_data=ds.obs,
                           split_by=ds.obs["n10x_lane_name"].astype(str).to_numpy())
     ref = _scale_ref("scale_regress_split").loc[nm]  # reference built via ScaleData.default on a lane-ordered matrix
+    j = _ref_cols(ds, ref)
     lane = ds.obs["n10x_lane_name"].astype(str)
-    ok = (lane.map(lane.value_counts()) > 3).to_numpy()  # splits with <= rank+1 cells have exactly-zero residuals (noise)
+    ok = (lane.map(lane.value_counts()) > 3).to_numpy()[j]  # splits with <= rank+1 cells: exactly-zero residuals
     assert ok.mean() > 0.99
-    assert np.abs(Z.T[:, ok] - ref.values[:, ok]).max() < 1e-7
+    assert np.abs(Z.T[:, j][:, ok] - ref.values[:, ok]).max() < 1e-7
 
 
 def test_normalize_clr_margin1_and_rc(ds):

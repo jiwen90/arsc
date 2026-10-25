@@ -11,7 +11,7 @@ blk = read_dense(REF_GD/"lognorm_block")
 mine = pd.DataFrame(L[:2000][:, feats.get_indexer(blk.index)].toarray().T, index=blk.index)
 print("lognorm max abs diff", np.abs(mine.values-blk.values).max())
 t=time.perf_counter(); h = pp.hvg_vst(C, features=feats); print("hvg", time.perf_counter()-t)
-r = pd.read_csv(REF_GD/"hvf.csv", index_col=0)
+r = pd.read_csv(REF_GD/"hvf.csv.gz", index_col=0)
 for a,b in [("mean","vst.mean"),("variance","vst.variance"),("variance_expected","vst.variance.expected"),("variance_standardized","vst.variance.standardized")]:
     x=h[a].values; y=r.loc[h.index,b].values
     rel = np.abs(x-y)/np.maximum(np.abs(y),1e-300)

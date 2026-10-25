@@ -1,8 +1,9 @@
+ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # autoresearch toolkit, when vendored there
 # R references for arsc.stats rank / stratified / rarefaction helpers (STATS_PARITY.md).
 # Usage: Rscript benchmarks/r_reference_stats_resampling.R <dir written by benchmarks/stats_resampling_cases.py>
 # Needs: stats (base), vegan, lme4.
 args <- commandArgs(trailingOnly = TRUE)
-d <- if (length(args)) args[1] else file.path(Sys.getenv("ARSC_SCRATCH"), "stats_resampling")
+d <- if (length(args)) args[1] else file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH")), "stats_resampling")
 if (nzchar(Sys.getenv("ARSC_RLIB"))) .libPaths(c(Sys.getenv("ARSC_RLIB"), .libPaths()))
 rd <- function(f) read.csv(file.path(d, f), stringsAsFactors = FALSE)
 

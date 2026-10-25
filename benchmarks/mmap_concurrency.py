@@ -21,7 +21,7 @@ from pathlib import Path
 
 import psutil
 
-STORE = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else str(Path(os.environ.get("ARSC_SCRATCH", "scratch")) / "exp_pbmc")
+STORE = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else str(Path((os.environ.get("ARSC_REFS") or os.environ.get("ARSC_SCRATCH", "scratch"))) / "exp_pbmc")
 GB = 1024 ** 3
 
 

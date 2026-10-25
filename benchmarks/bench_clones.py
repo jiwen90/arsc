@@ -4,7 +4,7 @@ Inputs come from the environment (no data ships with the repo):
   ARSC_CLONES_META  cell metadata (.csv[.gz]) with patient_alias, timepoint, clone_id, treatment, response,
                     metaclusters_exh, TRA_chain_cdr3_nt, TRB_chain_cdr3_nt
   ARSC_CLONES_HD    directory with the healthy-donor clonotype tables "P6 T1 clonotypes.csv", "P6 T2 clonotypes.csv"
-  ARSC_SCRATCH      holds clones_ref/timing.txt (R timings)
+  ARSC_REFS         holds clones_ref/timing.txt (R timings)
 """
 import os
 import time
@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 from arsc import clones as C
 
-REF = Path(os.environ.get("ARSC_SCRATCH", "scratch")) / "clones_ref"; HD = Path(os.environ["ARSC_CLONES_HD"])
+REF = Path((os.environ.get("ARSC_REFS") or os.environ.get("ARSC_SCRATCH", "scratch"))) / "clones_ref"; HD = Path(os.environ["ARSC_CLONES_HD"])
 m = pd.read_csv(os.environ["ARSC_CLONES_META"],
                 usecols=["patient_alias", "timepoint", "clone_id", "treatment", "response", "metaclusters_exh",
                          "TRA_chain_cdr3_nt", "TRB_chain_cdr3_nt"])

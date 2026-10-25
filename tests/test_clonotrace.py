@@ -1,11 +1,11 @@
 """arsc.clonotrace vs the Clonotrace R code (Fu et al. 2025; github.com/yuntianf/Clonotrace v1.2.1).
 
-R references: benchmarks/r_reference_clonotrace.R -> $ARSC_SCRATCH/clonotrace_ref (public demo data shipped
+R references: benchmarks/r_reference_clonotrace.R -> $ARSC_REFS/clonotrace_ref (regen_refs.py clonotrace_ref) (public demo data shipped
 with Clonotrace; no lab data). Reference tests skip when those files are absent; synthetic tests always run.
 """
 from __future__ import annotations
 
-import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -16,9 +16,11 @@ import scipy.sparse as sp
 from arsc import clonotrace as ct
 from arsc.clones import ari
 
-REF = Path(os.environ.get("ARSC_TEST_CLONOTRACE_REF")
-           or Path(os.environ.get("ARSC_SCRATCH", "__unset__")) / "clonotrace_ref")
-have_ref = pytest.mark.skipif(not (REF / "coembed.csv").exists(), reason="Clonotrace R references not built")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
+from refutil import CLONOTRACE_REF as REF, missing  # noqa: E402
+
+_SKIP = missing(REF / "coembed.csv", regen="clonotrace_ref")
+have_ref = pytest.mark.skipif(bool(_SKIP), reason=_SKIP or "")
 
 
 def rd(name, **kw):

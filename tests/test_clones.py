@@ -1,11 +1,12 @@
 """arsc.clones / arsc.genesets: exact parity with the R methods (tools/R/ar_methods.R, ar.R clone helpers).
 
-R references: scratch/arsc/clones_ref.R -> $ARSC_SCRATCH/clones_ref (Rscript scratch/arsc/clones_ref.R).
+R references: benchmarks/r_reference_clones.R -> $ARSC_REFS/clones_ref (python benchmarks/regen_refs.py clones_ref).
 Published Cyclone assignment = column ``k`` of cache/cd8_nn_labeled_FORCYCLONE_FINAL_cyclone.meta.csv.gz
 (identical to the published @misc$clonestats k).  Data-dependent tests skip when inputs are absent.
 Run: .venv/Scripts/python.exe -m pytest -q tests/test_clones.py
 """
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -17,14 +18,24 @@ from arsc import clones as C
 from arsc import genesets as G
 
 # data-dependent tests read their paths from the environment (tests/conftest.py, tests/local.env)
-REF = Path(os.environ.get("ARSC_SCRATCH", "__unset__")) / "clones_ref"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
+from refutil import CLONES_REF as REF, missing  # noqa: E402
+
+
+def _gz(p: Path) -> Path:
+    """regen_refs.py stores these references gzipped (<name>.csv.gz)."""
+    g = p.with_name(p.name + ".gz")
+    return g if g.exists() or not p.exists() else p
+
 META = Path(os.environ.get("ARSC_TEST_CLONES_META", "__unset__"))
 V3 = Path(os.environ.get("ARSC_DATA_V3", "__unset__"))
 TPS = [0, 3, 6, 9]
 have_meta = META.exists()
-have_data = have_meta and (REF / "cyclone_pub_k.csv").exists()
-needs_meta = pytest.mark.skipif(not have_meta, reason="cached CD8 meta not available")
-needs_data = pytest.mark.skipif(not have_data, reason="cached CD8 meta / R references not built")
+have_data = have_meta and (_gz(REF / "cyclone_pub_k.csv")).exists()
+_SKIP_META = None if have_meta else f"missing the CD8 clone metadata {META} (set ARSC_TEST_CLONES_META; tests/local.env)"
+_SKIP_DATA = _SKIP_META or missing(_gz(REF / "cyclone_pub_k.csv"), regen="clones_ref")
+needs_meta = pytest.mark.skipif(bool(_SKIP_META), reason=_SKIP_META or "")
+needs_data = pytest.mark.skipif(bool(_SKIP_DATA), reason=_SKIP_DATA or "")
 
 
 # ------------------------------------------------------------------------------------------ synthetic
@@ -144,15 +155,15 @@ def test_cyclone_reproduces_published_trajectories(meta, cy_pub):
 @pytest.mark.parametrize("tag", list(RUNS))
 def test_cyclone_variants_match_R(meta, tag):
     cy = C.cyclone(meta, timepoints=TPS, verbose=False, **RUNS[tag])
-    rk = pd.read_csv(REF / f"cyclone_{tag}_k.csv").set_index("clone_id").k
+    rk = pd.read_csv(_gz(REF / f"cyclone_{tag}_k.csv")).set_index("clone_id").k
     mk = cy.clonestats[["clone_id", "k"]].drop_duplicates().set_index("clone_id").k.reindex(rk.index)
     assert (rk == mk).all()
-    rc = pd.read_csv(REF / f"cyclone_{tag}_counts.csv")
+    rc = pd.read_csv(_gz(REF / f"cyclone_{tag}_counts.csv"))
     a = cy.counts.assign(timepoint=lambda x: x.timepoint.astype(int))
     j = rc.merge(a, on=["patient_alias", "treatment", "response", "k", "timepoint"], how="outer", suffixes=("_r", "_p"))
     assert len(j) == len(rc) == len(a) and (j.n_clones_r == j.n_clones_p).all()
     assert np.abs(j.perc_r - j.perc_p).max() < 1e-9
-    rp = pd.read_csv(REF / f"cyclone_{tag}_ptable.csv").sort_values("patient_alias").reset_index(drop=True)
+    rp = pd.read_csv(_gz(REF / f"cyclone_{tag}_ptable.csv")).sort_values("patient_alias").reset_index(drop=True)
     pp = cy.patient_table().sort_values("patient_alias").reset_index(drop=True)
     for c in [c for c in rp.columns if c.startswith("Traj")]:
         assert (rp[c].to_numpy() == pp[c].to_numpy()).all()
@@ -160,9 +171,9 @@ def test_cyclone_variants_match_R(meta, tag):
 
 @needs_data
 def test_cyclone_clonestats_and_cor_match_R(cy_pub):
-    mc = pd.read_csv(REF / "cyclone_pub_matcor.csv", index_col=0)
+    mc = pd.read_csv(_gz(REF / "cyclone_pub_matcor.csv"), index_col=0)
     assert np.abs(mc.values - cy_pub.mat_cor.loc[mc.index, mc.columns].values).max() < 1e-12
-    rs = pd.read_csv(REF / "cyclone_pub_clonestats.csv")
+    rs = pd.read_csv(_gz(REF / "cyclone_pub_clonestats.csv"))
     cs = cy_pub.clonestats.assign(timepoint=lambda x: x.timepoint.astype(int))
     j = rs.merge(cs, on=["clone_id", "patient_alias", "timepoint"], suffixes=("_r", "_p"))
     assert len(j) == len(rs) == len(cs)
@@ -175,14 +186,14 @@ def test_cyclone_clonestats_and_cor_match_R(cy_pub):
 @needs_data
 def test_cyclone_states_match_R(meta, cy_pub):
     st = C.cyclone_states(cy_pub, meta, "metaclusters_exh").assign(timepoint=lambda x: x.timepoint.astype(int))
-    r = pd.read_csv(REF / "cyclone_states_fc.csv")
+    r = pd.read_csv(_gz(REF / "cyclone_states_fc.csv"))
     j = r.merge(st, on=["patient_alias", "treatment", "timepoint", "k", "state"], suffixes=("_r", "_p"))
     assert len(j) == len(r) == len(st) and np.abs(j.value_r - j.value_p).max() < 1e-9
 
 
 @needs_data
 def test_pair_test_exact_vs_R(meta):
-    r = pd.read_csv(REF / "pairtest_12-153_0_3.csv")
+    r = pd.read_csv(_gz(REF / "pairtest_12-153_0_3.csv"))
     mp = meta[(meta.patient_alias == "12-153") & meta.clone_id.notna()]
     mine = C.pair_test(mp.clone_id[mp.timepoint == 0].to_numpy(), mp.clone_id[mp.timepoint == 3].to_numpy())
     j = r.merge(mine, on="clone", suffixes=("_r", "_p"))
@@ -195,17 +206,17 @@ def test_pair_test_exact_vs_R(meta):
 def test_hd_null_vs_R(meta):
     files = [V3 / "tcr" / "HD" / f"P6 {t} clonotypes.csv" for t in ("T1", "T2")]
     if not all(f.exists() for f in files):
-        pytest.skip("HD clonotype files missing")
+        pytest.skip(f"missing HD clonotype files {[str(f) for f in files]} (ARSC_DATA_V3)")
     hd = C.read_10x_clonotypes(files)
     assert hd.groupby("timepoint").size().to_dict() == {"T1": 5313, "T2": 3118}
-    full = pd.read_csv(REF / "pairtest_hd_P6_full.csv")
+    full = pd.read_csv(_gz(REF / "pairtest_hd_P6_full.csv"))
     mine = C.pair_test(hd.clone_id[hd.timepoint == "T1"].to_numpy(), hd.clone_id[hd.timepoint == "T2"].to_numpy())
     j = full.merge(mine, on="clone", suffixes=("_r", "_p"))
     assert len(j) == len(full) and np.abs(j.chi_r - j.chi_p).max() < 1e-10 and np.abs(j.p_r - j.p_p).max() < 1e-9
     m = meta.assign(clone_pair=meta.TRA_chain_cdr3_nt + " " + meta.TRB_chain_cdr3_nt)
     _, pat = C.clone_expansion_null(m, hd, clone_col="clone_pair", time_col="week", hd_time_col="timepoint",
                                     hd_clone_col="clone_id", reps=5, seed=1)
-    r = pd.read_csv(REF / "expnull_patients.csv")
+    r = pd.read_csv(_gz(REF / "expnull_patients.csv"))
     for c in ("t1", "t2"):
         r[c] = r[c].astype(int)
         pat[c] = pat[c].astype(int)
@@ -226,15 +237,15 @@ def test_hd_null_vs_R(meta):
 def test_startrac_exact_vs_R(meta, which):
     if which == "w3":
         cl, pw = C.startrac(meta[meta.week == "3"], min_cells=20)
-        r = pd.read_csv(REF / "startrac_w3_cluster.csv")
-        rp = pd.read_csv(REF / "startrac_w3_pairwise.csv")
+        r = pd.read_csv(_gz(REF / "startrac_w3_cluster.csv"))
+        rp = pd.read_csv(_gz(REF / "startrac_w3_pairwise.csv"))
         j = rp.merge(pw, on=["patient_alias", "state_a", "state_b"], suffixes=("_r", "_p"))
         assert len(j) == len(rp) == len(pw) and np.abs(j.tran_r - j.tran_p).max() < 1e-12
         assert (j.n_shared_clones_r == j.n_shared_clones_p).all()
         cols = ["n", "expa", "tran"]
     else:
         cl, _ = C.startrac(meta, loc_col="week", min_cells=20)
-        r = pd.read_csv(REF / "startrac_all_cluster.csv")
+        r = pd.read_csv(_gz(REF / "startrac_all_cluster.csv"))
         cols = ["n", "expa", "tran", "migr"]
     j = r.merge(cl, on=["patient_alias", "state"], suffixes=("_r", "_p"))
     assert len(j) == len(r) == len(cl)
@@ -245,17 +256,17 @@ def test_startrac_exact_vs_R(meta, which):
 @needs_data
 def test_clone_table_dynamics_diversity_vs_R(meta):
     ct = C.clone_table(meta, "clone_id")
-    r = pd.read_csv(REF / "clone_table.csv")
+    r = pd.read_csv(_gz(REF / "clone_table.csv"))
     j = r.merge(ct, on=["patient_alias", "timepoint", "clone"], suffixes=("_r", "_p"))
     assert len(j) == len(r) == len(ct) and (j.n_r == j.n_p).all() and np.abs(j.freq_r - j.freq_p).max() < 1e-12
     dy = C.clone_dynamics(ct, 0, 3)
-    rd = pd.read_csv(REF / "dynamics_0_3.csv")
+    rd = pd.read_csv(_gz(REF / "dynamics_0_3.csv"))
     j = rd.merge(dy, on=["patient_alias", "clone"], suffixes=("_r", "_p"))
     assert len(j) == len(rd) == len(dy) and (j.class_r == j.class_p).all()
     assert np.abs(j.p_r - j.p_p).max() < 1e-9 and np.abs(j.fdr_r - j.fdr_p).max() < 1e-9
     assert np.abs(j.lfc_r - j.lfc_p).max() < 1e-10
     dv = C.clone_diversity(ct, reps=20, verbose=False)
-    rv = pd.read_csv(REF / "diversity.csv")
+    rv = pd.read_csv(_gz(REF / "diversity.csv"))
     j = rv.merge(dv, on=["patient_alias", "timepoint"], suffixes=("_r", "_p"))
     assert len(j) == len(rv) == len(dv) and (j.depth_r == j.depth_p).all() == True  # noqa: E712
     for c in ("shannon", "simpson", "richness", "top10_frac", "clonality"):   # Monte-Carlo (20 draws) agreement
@@ -266,12 +277,12 @@ def test_clone_table_dynamics_diversity_vs_R(meta):
 @needs_data
 def test_cycling_fraction_vs_R(meta):
     cf = G.cycling_fraction(meta, (meta.metaclusters_exh == "Activated").to_numpy(), by="metaclusters_exh")
-    r = pd.read_csv(REF / "cycling_fraction.csv")
+    r = pd.read_csv(_gz(REF / "cycling_fraction.csv"))
     j = r.merge(cf, on=["patient_alias", "timepoint", "metaclusters_exh"], suffixes=("_r", "_p"))
     assert len(j) == len(r) == len(cf) and np.abs(j.logit_cc_r - j.logit_cc_p).max() < 1e-12
 
 
-@pytest.mark.skipif(not (V3 / "jo_pathways.json").exists(), reason="V3 data missing")
+@pytest.mark.skipif(not (V3 / "jo_pathways.json").exists(), reason=f"missing {V3 / 'jo_pathways.json'} (ARSC_DATA_V3)")
 def test_v3_genesets(monkeypatch):
     monkeypatch.setattr(G, "DATA_V3", V3)  # load_v3 reads ARSC_DATA_V3; point it at the test folder
     assert len(G.load_v3("pathways")) == 19 and len(G.load_v3("jo_pathways")) == 4

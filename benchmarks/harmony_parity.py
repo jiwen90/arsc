@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from refutil import REF_HARMONY, RESULTS, read_dense, save_json  # noqa: E402
+from refutil import REF_HARMONY, RESULTS, STORE_GD, read_dense, save_json  # noqa: E402
 
 import arsc  # noqa: E402
 
@@ -28,6 +28,10 @@ CASES = ["lane1", "mv2", "mv2_tl", "mv2_auto", "mv3"]
 
 
 def load_input(root: Path):
+    """The harmony input: <root>/input when it was kept, else rebuilt in memory from the shared store."""
+    if not (root / "input" / "pcs.json").exists():
+        from harmony_input import build
+        return build(STORE_GD)
     Z = read_dense(root / "input" / "pcs").values
     mf = root / "input" / "meta.csv"
     meta = pd.read_csv(mf if mf.exists() else root / "input" / "meta.csv.gz", dtype=str)

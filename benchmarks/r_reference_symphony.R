@@ -1,10 +1,11 @@
+ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # autoresearch toolkit, when vendored there
 # R reference outputs for arsc.symphony (SYMPHONY_PARITY.md, tests/test_symphony.py, benchmarks/symphony_parity.py).
 # Needs R symphony 0.1.1 (+ harmony 1.2, uwot). Usage: Rscript benchmarks/r_reference_symphony.R [out_dir]
-# (default $ARSC_SCRATCH/symphony_ref). Writes symphony internals on random inputs, and the package's vignette
+# (default $ARSC_REFS/symphony_ref). Writes symphony internals on random inputs, and the package's vignette
 # case (pbmcs_exprs_small: reference = donors 3pv1 + 3pv2, query = 5p).
 suppressMessages({library(symphony); library(Matrix)})
 args <- commandArgs(TRUE)
-out <- if (length(args)) args[1] else file.path(Sys.getenv("ARSC_SCRATCH"), "symphony_ref")
+out <- if (length(args)) args[1] else file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH")), "symphony_ref")
 dir.create(out, showWarnings = FALSE, recursive = TRUE)
 w <- function(x, f) write.table(as.matrix(x), file.path(out, f), sep = ",", row.names = FALSE, col.names = FALSE)
 ns <- asNamespace("symphony")

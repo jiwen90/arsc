@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from paired_bench import child_env, machine_state  # noqa: E402
 
-D = Path(os.environ.get("ARSC_SCRATCH", ".")) / "symphony_ref"
+D = Path((os.environ.get("ARSC_REFS") or os.environ.get("ARSC_SCRATCH", "."))) / "symphony_ref"
 
 PY_CHILD = r'''
 import json, os, sys, time

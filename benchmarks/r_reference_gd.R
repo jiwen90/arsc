@@ -1,9 +1,13 @@
+ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # autoresearch toolkit, when vendored there
 #!/usr/bin/env Rscript
 # Reference outputs + timings from the R ecosystem (Seurat 4.3, harmony 1.2,
 # presto 1.0, UCell 2.6) on the reference gamma-delta T-cell object (38,440 cells). arsc's validation scripts
 # compare against the files written here.
 #
 # Usage: Rscript benchmarks/r_reference_gd.R [rds] [out_dir]
+# By default it writes only what tests/test_vs_r.py reads (HVG, a LogNormalize block, presto markers for the 2,000 variable genes; gzip, 3 MB).
+# ARSC_REF_FULL=1 also writes PCA, harmony, UCell, AddModuleScore, pseudobulk, CLR and SNN outputs and timings for
+# benchmarks/validation/ (about 1 GB). benchmarks/regen_refs.py ref_gd runs it on the shared input's Seurat object.
 suppressPackageStartupMessages({
   if (nzchar(Sys.getenv("ARSC_RLIB"))) .libPaths(c(Sys.getenv("ARSC_RLIB"), .libPaths()))
   library(Matrix); library(Seurat); library(harmony); library(presto)
@@ -11,10 +15,11 @@ suppressPackageStartupMessages({
 })
 args <- commandArgs(trailingOnly = TRUE)
 rds <- if (length(args) >= 1) args[1] else stop("usage: Rscript r_reference_gd.R <object.rds> [out_dir]")
-out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_gd")
+out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH", "scratch")), "ref_gd")
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 options(future.globals.maxSize = 64 * 1024^3)
 source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "r_common.R"))
+full <- identical(Sys.getenv("ARSC_REF_FULL"), "1")
 
 obj <- readRDS(rds)
 DefaultAssay(obj) <- "RNA"
@@ -25,17 +30,18 @@ cat("cells:", ncol(obj), "\n")
 tm("NormalizeData", obj <- NormalizeData(obj, verbose = FALSE))
 tm("FindVariableFeatures", obj <- FindVariableFeatures(obj, nfeatures = 2000, verbose = FALSE))
 hvf <- obj[["RNA"]]@meta.features
-fwrite(data.table(feature = rownames(hvf), hvf[, grep("^vst", names(hvf))]), file.path(out, "hvf.csv"))
+fwrite(data.table(feature = rownames(hvf), hvf[, grep("^vst", names(hvf))]), file.path(out, "hvf.csv.gz"))
 writeLines(VariableFeatures(obj), file.path(out, "variable_features.txt"))
+# Normalized data for one cell block (checks LogNormalize numerics directly)
+write_dense_gz(as.matrix(GetAssayData(obj, slot = "data")[VariableFeatures(obj)[1:200], 1:2000]),
+               file.path(out, "lognorm_block"))
+if (full) {
 tm("ScaleData", obj <- ScaleData(obj, verbose = FALSE))
 tm("RunPCA", obj <- RunPCA(obj, npcs = 30, verbose = FALSE))
 write_dense(Embeddings(obj, "pca"), file.path(out, "pca_embeddings"))
 write_dense(Loadings(obj, "pca"), file.path(out, "pca_loadings"))
 writeLines(rownames(Loadings(obj, "pca")), file.path(out, "pca_loadings_features.txt"))
 writeLines(as.character(Stdev(obj, "pca")), file.path(out, "pca_stdev.txt"))
-# Normalized data for one cell block (checks LogNormalize numerics directly)
-write_dense(as.matrix(GetAssayData(obj, slot = "data")[VariableFeatures(obj)[1:200], 1:2000]),
-            file.path(out, "lognorm_block"))
 
 # ---- 2. Harmony -------------------------------------------------------------
 pcs <- Embeddings(obj, "pca")
@@ -76,10 +82,19 @@ for (bs in c(1, 0.05)) {
              file.path(out, paste0("harmony_", tag, "_trace.json")), digits = NA)
 }
 
+}  # full
+
 # ---- 3. presto markers ------------------------------------------------------
 X <- GetAssayData(obj, slot = "data")
 tm("presto_wilcoxauc", mk <- wilcoxauc(X, obj$cell_type))
-fwrite(mk, file.path(out, "presto_cell_type.csv"))
+# the tests compare the 2,000 variable genes (presto is per gene, so a subset is a full check of those rows; all genes: 30 MB)
+fwrite(if (full) mk else mk[mk$feature %in% VariableFeatures(obj), ], file.path(out, "presto_cell_type.csv.gz"))
+if (!full) {
+  write_timings(out)
+  cat("done (tests subset; ARSC_REF_FULL=1 for everything)
+")
+  quit(save = "no")
+}
 
 # ---- 4. Module scores -------------------------------------------------------
 sigs <- list(

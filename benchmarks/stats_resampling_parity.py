@@ -8,7 +8,7 @@ import pandas as pd
 
 from arsc import stats as st
 
-d = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(os.environ["ARSC_SCRATCH"]) / "stats_resampling"
+d = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(os.environ.get("ARSC_REFS") or os.environ["ARSC_SCRATCH"]) / "stats_resampling"
 rd = lambda f: pd.read_csv(d / f, float_precision="round_trip")  # noqa: E731
 
 cs, vv, R = rd("hl_cases.csv"), rd("hl_values.csv"), rd("R_hl.csv").set_index("case")

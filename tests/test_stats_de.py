@@ -1,12 +1,14 @@
 """Patient-level statistics + pseudobulk DE ports (arsc.stats / arsc.de).
 
-Fast unit tests run anywhere.  The R-parity tests read references produced by
-scratch/arsc/stats_parity/ref.R + ref_small.R (DESeq2 1.42, limma 3.58, edgeR 4.0, fgsea 1.28, lme4 1.1) and the
-pseudobulk exports prep.py / prep2.py; they skip when those files are missing.
+Fast unit tests run anywhere.  The R-parity tests read references in $ARSC_REFS/stats_parity written by
+benchmarks/r_reference_stats_parity.R + r_reference_stats_small.R (DESeq2 1.42, limma 3.58, edgeR 4.0, fgsea 1.28,
+lme4 1.1; rebuild: python benchmarks/regen_refs.py stats_parity). Their inputs (pseudobulk and composition tables) are
+rebuilt in memory from the shared input store $ARSC_STORE_GD (benchmarks/stats_parity_inputs.py). Each skips with the
+name of what is missing.
 Run: .venv/Scripts/python.exe -m pytest -q tests/test_stats_de.py   (-m "not slow" skips DESeq2/GLMM parity)
 """
 import math
-import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -16,8 +18,13 @@ from scipy import stats as sps
 
 from arsc import de, stats
 
-REF = Path(os.environ.get("ARSC_SCRATCH", "__unset__")) / "stats_parity"
-have_ref = pytest.mark.skipif(not (REF / "R_ct_voom.csv").exists(), reason="R reference outputs not built")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
+from refutil import STATS_PARITY as REF, missing, store_gd_missing  # noqa: E402
+
+_SKIP = store_gd_missing() or missing(REF / "R_ct_voom.csv", REF / "R_tp_voom.csv", REF / "R_glmer.csv",
+                                      regen="stats_parity")
+have_ref = pytest.mark.skipif(bool(_SKIP), reason=_SKIP or "")
+_SKIP_SMALL = missing(REF / "R_small.csv", regen="stats_parity")
 GENESETS = de.GENESET_CACHE / "Homo_sapiens__H__all.csv.gz"
 
 
@@ -138,16 +145,18 @@ def test_msigdb_cache_roundtrip():
 
 
 # ------------------------------------------------------------------ R parity
+_INPUTS: dict = {}
+
+
 def _load(tag):
-    f = {"tp": ("pb_counts.csv.gz", "pb_coldata.csv"), "ct": ("ct_counts.csv.gz", "ct_coldata.csv")}[tag]
-    cnt = pd.read_csv(REF / f[0], index_col=0)
-    cd = pd.read_csv(REF / f[1], index_col=0)
-    cnt.columns = cnt.columns.astype(str)
-    cd.index = cd.index.astype(str)
-    return cnt, cd
+    """The pseudobulk the R references were computed from, rebuilt from the shared store (cached per session)."""
+    if tag not in _INPUTS:
+        import stats_parity_inputs as spi
+        _INPUTS[tag] = getattr(spi, tag)()
+    return _INPUTS[tag]
 
 
-@have_ref
+@pytest.mark.skipif(bool(_SKIP_SMALL), reason=_SKIP_SMALL or "")
 def test_small_vectors_wilcoxon_and_perm_exact_vs_R():
     S = pd.read_csv(REF / "R_small.csv")
     pw = np.array([stats.wilcoxon_signed_rank(np.array(r.x.split(";"), float)) for r in S.itertuples()])
@@ -204,7 +213,7 @@ def test_fgsea_hallmark_vs_R(tag):
 @have_ref
 @pytest.mark.slow
 def test_glmm_lmm_vs_lme4():
-    comp = pd.read_csv(REF / "comp.csv")
+    comp = _load("comp")
     G = pd.read_csv(REF / "R_glmer.csv")
     ct = "cd8_tem"
     d = comp[comp.celltype == ct].copy()

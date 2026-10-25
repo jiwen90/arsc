@@ -1,13 +1,15 @@
+ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # autoresearch toolkit, when vendored there
 #!/usr/bin/env Rscript
 # R reference outputs + timings for arsc.seurat_extra (Seurat 4.3 / SeuratObject 5.0) on the reference gamma-delta T-cell object (38,440 cells).
-# Usage: Rscript benchmarks/r_reference_seurat_extra.R [rds] [out_dir]
+# Usage: Rscript benchmarks/r_reference_seurat_extra.R [rds] [out_dir]   (benchmarks/regen_refs.py ref_extra)
+# Dense outputs are gzip float64 (r_common.R::write_dense_gz); scaled data keeps every 10th cell.
 suppressMessages({
   if (nzchar(Sys.getenv("ARSC_RLIB"))) .libPaths(c(Sys.getenv("ARSC_RLIB"), .libPaths()))
   library(Matrix); library(Seurat); library(data.table); library(jsonlite)
 })
 args <- commandArgs(trailingOnly = TRUE)
 rds <- if (length(args) >= 1) args[1] else stop("usage: Rscript r_reference_seurat_extra.R <object.rds> [out_dir]")
-out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_extra")
+out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH", "scratch")), "ref_extra")
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 options(future.globals.maxSize = 64 * 1024^3)
 source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "r_common.R"))
@@ -73,28 +75,30 @@ rm(fam_obj); gc()
 # ---- AverageExpression -----------------------------------------------------------------------------------
 tm("AverageExpression_data", ae <- AverageExpression(obj, assays = "RNA", group.by = c("patient_alias", "timepoint"),
                                                      slot = "data", verbose = FALSE)$RNA)
-write_dense(ae, file.path(out, "avgexp_data"))
+write_dense_gz(ae, file.path(out, "avgexp_data"))
 tm("AverageExpression_counts", ae2 <- AverageExpression(obj, assays = "RNA", group.by = "cell_type", slot = "counts",
                                                         verbose = FALSE)$RNA)
-write_dense(ae2, file.path(out, "avgexp_counts"))
+write_dense_gz(ae2, file.path(out, "avgexp_counts"))
 ae3 <- AverageExpression(obj, assays = "TRIMMEDCITE", group.by = "cell_type", slot = "data", verbose = FALSE)[[1]]
-write_dense(ae3, file.path(out, "avgexp_adt"))
+write_dense_gz(ae3, file.path(out, "avgexp_adt"))
 
 # ---- CellCycleScoring ------------------------------------------------------------------------------------
 tm("CellCycleScoring", cc <- CellCycleScoring(obj, s.features = cc.genes$s.genes, g2m.features = cc.genes$g2m.genes,
                                               set.ident = FALSE))
-fwrite(data.table(cell = colnames(cc), cc@meta.data[, c("S.Score", "G2M.Score", "Phase")]), file.path(out, "cellcycle.csv"))
+fwrite(data.table(cell = colnames(cc), cc@meta.data[, c("S.Score", "G2M.Score", "Phase")]), file.path(out, "cellcycle.csv.gz"))
 rm(cc); gc()
 
 # ---- ScaleData with vars.to.regress / split.by -------------------------------------------------------------
 feat <- hvg[1:200]
 writeLines(feat, file.path(out, "scale_features.txt"))
+# scaled data is computed on every cell; every 10th cell is stored (3,844 columns; all cells: 300 MB)
+keep <- colnames(obj)[seq(1, ncol(obj), by = 10)]
 sc0 <- ScaleData(obj, features = feat, verbose = FALSE)
-write_dense(GetAssayData(sc0, slot = "scale.data"), file.path(out, "scale_plain"))
+write_dense_gz(GetAssayData(sc0, slot = "scale.data")[, keep], file.path(out, "scale_plain"))
 tm("ScaleData_regress_200", sc1 <- ScaleData(obj, features = feat, vars.to.regress = c("nCount_RNA", "percent.mt"), verbose = FALSE))
-write_dense(GetAssayData(sc1, slot = "scale.data"), file.path(out, "scale_regress_num"))
+write_dense_gz(GetAssayData(sc1, slot = "scale.data")[, keep], file.path(out, "scale_regress_num"))
 sc2 <- ScaleData(obj, features = feat, vars.to.regress = c("patient_alias", "nFeature_RNA"), verbose = FALSE)
-write_dense(GetAssayData(sc2, slot = "scale.data"), file.path(out, "scale_regress_factor"))
+write_dense_gz(GetAssayData(sc2, slot = "scale.data")[, keep], file.path(out, "scale_regress_factor"))
 # NB: ScaleData.default (4.3) cbind()s the per-split blocks and then re-assigns the ORIGINAL cell names, which
 # scrambles cells unless the columns are already grouped by split.by (and Seurat's `[`/subset() always restores the
 # original cell order, so the object route cannot be used). The reference therefore calls ScaleData.default on a
@@ -103,20 +107,20 @@ ord <- order(obj$n10x_lane_name)
 mm <- GetAssayData(obj, slot = "data")[feat, ord]
 tm("ScaleData_regress_split_200", sc3 <- ScaleData(mm, features = feat, vars.to.regress = "percent.mt",
     latent.data = obj@meta.data[ord, "percent.mt", drop = FALSE], split.by = as.character(obj$n10x_lane_name)[ord], verbose = FALSE))
-write_dense(sc3[, colnames(obj)], file.path(out, "scale_regress_split"))
+write_dense_gz(sc3[, keep], file.path(out, "scale_regress_split"))
 rm(mm, sc3)
 sc4 <- ScaleData(obj, features = feat, do.center = FALSE, scale.max = 3, verbose = FALSE)
-write_dense(GetAssayData(sc4, slot = "scale.data"), file.path(out, "scale_nocenter_max3"))
+write_dense_gz(GetAssayData(sc4, slot = "scale.data")[, keep], file.path(out, "scale_nocenter_max3"))
 rm(sc0, sc1, sc2, sc4); gc()
 
 # ---- NormalizeData variants --------------------------------------------------------------------------------
 cnt <- GetAssayData(obj, assay = "TRIMMEDCITE", slot = "counts")
 tmp <- CreateSeuratObject(cnt, assay = "ADT")
 n1 <- NormalizeData(tmp, normalization.method = "CLR", margin = 1, verbose = FALSE)
-write_dense(as.matrix(GetAssayData(n1, slot = "data")[, 1:3000]), file.path(out, "clr_margin1"))
+write_dense_gz(as.matrix(GetAssayData(n1, slot = "data")[, 1:3000]), file.path(out, "clr_margin1"))
 rc <- NormalizeData(CreateSeuratObject(GetAssayData(obj, assay = "RNA", slot = "counts")[, 1:2000]),
                     normalization.method = "RC", scale.factor = 1e4, verbose = FALSE)
-write_dense(as.matrix(GetAssayData(rc, slot = "data")[1:300, ]), file.path(out, "rc_block"))
+write_dense_gz(as.matrix(GetAssayData(rc, slot = "data")[1:300, ]), file.path(out, "rc_block"))
 writeLines(rownames(GetAssayData(rc, slot = "data"))[1:300], file.path(out, "rc_features.txt"))
 
 write_timings(out)

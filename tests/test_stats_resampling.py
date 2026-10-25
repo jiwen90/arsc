@@ -2,14 +2,16 @@
 Poisson-binomial helpers of arsc.stats.
 
 Closed-form and brute-force checks always run. R parity (wilcox.test, mantelhaen.test, vegan::rarefy, lme4 REML,
-lm) reads $ARSC_SCRATCH/stats_resampling/R_*.csv written by benchmarks/stats_resampling_cases.py +
-benchmarks/r_reference_stats_resampling.R and skips without them (STATS_PARITY.md).
+lm) reads $ARSC_REFS/stats_resampling/R_*.csv written by benchmarks/r_reference_stats_resampling.R (rebuild:
+python benchmarks/regen_refs.py stats_resampling) and skips, naming the missing file, without them; the seeded inputs
+are rebuilt in memory by benchmarks/stats_resampling_cases.build (STATS_PARITY.md).
 """
 from __future__ import annotations
 
+import io
 import itertools
 import math
-import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -20,8 +22,20 @@ from scipy import stats as sps
 
 from arsc import stats as st
 
-REF = Path(os.environ.get("ARSC_SCRATCH", "_none_")) / "stats_resampling"
-need_ref = pytest.mark.skipif(not (REF / "R_hl.csv").exists(), reason="R references not generated")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
+from refutil import STATS_RESAMPLING as REF, missing  # noqa: E402
+
+_SKIP = missing(*[REF / f"R_{k}.csv" for k in ("hl", "mh", "icc", "fl", "rarefy")], regen="stats_resampling")
+need_ref = pytest.mark.skipif(bool(_SKIP), reason=_SKIP or "")
+_TABS: dict = {}
+
+
+def _inp(name):
+    """A seeded input table as R read it (an in-memory CSV round trip: same NA and float parsing, no file)."""
+    if not _TABS:
+        import stats_resampling_cases
+        _TABS.update({k: v.to_csv(index=False) for k, v in stats_resampling_cases.build().items()})
+    return pd.read_csv(io.StringIO(_TABS[name]), float_precision="round_trip")
 
 
 # ----------------------------------------------------------------------------- sign-flip
@@ -106,7 +120,7 @@ def test_signflip_maxt_controls_fwer():
 
 # ----------------------------------------------------------------------------- Hodges-Lehmann (R wilcox.test)
 def _hl_cases():
-    cs = pd.read_csv(REF / "hl_cases.csv", float_precision="round_trip"); vv = pd.read_csv(REF / "hl_values.csv", float_precision="round_trip")
+    cs = _inp("hl_cases"); vv = _inp("hl_values")
     for _, k in cs.iterrows():
         x = vv[(vv.case == k.case) & (vv.grp == "x")].sort_values("i").value.to_numpy()
         y = vv[(vv.case == k.case) & (vv.grp == "y")].sort_values("i").value.to_numpy()
@@ -155,7 +169,7 @@ def test_hodges_lehmann_estimates_closed_form():
 # ----------------------------------------------------------------------------- Mantel-Haenszel
 @need_ref
 def test_mantel_haenszel_matches_r():
-    T = pd.read_csv(REF / "mh_tables.csv", float_precision="round_trip"); R = pd.read_csv(REF / "R_mh.csv", float_precision="round_trip").set_index("case")
+    T = _inp("mh_tables"); R = pd.read_csv(REF / "R_mh.csv", float_precision="round_trip").set_index("case")
     for case, t in T.groupby("case"):
         r = st.mantel_haenszel(t.a, t.b, t.c, t.d, correct=bool(t.correct.iloc[0]))
         for key in ("or_mh", "ci_lo", "ci_hi", "statistic", "p"):
@@ -185,7 +199,7 @@ def test_icc_closed_form_unbalanced():
 
 @need_ref
 def test_icc_matches_lme4_reml_balanced():
-    V = pd.read_csv(REF / "icc_values.csv", float_precision="round_trip"); R = pd.read_csv(REF / "R_icc.csv", float_precision="round_trip").set_index("case")
+    V = _inp("icc_values"); R = pd.read_csv(REF / "R_icc.csv", float_precision="round_trip").set_index("case")
     m = 0
     for case, t in V.groupby("case"):
         r = st.icc_oneway(t.y, t.group, strata=t.stratum if t.stratum.nunique() > 1 else None)
@@ -218,7 +232,7 @@ def test_freedman_lane_without_covariates_is_plain_permutation():
 
 @need_ref
 def test_freedman_lane_observed_t_matches_lm():
-    V = pd.read_csv(REF / "fl_values.csv", float_precision="round_trip"); R = pd.read_csv(REF / "R_fl.csv", float_precision="round_trip").set_index("case")
+    V = _inp("fl_values"); R = pd.read_csv(REF / "R_fl.csv", float_precision="round_trip").set_index("case")
     for case, t in V.groupby("case"):
         zs = [c for c in ("z0", "z1") if t[c].notna().any()]
         r = st.freedman_lane(t.y.to_numpy(), t.x.to_numpy(), covariates=t[zs].to_numpy() if zs else None, B=200)
@@ -267,7 +281,7 @@ def test_downsample_binomial_moments():
 
 @need_ref
 def test_rarefy_richness_matches_vegan():
-    C = pd.read_csv(REF / "rarefy_counts.csv", float_precision="round_trip"); R = pd.read_csv(REF / "R_rarefy.csv", float_precision="round_trip").set_index("case")
+    C = _inp("rarefy_counts"); R = pd.read_csv(REF / "R_rarefy.csv", float_precision="round_trip").set_index("case")
     for case, t in C.groupby("case"):
         e, s = st.rarefy_richness(t.sort_values("clone")["size"].to_numpy(), int(t.depth.iloc[0]), se=True)
         assert e == pytest.approx(R.loc[case, "S"], rel=1e-10)

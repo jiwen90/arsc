@@ -1,10 +1,11 @@
+ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # autoresearch toolkit, when vendored there
 #!/usr/bin/env Rscript
 # Export Seurat's own Annoy k-NN (as used inside FindMultiModalNeighbors) for
 # both modalities, so arsc.wnn can be validated on identical neighbour input.
 suppressPackageStartupMessages({ if (nzchar(Sys.getenv("ARSC_RLIB"))) .libPaths(c(Sys.getenv("ARSC_RLIB"), .libPaths())); library(Seurat) })
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) stop("usage: Rscript r_annoy_knn_pbmc.R <pbmc_wnn.qs> [out_dir]")
-out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_pbmc")
+out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH", "scratch")), "ref_pbmc")
 options(future.globals.maxSize = 64 * 1024^3)
 source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "r_common.R"))
 obj <- qs::qread(args[1], nthreads = 16)

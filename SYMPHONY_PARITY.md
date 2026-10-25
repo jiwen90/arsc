@@ -5,7 +5,7 @@
 `map_query` (`mapQuery`), `transfer_labels` (`knnPredict`), `mapping_score` (`calcPerCellMappingMetric`). Measured
 on 2026-10-16 with R 4.3.1, symphony 0.1.1, harmony 1.2.0, uwot 0.2.2, against arsc on Windows (AR_THREADS 8).
 
-Reproduce: `Rscript benchmarks/r_reference_symphony.R` (writes `$ARSC_SCRATCH/symphony_ref`), then
+Reproduce: `Rscript benchmarks/r_reference_symphony.R` (writes `$ARSC_REFS/symphony_ref`; or `python benchmarks/regen_refs.py symphony_ref`), then
 `python benchmarks/symphony_parity.py`; `tests/test_symphony.py::test_parity_with_r_given_r_reference` asserts the
 deterministic rows.
 

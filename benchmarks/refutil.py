@@ -12,16 +12,54 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-# R reference outputs and exported stores live outside the repo; set ARSC_SCRATCH (default: <repo>/../../scratch/arsc)
-SCRATCH = Path(os.environ.get("ARSC_SCRATCH", Path(__file__).resolve().parents[3] / "scratch" / "arsc"))
-REF_GD = SCRATCH / "ref_gd"
-REF_PBMC = SCRATCH / "ref_pbmc"
-EXP_GD = SCRATCH / "exp_gd"
-EXP_PBMC = SCRATCH / "exp_pbmc"
+# Where the test references live (benchmarks/regen_refs.py rebuilds every one; benchmarks/README.md):
+#   ARSC_REFS       root of the stored R reference outputs, one folder per set (ref_gd, ref_extra, stats_parity, ...).
+#                   Keep it where no scratch cleanup prunes it (autoresearch: <AR_HOME>/.cache/arsc). ARSC_SCRATCH is
+#                   the old name and is still read; the default is benchmarks/.refs (git-ignored).
+#   ARSC_STORE_GD   the ONE shared input: the 38,440-cell gamma-delta T-cell arsc store (registered, read-only,
+#                   memory-mapped, never copied). Python tests read it directly; the R references are computed from
+#                   the Seurat object it was converted from (ARSC_GD_RDS), so both sides see the same cells.
+#   ARSC_REF_HARMONY / ARSC_TEST_CLONOTRACE_REF override a single set's folder.
+REPO = Path(__file__).resolve().parents[1]
+REFS = Path(os.environ.get("ARSC_REFS") or os.environ.get("ARSC_SCRATCH") or REPO / "benchmarks" / ".refs")
+SCRATCH = REFS  # old name, kept for scripts that still import it
+STORE_GD = Path(os.environ.get("ARSC_STORE_GD") or REFS / "exp_gd")
+EXP_GD = STORE_GD  # old name
+REF_GD = REFS / "ref_gd"
+REF_EXTRA = REFS / "ref_extra"
+REF_PBMC = REFS / "ref_pbmc"
+EXP_PBMC = REFS / "exp_pbmc"
+STATS_PARITY = REFS / "stats_parity"
+STATS_RESAMPLING = REFS / "stats_resampling"
+CLONES_REF = REFS / "clones_ref"
+SYMPHONY_REF = REFS / "symphony_ref"
+CLONOTRACE_REF = Path(os.environ.get("ARSC_TEST_CLONOTRACE_REF") or REFS / "clonotrace_ref")
 RESULTS = Path(__file__).with_name("results")
-# R harmony references (benchmarks/r_reference_harmony_all.R; about 115 MB, gzip float32). Point ARSC_REF_HARMONY at a
-# folder no scratch cleanup prunes (tests/local.env); the default under ARSC_SCRATCH is for a throwaway setup.
-REF_HARMONY = Path(os.environ.get("ARSC_REF_HARMONY", SCRATCH / "ref_harmony"))
+# R harmony references (benchmarks/r_reference_harmony_all.R; about 105 MB, gzip float32)
+REF_HARMONY = Path(os.environ.get("ARSC_REF_HARMONY") or REFS / "ref_harmony")
+
+
+def have_store_gd() -> bool:
+    return (STORE_GD / "manifest.json").exists()
+
+
+def missing(*files, regen: str) -> str | None:
+    """Skip reason naming every missing reference file (and how to rebuild it), or None when all exist.
+
+    >>> missing(REFS, regen="x") is None or "missing" in missing(REFS, regen="x")
+    True
+    """
+    gone = [str(f) for f in files if not Path(f).exists()]
+    if not gone:
+        return None
+    return f"missing {', '.join(gone)} (rebuild: python benchmarks/regen_refs.py {regen})"
+
+
+def store_gd_missing() -> str | None:
+    if have_store_gd():
+        return None
+    return (f"missing the shared input store {STORE_GD} (set ARSC_STORE_GD to the 38,440-cell gamma-delta T-cell "
+            "arsc store; tests/local.env)")
 
 
 def read_dense(prefix) -> pd.DataFrame:

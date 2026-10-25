@@ -1,9 +1,9 @@
 """arsc.symphony: Symphony reference mapping on tiny synthetic data (in memory), plus the R parity check.
 
 The parity test reads R symphony outputs written by benchmarks/r_reference_symphony.R into
-$ARSC_SCRATCH/symphony_ref and skips when they are absent (SYMPHONY_PARITY.md).
+$ARSC_REFS/symphony_ref and skips when they are absent (SYMPHONY_PARITY.md).
 """
-import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -140,11 +140,14 @@ def test_umap_model_places_query():
     assert ref.umap.shape == (int(isref.sum()), 2) and q.umap.shape == (int((~isref).sum()), 2)
 
 
-REF = Path(os.environ.get("ARSC_SCRATCH", "/nonexistent")) / "symphony_ref"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
+from refutil import SYMPHONY_REF as REF, missing  # noqa: E402
+
+_SKIP = missing(REF / "q_Z.csv", regen="symphony_ref")
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not (REF / "q_Z.csv").exists(), reason="R symphony reference outputs not built")
+@pytest.mark.skipif(bool(_SKIP), reason=_SKIP or "")
 def test_parity_with_r_given_r_reference():
     """Deterministic steps against R symphony 0.1.1 on its vignette data (reference 3pv1+3pv2, query 5p)."""
     import scipy.io

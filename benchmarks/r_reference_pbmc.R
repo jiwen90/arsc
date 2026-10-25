@@ -1,3 +1,4 @@
+ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # autoresearch toolkit, when vendored there
 #!/usr/bin/env Rscript
 # Scale reference on a PBMC CITE-seq WNN object (259,899 cells, RNA + 49 ADT): timings for the
 # R ecosystem plus WNN outputs (stored weighted.nn from the original analysis
@@ -11,7 +12,7 @@ suppressPackageStartupMessages({
 })
 args <- commandArgs(trailingOnly = TRUE)
 src <- if (length(args) >= 1) args[1] else stop("usage: Rscript r_reference_pbmc.R <object.qs> [out_dir]")
-out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_pbmc")
+out <- if (length(args) >= 2) args[2] else file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH", "scratch")), "ref_pbmc")
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 options(future.globals.maxSize = 64 * 1024^3)
 source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "r_common.R"))

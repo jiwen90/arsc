@@ -6,6 +6,22 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Tests
+- Test references no longer live in a scratch folder (pruned after 2 days, which had silently turned most R-parity
+  tests into skips). Stored R outputs go to `ARSC_REFS` (autoresearch: `.cache/arsc`); `benchmarks/regen_refs.py`
+  rebuilds any set (`status` lists folders, sizes, inputs and readers). One shared input for the large-object tests:
+  the registered 38,440-cell gamma-delta store (`ARSC_STORE_GD`, memory-mapped, never copied); R reads the Seurat
+  object it was converted from (`ARSC_GD_RDS`). Inputs are rebuilt in memory (stats pseudobulk and composition:
+  `benchmarks/stats_parity_inputs.py`; harmony PCA: `harmony_input.build`; resampling tables:
+  `stats_resampling_cases.build`), so only R outputs are stored. The lost stats-parity and clones R scripts are back
+  in the repo (`r_reference_stats_parity.R`, `r_reference_stats_small.R`, `r_reference_clones.R`); `r_reference_gd.R`
+  writes only what the tests read unless `ARSC_REF_FULL=1` (gzip, 3 MB instead of ~1 GB); `r_reference_seurat_extra.R` stores gzip and every 10th cell of the
+  scaled data (31 MB instead of 364 MB); clones references are gzipped (8 MB instead of 57 MB).
+- Every reference skip names the missing file and the command that rebuilds it.
+- `tests/test_repo_hygiene.py`: fails when a path in `tests/local.env` (or a resolved reference folder) is under a
+  scratch folder, or when git tracks a data file (datasets are never committed; `.gitignore` covers the formats).
+- `genesets.msigdb` no longer searches `$AR_ROOT/scratch/arsc/msigdb`.
+
 ### Changed
 - k-NN (`knn`, `find_neighbors`, `wnn`, `scanpy_extra.neighbors`, `palantir_diffusion_maps`, and through them
   `cluster`/`umap` graph building): `method="auto"` (new default) searches exactly up to 4,096 points and

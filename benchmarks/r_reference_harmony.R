@@ -6,7 +6,7 @@
 # Usage: Rscript benchmarks/r_reference_harmony.R [input_dir] [out_root] [harmony_lib]
 #   input_dir  : pcs.{f64,f64.gz} + pcs.json + meta.csv[.gz] written by benchmarks/harmony_input.py
 #                (default <out_root>/input)
-#   out_root   : default $ARSC_REF_HARMONY, else $ARSC_SCRATCH/ref_harmony; outputs go to <out_root>/<harmony version>/
+#   out_root   : default $ARSC_REF_HARMONY, else $ARSC_REFS/ref_harmony; outputs go to <out_root>/<harmony version>/
 #   harmony_lib: library holding the harmony version to use (put first on .libPaths); ARSC_RLIB is added after it
 # benchmarks/r_reference_harmony_all.R runs this once per harmony version.
 #
@@ -22,7 +22,7 @@ if (length(args) >= 3) .libPaths(c(args[3], .libPaths()))
 suppressPackageStartupMessages({ library(Matrix); library(harmony); library(jsonlite) })
 here <- dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))))
 out_root <- if (length(args) >= 2 && nzchar(args[2])) args[2] else
-  Sys.getenv("ARSC_REF_HARMONY", file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_harmony"))
+  Sys.getenv("ARSC_REF_HARMONY", file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH", "scratch")), "ref_harmony"))
 inp <- if (length(args) >= 1 && nzchar(args[1])) args[1] else file.path(out_root, "input")
 ver <- as.character(packageVersion("harmony"))
 out <- file.path(out_root, ver)

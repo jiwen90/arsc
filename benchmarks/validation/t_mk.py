@@ -9,7 +9,7 @@ import os
 compat = os.environ.get("COMPAT")=="1"
 for _ in range(2):
     t=time.perf_counter(); res = arsc.wilcoxauc(L, lab, features=feats); print("wilcoxauc", time.perf_counter()-t)
-ref = pd.read_csv(REF_GD/"presto_cell_type.csv")
+ref = pd.read_csv(REF_GD/"presto_cell_type.csv.gz")
 m = res.merge(ref, on=["feature","group"], suffixes=("","_r"))
 print("rows", len(res), len(ref), len(m))
 for c in ["avgExpr","logFC","statistic","auc","pval","padj","pct_in","pct_out"]:

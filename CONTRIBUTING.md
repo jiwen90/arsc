@@ -23,9 +23,12 @@ python -m pytest -q tests/test_docstrings.py tests/test_docs_snippets.py   # doc
 
 The R-parity tests compare against reference outputs produced by the R scripts in `benchmarks/`
 (`r_reference_*.R`, R 4.3 with Seurat 4.3, harmony 1.2 (and 2.0.5 / 2.1.0 in separate libraries), presto, UCell, DESeq2, limma, edgeR,
-fgsea, lme4). Without those outputs the tests **skip**; they never fail for a missing reference.
-Set `ARSC_SCRATCH` to the directory that holds the references (the other data variables are listed in
-`tests/conftest.py`). Keep local paths in an untracked `tests/local.env` (KEY=VALUE lines), never in the code.
+fgsea, lme4). Without those outputs the tests **skip** with a message naming the missing file and the command that
+rebuilds it (`python benchmarks/regen_refs.py <set>`); they never fail for a missing reference. Set `ARSC_REFS` to the
+directory that holds the references and `ARSC_STORE_GD` to the shared input store (the other data variables are
+listed in `tests/conftest.py`; `benchmarks/README.md` has the table of sets). Keep local paths in an untracked
+`tests/local.env` (KEY=VALUE lines), never in the code, and never under a `scratch` folder. Never commit a dataset
+(toy, synthetic or R output): commit the script that regenerates it (`tests/test_repo_hygiene.py`).
 
 ## Rules for code
 

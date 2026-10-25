@@ -1,7 +1,7 @@
 # Patient-level statistics + DE: Python (`arsc.stats`, `arsc.de`) vs R
 
 R references: DESeq2 1.42.1, limma 3.58.1, edgeR 4.0.16, fgsea 1.28.0, lme4 1.1.35.1 / lmerTest, msigdbr 26.1.1 (R 4.3.1).
-Python: pydeseq2 0.5.2, statsmodels 0.15, scipy 1.17. Reproduce: preparation, R-reference and comparison scripts (`prep.py`, `ref.R`, `ref_small.R`, `cmp_de.py`, `cmp_stats.py`; not yet in the repo);
+Python: pydeseq2 0.5.2, statsmodels 0.15, scipy 1.17. Reproduce: `python benchmarks/regen_refs.py stats_parity` (inputs `benchmarks/stats_parity_inputs.py` from the shared store, R `benchmarks/r_reference_stats_parity.R` + `r_reference_stats_small.R`; the comparison scripts `cmp_de.py` / `cmp_stats.py` are not in the repo, the tests cover the same checks);
 tests: `tests/test_stats_de.py` (17 tests, ~110 s; `-m "not slow"` skips DESeq2/GLMM/limma-tp parity).
 
 ## Data
@@ -45,7 +45,7 @@ Other stats (R refs in `R_small.csv`, `R_glmer.csv`, `R_lmer_*.csv`):
 R references: stats (R 4.3.1) `wilcox.test`, `mantelhaen.test`, `lm`; vegan `rarefy`; lme4 1.1.35.1 `lmer` (REML).
 Synthetic data only: `benchmarks/stats_resampling_cases.py` writes the cases, `benchmarks/r_reference_stats_resampling.R`
 the R outputs, `benchmarks/stats_resampling_parity.py` prints the numbers below; `tests/test_stats_resampling.py`
-(R parity skips without `$ARSC_SCRATCH/stats_resampling`; the closed-form and brute-force checks always run).
+(R parity skips without `$ARSC_REFS/stats_resampling` (`python benchmarks/regen_refs.py stats_resampling`); the closed-form and brute-force checks always run).
 
 | Function | Reference | Cases | Agreement |
 |---|---|---|---|

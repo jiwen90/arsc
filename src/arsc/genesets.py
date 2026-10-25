@@ -9,7 +9,7 @@ or ``{name: [genes]}``), GMT, hotspot-style module CSVs, CellPhoneDB pathway tab
 
 Environment variables: ``ARSC_CACHE`` (cache root), ``ARSC_MSIGDB_DIR`` (extra GMT directory),
 ``ARSC_DATA_V3`` (folder of the named collections loaded by :func:`load_v3`), ``ARSC_RLIB`` (extra R library
-for the R helpers), ``AR_ROOT`` (host project root; adds its ``.cache``, ``.Rlib``, ``scratch/arsc/msigdb`` and
+for the R helpers), ``AR_ROOT`` (host project root; adds its ``.cache``, ``.Rlib`` and
 ``data/msigdb`` to the search paths).
 """
 from __future__ import annotations
@@ -299,7 +299,7 @@ def _msigdb_dirs():
     env = os.environ.get("ARSC_MSIGDB_DIR")
     dirs = ([Path(env)] if env else []) + [_cache_root() / "msigdb"]
     if AR_ROOT is not None:
-        dirs += [AR_ROOT / "scratch" / "arsc" / "msigdb", AR_ROOT / "data" / "msigdb"]
+        dirs += [AR_ROOT / "data" / "msigdb"]
     return dirs
 
 
@@ -309,7 +309,7 @@ def msigdb(collection="H", subcollection=None, species="Homo sapiens", cache_dir
     Looks for ``<collection>[.<subcollection>].gmt`` (case-insensitive, ``:`` replaced by ``_``) or any GMT
     whose name follows the MSigDB convention (``h.all*``, ``c2.cp.reactome*``) in ``cache_dir``, else in
     ``$ARSC_MSIGDB_DIR``, ``<cache>/msigdb`` (``$ARSC_CACHE``, ``$AR_ROOT/.cache`` or ``~/.cache/arsc``) and, when
-    ``AR_ROOT`` is set, ``$AR_ROOT/scratch/arsc/msigdb`` and ``$AR_ROOT/data/msigdb``. Raises FileNotFoundError
+    ``AR_ROOT`` is set, ``$AR_ROOT/data/msigdb``. Raises FileNotFoundError
     listing the searched folders when absent (fill them with :func:`export_msigdb_gmt` or GMTs downloaded from
     gsea-msigdb.org). For the R-msigdbr route with a csv cache see :func:`arsc.de.msigdb`.
 

@@ -12,8 +12,8 @@ ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # a
 #   2.1.0  ARSC_HARMONY_LIB_2_1_0, default <AR_HOME>/.Rlib_harmony_2.1.0
 # AR_HOME is the autoresearch checkout (set by ar.R); elsewhere set the variables above.
 # Output folder: ARSC_REF_HARMONY; when unset, <AR_HOME>/.cache/arsc/ref_harmony under autoresearch (a folder its
-# scratch cleanup never prunes), else $ARSC_SCRATCH/ref_harmony. The input (<folder>/input) comes from
-# benchmarks/harmony_input.py; rerun that first only to change the dataset. About 9 min per version (38,440 cells,
+# scratch cleanup never prunes), else $ARSC_REFS/ref_harmony. The input (<folder>/input) comes from
+# benchmarks/regen_refs.py ref_harmony (from the shared store; deleted after the run). About 9 min per version (38,440 cells,
 # 5 cases, 2 seeds); versions can run in parallel as separate processes (one version each).
 here <- dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))))
 home <- if (exists("AR_HOME")) AR_HOME else Sys.getenv("AR_HOME", normalizePath(file.path(here, "..", "..", ".."),
@@ -28,8 +28,8 @@ if (!length(versions)) versions <- c("1.2.0", "2.0.5", "2.1.0")
 rscript <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
 refs <- Sys.getenv("ARSC_REF_HARMONY")
 if (!nzchar(refs)) refs <- if (exists("AR_HOME")) file.path(AR_HOME, ".cache", "arsc", "ref_harmony") else
-  file.path(Sys.getenv("ARSC_SCRATCH", "scratch"), "ref_harmony")
-if (!file.exists(file.path(refs, "input", "pcs.json"))) stop("no input in ", refs, "/input: run benchmarks/harmony_input.py")
+  file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH", "scratch")), "ref_harmony")
+if (!file.exists(file.path(refs, "input", "pcs.json"))) stop("no input in ", refs, "/input: run python benchmarks/regen_refs.py ref_harmony (it writes the input, runs this script and deletes the input)")
 for (v in versions) {
   lib <- lib_for(v)
   if (nzchar(lib) && !dir.exists(file.path(lib, "harmony"))) stop("no harmony in ", lib, " (for ", v, ")")

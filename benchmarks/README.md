@@ -104,21 +104,52 @@ missing. Delete the 1M-cell set after a large benchmark (`rm -rf benchmarks/.ben
 
 ## R-parity references (real data, not shipped)
 
-`r_reference_gd.R`, `r_reference_pbmc.R`, `r_reference_seurat_extra.R`, `r_reference_clonotrace.R` and
-`r_annoy_knn_pbmc.R` write R outputs + timings into `$ARSC_SCRATCH/ref_*` from a Seurat object given on
-the command line; `tests/test_vs_r.py` and friends compare arsc against them and skip when they are
-absent. `mmap_concurrency.py` measures memory sharing of one store across processes. Results:
-`../*_PARITY.md`, `results/*.json`.
+Only R outputs are stored; nothing in this repository is a dataset (`tests/test_repo_hygiene.py` fails if one is
+tracked). The stored outputs live under `ARSC_REFS` (one folder per set) in a place no scratch cleanup prunes: in
+autoresearch `.cache/arsc`, set in the untracked `tests/local.env`; the default, `benchmarks/.refs`, is git-ignored.
+`tests/test_repo_hygiene.py` also fails when any path in `tests/local.env` resolves under a `scratch` folder.
 
-The harmony references (about 115 MB: input PCA and batch columns; per harmony version and case the corrected
-embedding in gzip float32, R's k-means start and the objective trace) live in `ARSC_REF_HARMONY`. Point it at a folder
-that no scratch cleanup prunes (in autoresearch: `.cache/arsc/ref_harmony`, set in `tests/local.env`); the default,
-`$ARSC_SCRATCH/ref_harmony`, is for a throwaway setup. Rebuild them (harmony 1.2.0, 2.0.5 and 2.1.0, each from its
-own R library; about 9 min per version, one process per version when run in parallel) with
+**One shared input.** Every test and benchmark that needs a large real object reads the same registered arsc store,
+`ARSC_STORE_GD` (the 38,440-cell gamma-delta T-cell CITE-seq store), memory-mapped and read-only, never copied; a
+smaller size is a deterministic subset of its cells taken in memory. R computes its references from the Seurat object
+the store was converted from (`ARSC_GD_RDS`), or from tables exported from the store into a temporary folder that the
+regeneration deletes afterwards (harmony input, pseudobulk, composition). Synthetic inputs are seeded and built in
+memory (`stats_resampling_cases.build`, `suite_sim.py`).
+
+Rebuild with `benchmarks/regen_refs.py` (`status` lists every set with its folder, size, input and the test that reads
+it; a test whose reference is missing skips with a message naming the missing file and this command):
+
+| set | input | R script | read by | size |
+|---|---|---|---|---|
+| `ref_gd` | shared store (rds) | `r_reference_gd.R` (tests subset; `ARSC_REF_FULL=1` writes PCA, harmony, UCell, pseudobulk, CLR, SNN for `validation/`) | `test_vs_r.py` | 3 MB |
+| `ref_extra` | shared store (rds) | `r_reference_seurat_extra.R` | `test_seurat_extra.py` | 31 MB |
+| `ref_harmony` | shared store PCA (temporary export) | `r_reference_harmony_all.R` | `test_vs_r.py` | 102 MB |
+| `stats_parity` | shared store pseudobulk / composition (`stats_parity_inputs.py`) | `r_reference_stats_parity.R`, `r_reference_stats_small.R` | `test_stats_de.py` | 4 MB |
+| `stats_resampling` | seeded synthetic tables | `r_reference_stats_resampling.R` | `test_stats_resampling.py` | <1 MB |
+| `clones_ref` | CD8 clone metadata (`ARSC_TEST_CLONES_META`, `ARSC_DATA_V3`) | `r_reference_clones.R` (needs autoresearch's `tools/R`) | `test_clones.py` | 8 MB (gzip) |
+| `clonotrace_ref` | Clonotrace's public demo (downloaded at the pinned commit) | `r_reference_clonotrace.R` | `test_clonotrace.py` | 11 MB (+ 4.5 MB source in `$ARSC_REFS/src`) |
+| `symphony_ref` | R symphony's vignette data + seeded random inputs | `r_reference_symphony.R` | `test_symphony.py` | 12 MB |
+
+Three sets cannot use the shared input: Cyclone and the clone helpers need TCR clones with the published Cyclone
+assignment, CloneTrace needs lineage-traced cells, and the Symphony reference/query case is the package's own vignette.
 
 ```bash
-python benchmarks/harmony_input.py <store>           # only to change the dataset: $ARSC_REF_HARMONY/input
-Rscript benchmarks/r_reference_harmony_all.R         # or name versions: ... r_reference_harmony_all.R 2.0.5
+python benchmarks/regen_refs.py status
+python benchmarks/regen_refs.py ref_gd ref_extra stats_parity   # or: all (about 1 h)
+```
+
+`r_reference_pbmc.R` and `r_annoy_knn_pbmc.R` (WNN timing on a 259,899-cell PBMC CITE-seq object) feed only
+`benchmarks/validation/` and the README timing table, not the tests. `mmap_concurrency.py` measures memory sharing of
+one store across processes. Results: `../*_PARITY.md`, `results/*.json`.
+
+The harmony references (about 105 MB: per harmony version and case the corrected embedding in gzip float32, R's
+k-means start and the objective trace) live in `ARSC_REF_HARMONY` (default `$ARSC_REFS/ref_harmony`). Their input (the
+store's PCA and batch columns) is rebuilt in memory by `harmony_input.build`; `regen_refs.py ref_harmony` writes it to
+`<ARSC_REF_HARMONY>/input` for R and deletes it afterwards. Each harmony version runs from its own R library (about
+9 min per version):
+
+```bash
+python benchmarks/regen_refs.py ref_harmony          # all three versions
 python benchmarks/harmony_parity.py                  # results/harmony_parity.json
 ```
 

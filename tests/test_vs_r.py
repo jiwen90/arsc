@@ -1,7 +1,7 @@
 """Numerical agreement with the R reference implementations (Seurat 4.3, harmony 1.2 / 2.0 / 2.1, presto, UCell).
 
-References are produced by benchmarks/r_reference_gd.R into $ARSC_SCRATCH/ref_gd; the Seurat export of the
-38,440-cell reference dataset lives in $ARSC_SCRATCH/exp_gd. The harmony references (one and several batch variables,
+References are produced by benchmarks/r_reference_gd.R into $ARSC_REFS/ref_gd (benchmarks/regen_refs.py ref_gd) from
+the Seurat object of the shared 38,440-cell input store $ARSC_STORE_GD, which the tests read memory-mapped. The harmony references (one and several batch variables,
 harmony 1.2 / 2.0 / 2.1) are in $ARSC_REF_HARMONY (about 115 MB; rebuilt by benchmarks/r_reference_harmony_all.R from
 the input of benchmarks/harmony_input.py). Tests skip when their references are absent.
 Run: .venv/Scripts/python.exe -m pytest -q tests
@@ -14,18 +14,19 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
-from refutil import EXP_GD, REF_GD, REF_HARMONY, read_dense  # noqa: E402
+from refutil import EXP_GD, REF_GD, REF_HARMONY, missing, read_dense, store_gd_missing  # noqa: E402
 
 import arsc  # noqa: E402
 from arsc import preprocessing as pp  # noqa: E402
 
-HAVE_GD = (EXP_GD / "manifest.json").exists() and REF_GD.exists() and any(REF_GD.iterdir())
+GD_FILES = [REF_GD / f for f in ("hvf.csv.gz", "variable_features.txt", "lognorm_block.json", "presto_cell_type.csv.gz")]
+SKIP_GD = store_gd_missing() or missing(*GD_FILES, regen="ref_gd")
 
 
 @pytest.fixture(scope="module")
 def ds():
-    if not HAVE_GD:
-        pytest.skip("R reference outputs not built")
+    if SKIP_GD:
+        pytest.skip(SKIP_GD)
     return arsc.read_seurat_export(EXP_GD)
 
 
@@ -43,7 +44,7 @@ def test_lognormalize_exact(ds, lognorm):
 
 def test_hvg_vst_values_and_set(ds):
     h = pp.hvg_vst(ds.X("RNA", "counts"), features=ds["RNA"].features)
-    r = pd.read_csv(REF_GD / "hvf.csv", index_col=0)
+    r = pd.read_csv(REF_GD / "hvf.csv.gz", index_col=0)
     y = r.loc[h.index, "vst.variance.standardized"].values
     ok = y > 0
     assert np.nanmax(np.abs(h["variance_standardized"].values[ok] - y[ok]) / y[ok]) < 1e-9
@@ -54,7 +55,7 @@ def test_hvg_vst_values_and_set(ds):
 def test_wilcoxauc_matches_presto(ds, lognorm):
     st = arsc.open(EXP_GD)
     res = arsc.wilcoxauc(lognorm, st.obs["cell_type"], features=st.features())
-    ref = pd.read_csv(REF_GD / "presto_cell_type.csv")
+    ref = pd.read_csv(REF_GD / "presto_cell_type.csv.gz")
     m = res.merge(ref, on=["feature", "group"], suffixes=("", "_r"))
     assert len(m) == len(ref)
     for c, tol in [("statistic", 1e-9), ("auc", 1e-12), ("logFC", 1e-9), ("pct_in", 1e-10)]:
@@ -84,7 +85,9 @@ def test_harmony_tracks_r(version):
     the k-means start and block order, so the bar is R's own seed-to-seed spread. arsc vs R must agree at least as
     well as R seed 2 vs R seed 1 (minus 0.01) on every dimension, and per-dim r > 0.97."""
     if not (REF_HARMONY / HARMONY_R[version] / "lane1_trace.json").exists():
-        pytest.skip("harmony references not built (benchmarks/r_reference_harmony_all.R)")
+        pytest.skip(missing(REF_HARMONY / HARMONY_R[version] / "lane1_trace.json", regen="ref_harmony"))
+    if not (REF_HARMONY / "input" / "pcs.json").exists() and store_gd_missing():
+        pytest.skip(store_gd_missing())
     from harmony_parity import compare, load_input
     Z, meta = load_input(REF_HARMONY)
     row = compare(REF_HARMONY, HARMONY_R[version], "lane1", Z, meta, init="own")
@@ -100,7 +103,9 @@ def test_harmony_versions_track_r(version, case):
     R's random block order differs: per-dim r >= 0.98 on every dim (the single-variable bar), the same number of
     harmony rounds (+-1) and the final objective within 1%."""
     if not (REF_HARMONY / HARMONY_R[version] / f"{case}_trace.json").exists():
-        pytest.skip("harmony references not built (benchmarks/r_reference_harmony_all.R)")
+        pytest.skip(missing(REF_HARMONY / HARMONY_R[version] / f"{case}_trace.json", regen="ref_harmony"))
+    if not (REF_HARMONY / "input" / "pcs.json").exists() and store_gd_missing():
+        pytest.skip(store_gd_missing())
     from harmony_parity import compare, load_input
     Z, meta = load_input(REF_HARMONY)
     row = compare(REF_HARMONY, HARMONY_R[version], case, Z, meta, init="r")

@@ -1,20 +1,21 @@
+ar_r <- "E:/autoresearch/tools/R/ar.R"; if (file.exists(ar_r)) source(ar_r)  # autoresearch toolkit, when vendored there
 #!/usr/bin/env Rscript
 # r_reference_clonotrace.R -- reference outputs of the Clonotrace R code (Fu et al., bioRxiv 2025;
 # github.com/yuntianf/Clonotrace, MIT) for tests/test_clonotrace.py.
 #
 # Environment:
 #   CLONOTRACE_SRC   checkout of the Clonotrace repository (its R/ files are sourced; no install needed)
-#   ARSC_SCRATCH     output root; results go to $ARSC_SCRATCH/clonotrace_ref
+#   ARSC_REFS        output root (old name ARSC_SCRATCH); results go to $ARSC_REFS/clonotrace_ref
 #   ARSC_RLIB        optional extra R library (needs Matrix, dbscan, bluster, igraph, transport,
 #                    RSpectra, uwot, dplyr, tidyr, future.apply, MASS, splines)
 # Input data: the public demo bundled with Clonotrace (inst/extdata/vignette_demo_data.rds; Weinreb et
-# al. 2020 in-vitro haematopoiesis, GSE140802). A deterministic subset keeps the run to ~1 minute.
+# al. 2020 in-vitro hematopoiesis, GSE140802). A deterministic subset keeps the run to ~1 minute.
 for (p in strsplit(Sys.getenv("ARSC_RLIB"), .Platform$path.sep)[[1]]) if (nzchar(p)) .libPaths(c(p, .libPaths()))
 suppressPackageStartupMessages({
   library(Matrix); library(dplyr); library(tidyr); library(igraph); library(future.apply); library(splines); library(rhdf5)
 })
-src <- Sys.getenv("CLONOTRACE_SRC"); out <- file.path(Sys.getenv("ARSC_SCRATCH"), "clonotrace_ref")
-stopifnot(nzchar(src), dir.exists(src), nzchar(Sys.getenv("ARSC_SCRATCH")))
+src <- Sys.getenv("CLONOTRACE_SRC"); out <- file.path(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH")), "clonotrace_ref")
+stopifnot(nzchar(src), dir.exists(src), nzchar(Sys.getenv("ARSC_REFS", Sys.getenv("ARSC_SCRATCH"))))
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 for (f in c("auxiliary.R", "label_propagation.R", "clone_dis.R", "revised_distance.R", "cluster.R",
             "pseudotime.R", "profile_DEG.R", "coembed.R")) source(file.path(src, "R", f))
