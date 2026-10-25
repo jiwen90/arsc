@@ -1,6 +1,7 @@
 """arsc.run_harmony vs R harmony (1.2.x, 2.0.x, 2.1.x) on the references of benchmarks/r_reference_harmony.R.
 
 Usage: python benchmarks/harmony_parity.py [ref_root] [--versions 1.2.0,2.0.5,2.1.0] [--cases lane1,mv2,...]
+(ref_root default: $ARSC_REF_HARMONY, rebuilt by benchmarks/r_reference_harmony_all.R)
 
 For each version x case, runs arsc twice: from its own k-means start (seed 1) and from R's start (``init_centroids``
 = R's Y0), and reports the per-dimension Pearson r with R's corrected embedding (min / median over all dims and
@@ -19,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from refutil import RESULTS, SCRATCH, read_dense, save_json  # noqa: E402
+from refutil import REF_HARMONY, RESULTS, read_dense, save_json  # noqa: E402
 
 import arsc  # noqa: E402
 
@@ -28,7 +29,8 @@ CASES = ["lane1", "mv2", "mv2_tl", "mv2_auto", "mv3"]
 
 def load_input(root: Path):
     Z = read_dense(root / "input" / "pcs").values
-    meta = pd.read_csv(root / "input" / "meta.csv", dtype=str)
+    mf = root / "input" / "meta.csv"
+    meta = pd.read_csv(mf if mf.exists() else root / "input" / "meta.csv.gz", dtype=str)
     return Z, meta
 
 
@@ -71,7 +73,7 @@ def compare(root: Path, ver: str, case: str, Z, meta, init: str):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("root", nargs="?", default=str(SCRATCH / "ref_harmony"))
+    ap.add_argument("root", nargs="?", default=str(REF_HARMONY))
     ap.add_argument("--versions", default="1.2.0,2.0.5,2.1.0")
     ap.add_argument("--cases", default=",".join(CASES))
     ap.add_argument("--inits", default="own,r")

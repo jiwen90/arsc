@@ -32,10 +32,12 @@ Checked on 2026-10-25 against the CRAN page and archive (1.2.0 2023-11-29, 1.2.1
 
 Data: the 38,440-cell reference gamma-delta T-cell CITE-seq dataset, its 25-dim PCA (store reduction) with three
 batch variables: patient (32 levels), 10x lane (111 levels, 1 to 12,977 cells) and patient x timepoint (129
-levels). Input written by `benchmarks/harmony_input.py`; R references by `benchmarks/r_reference_harmony.R` (R 4.3.1;
-harmony 1.2.0 in the framework library, 2.0.5 and 2.1.0 installed from the CRAN tarball / GitHub tag into
-separate libraries); comparison by `benchmarks/harmony_parity.py` (`benchmarks/results/harmony_parity.json`), asserted
-by `tests/test_vs_r.py::test_harmony_versions_track_r` (15 cases). Each case runs with the version's own defaults
+levels). Input written by `benchmarks/harmony_input.py`; R references by `benchmarks/r_reference_harmony.R`, run for
+each version by `benchmarks/r_reference_harmony_all.R` (R 4.3.1; harmony 1.2.0 in the framework library, 2.0.5 and
+2.1.0 installed from the CRAN tarball / GitHub tag into separate libraries). Input and references (about 115 MB, gzip
+float32 embeddings) live in `ARSC_REF_HARMONY` (benchmarks/README.md). Comparison by `benchmarks/harmony_parity.py` (`benchmarks/results/harmony_parity.json`), asserted
+by `tests/test_vs_r.py::test_harmony_versions_track_r` (15 cases, from R's start) and
+`tests/test_vs_r.py::test_harmony_tracks_r` (one variable, each from its own start, against R's seed-to-seed spread). Each case runs with the version's own defaults
 except where listed (`lambda` "default" = 1 for 1.2, automatic for 2.x).
 
 The R side seeds with `set.seed(1)`. **From R's start**, arsc gets R's k-means centroids (`init_centroids`), so

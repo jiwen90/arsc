@@ -1,9 +1,9 @@
 """Numerical agreement with the R reference implementations (Seurat 4.3, harmony 1.2 / 2.0 / 2.1, presto, UCell).
 
 References are produced by benchmarks/r_reference_gd.R into $ARSC_SCRATCH/ref_gd; the Seurat export of the
-38,440-cell reference dataset lives in $ARSC_SCRATCH/exp_gd. The harmony references for several batch variables
-and harmony versions come from benchmarks/harmony_input.py + benchmarks/r_reference_harmony.R
-($ARSC_SCRATCH/ref_harmony). Tests skip when their references are absent.
+38,440-cell reference dataset lives in $ARSC_SCRATCH/exp_gd. The harmony references (one and several batch variables,
+harmony 1.2 / 2.0 / 2.1) are in $ARSC_REF_HARMONY (about 115 MB; rebuilt by benchmarks/r_reference_harmony_all.R from
+the input of benchmarks/harmony_input.py). Tests skip when their references are absent.
 Run: .venv/Scripts/python.exe -m pytest -q tests
 """
 import sys
@@ -14,13 +14,12 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmarks"))
-from refutil import EXP_GD, REF_GD, SCRATCH, read_dense  # noqa: E402
+from refutil import EXP_GD, REF_GD, REF_HARMONY, read_dense  # noqa: E402
 
 import arsc  # noqa: E402
 from arsc import preprocessing as pp  # noqa: E402
 
 HAVE_GD = (EXP_GD / "manifest.json").exists() and REF_GD.exists() and any(REF_GD.iterdir())
-REF_HARMONY = SCRATCH / "ref_harmony"
 
 
 @pytest.fixture(scope="module")
@@ -73,19 +72,24 @@ def test_pseudobulk_conserves_counts(ds):
     assert np.isclose(float(res.X.sum()), float(X.sum()))
 
 
-def test_harmony_tracks_r(ds):
-    """Harmony is stochastic in block order; require the R objective trajectory and per-dim r >= 0.98."""
-    Z = read_dense(REF_GD / "pca_embeddings").values
-    meta = arsc.read_seurat_export(EXP_GD).obs
-    out = arsc.run_harmony(Z, meta, "n10x_lane_name", seed=1, version="1.2")  # same variable and version as R
-    ref = read_dense(REF_GD / "harmony_default").values
-    r = [np.corrcoef(out[:, j], ref[:, j])[0, 1] for j in range(min(10, ref.shape[1]))]
-    assert min(abs(x) for x in r) > 0.98
-
-
 # ---- harmony: several batch variables, per-variable theta / lambda, harmony 1.2 / 2.0 / 2.1 -------------------
 HARMONY_R = {"1.2": "1.2.0", "2.0": "2.0.5", "2.1": "2.1.0"}  # arsc version -> R harmony version of the reference
 HARMONY_CASES = ["lane1", "mv2", "mv2_tl", "mv2_auto", "mv3"]  # see benchmarks/r_reference_harmony.R
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("version", list(HARMONY_R))
+def test_harmony_tracks_r(version):
+    """One batch variable (10x lane), each from its own start (arsc seed 1, R set.seed(1)): harmony is stochastic in
+    the k-means start and block order, so the bar is R's own seed-to-seed spread. arsc vs R must agree at least as
+    well as R seed 2 vs R seed 1 (minus 0.01) on every dimension, and per-dim r > 0.97."""
+    if not (REF_HARMONY / HARMONY_R[version] / "lane1_trace.json").exists():
+        pytest.skip("harmony references not built (benchmarks/r_reference_harmony_all.R)")
+    from harmony_parity import compare, load_input
+    Z, meta = load_input(REF_HARMONY)
+    row = compare(REF_HARMONY, HARMONY_R[version], "lane1", Z, meta, init="own")
+    assert row["r_min"] > 0.97, row
+    assert row["r_min"] >= row["r_seed2_min"] - 0.01, row
 
 
 @pytest.mark.slow
@@ -96,7 +100,7 @@ def test_harmony_versions_track_r(version, case):
     R's random block order differs: per-dim r >= 0.98 on every dim (the single-variable bar), the same number of
     harmony rounds (+-1) and the final objective within 1%."""
     if not (REF_HARMONY / HARMONY_R[version] / f"{case}_trace.json").exists():
-        pytest.skip("harmony references not built (benchmarks/r_reference_harmony.R)")
+        pytest.skip("harmony references not built (benchmarks/r_reference_harmony_all.R)")
     from harmony_parity import compare, load_input
     Z, meta = load_input(REF_HARMONY)
     row = compare(REF_HARMONY, HARMONY_R[version], case, Z, meta, init="r")

@@ -1,6 +1,7 @@
 """Helpers for the validation/benchmark scripts: load R reference outputs, time things."""
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import time
@@ -18,14 +19,23 @@ REF_PBMC = SCRATCH / "ref_pbmc"
 EXP_GD = SCRATCH / "exp_gd"
 EXP_PBMC = SCRATCH / "exp_pbmc"
 RESULTS = Path(__file__).with_name("results")
+# R harmony references (benchmarks/r_reference_harmony_all.R; about 115 MB, gzip float32). Point ARSC_REF_HARMONY at a
+# folder no scratch cleanup prunes (tests/local.env); the default under ARSC_SCRATCH is for a throwaway setup.
+REF_HARMONY = Path(os.environ.get("ARSC_REF_HARMONY", SCRATCH / "ref_harmony"))
 
 
 def read_dense(prefix) -> pd.DataFrame:
-    """Read a matrix written by r_common.R::write_dense."""
+    """Read a matrix written by r_common.R::write_dense (<prefix>.f64) or write_dense_gz (<prefix>.f64.gz or
+    <prefix>.f32.gz)."""
     prefix = str(prefix)
     meta = json.loads(Path(prefix + ".json").read_text())
     nr, nc = meta["dim"]
-    a = np.fromfile(prefix + ".f64", dtype="<f8").reshape(nc, nr).T
+    if Path(prefix + ".f64").exists():
+        a = np.fromfile(prefix + ".f64", dtype="<f8").reshape(nc, nr).T
+    else:
+        ext, dt = (".f32.gz", "<f4") if Path(prefix + ".f32.gz").exists() else (".f64.gz", "<f8")
+        with gzip.open(prefix + ext, "rb") as f:
+            a = np.frombuffer(f.read(), dtype=dt).astype(np.float64).reshape(nc, nr).T
     return pd.DataFrame(a, index=meta.get("rownames") or None, columns=meta.get("colnames") or None)
 
 

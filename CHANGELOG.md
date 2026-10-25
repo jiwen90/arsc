@@ -33,6 +33,13 @@ All notable changes to arsc are recorded here. The format follows
   change with several variables.
 
 ### Added
+- Harmony R references get their own location, `ARSC_REF_HARMONY` (default `$ARSC_SCRATCH/ref_harmony`), so they
+  can sit where no scratch cleanup prunes them, in a compact layout (gzip; corrected embeddings in float32: about
+  115 MB instead of 229 MB). `benchmarks/r_reference_harmony_all.R` rebuilds all three versions (1.2.0, 2.0.5,
+  2.1.0), each from its own R library, and checks the version of each output.
+  `tests/test_vs_r.py::test_harmony_tracks_r` (one batch variable, each tool from its own start) now uses them for
+  all three versions, with R's own seed-to-seed spread as the bar, instead of the full reference-dataset export.
+  `refutil.read_dense` reads the gzip layout (`r_common.R::write_dense_gz`).
 - `benchmarks/paired_bench.py`: arsc vs scanpy timed in the same session (interleaved, alternating order, the same
   thread count, machine load recorded per run; median and range of repeats; k-NN recall vs brute force, overlap with
   scanpy and scanpy's own seed-to-seed overlap; cluster ARI). `--gate` fails when arsc is slower; the speed

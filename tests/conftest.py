@@ -9,6 +9,8 @@ variables and skip when they are unset or missing:
     ARSC_TEST_SCANPY_STORE   arsc store used for the scanpy-parity tests (tests/test_scanpy_extra.py)
     ARSC_TEST_CLONOTRACE_REF CloneTrace R reference outputs (default: $ARSC_SCRATCH/clonotrace_ref)
     ARSC_TEST_EXTRA_PKGS     optional extra site-packages dir (scikit-misc, palantir) for those tests
+    ARSC_REF_HARMONY         R harmony references (default: $ARSC_SCRATCH/ref_harmony; keep them where no scratch
+                             cleanup prunes them; rebuilt by benchmarks/r_reference_harmony_all.R)
 
 A local, untracked ``tests/local.env`` (KEY=VALUE lines) is read first, so a workstation can keep its paths
 out of the repository. Existing environment variables win.

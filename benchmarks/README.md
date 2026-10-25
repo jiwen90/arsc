@@ -47,12 +47,12 @@ written as an arsc store, an `.h5ad` (for scanpy) and raw dgCMatrix binaries (fo
   For arsc, the counts are memory-mapped; touched pages count towards RSS.
 * **JIT warm-up**: each Python step is first run untimed on a separate 12,000-cell dataset in the same
   process, so one-off compilation (numba in arsc; pynndescent/umap in scanpy) is not counted. This
-  favours scanpy most: its first `neighbors` call in a fresh process spends 25-40 s compiling, and the
+  favors scanpy most: its first `neighbors` call in a fresh process spends 25-40 s compiling, and the
   compiled code depends on the data size (a 5,000-cell warm-up did not remove it at 10,000 cells).
   The warm-up time is kept in `summary.csv` (`warmup_seconds`).
 * **Threads**: each tool's default. arsc (numba) and scanpy use all cores; most Seurat steps are
   single-threaded R, which is part of the measured difference.
-* **Shared inputs**: PCA uses a common 2,000-gene HVG list; neighbours and clustering use a common
+* **Shared inputs**: PCA uses a common 2,000-gene HVG list; neighbors and clustering use a common
   30-PC embedding; DE uses a common pseudobulk matrix (T0 cells, 16 samples, genes with >= 10 counts
   in >= 3 samples). All three are computed once with arsc, so the agreement of a step is not
   confounded by upstream differences.
@@ -79,10 +79,28 @@ is 0; otherwise it prints the measured number.
 * scanpy's `neighbors` uses approximate pynndescent above 4,096 cells and Seurat's `FindNeighbors`
   uses approximate Annoy; arsc 0.2's k-NN (timed in that suite) was exact. Overlap below 100% reflects the approximation
   in the other tools (see arsc's brute-force recall).
-* Clustering: scanpy runs Leiden (igraph flavour), Seurat runs Louvain (its default), arsc runs Leiden
+* Clustering: scanpy runs Leiden (igraph flavor), Seurat runs Louvain (its default), arsc runs Leiden
   on the Seurat-style SNN graph. ARI vs the simulated truth is the fairer comparison.
 * scanpy's Wilcoxon reports z-scores without tie correction; presto/arsc report U, AUC and
   tie-corrected p-values, so p-values differ while the rankings agree.
+
+### Simulated data: regenerate, then delete
+
+Everything under `ARSC_BENCH_DIR` (default `benchmarks/.bench_data/`) is generated and safe to delete: the
+counts of each size (`n<cells>/store`, `data.h5ad`, `r/`), the shared inputs (`common/`) and the raw outputs of
+the runs (`out/`). The timings and agreement tables that matter are committed under `results/`. Sizes on disk:
+about 0.5 GB at 10,000 cells, 1 GB at 20,000, 5 GB at 100,000 and 51 GB at 1,000,000 cells (store, h5ad and R
+binaries each hold the full counts). `run_suite.py` and `paired_bench.py` simulate a missing size on demand
+(same seed, so the same counts), including the 12,000-cell warm-up set; to build one ahead of time:
+
+```bash
+python benchmarks/suite_sim.py 20000                 # -> $ARSC_BENCH_DIR/n20000 (seed 0; --seed, --root)
+python benchmarks/suite_sim.py 12000 --seed 1        # the JIT warm-up set paired_bench.py uses
+```
+
+The speed gate (`ARSC_SPEED_GATE=1 python -m pytest -q tests/test_speed_gate.py`) needs no stored data: it runs
+`paired_bench.py --gate`, which simulates the 12,000- and 20,000-cell sets (about 1.6 GB, 2-3 min) when they are
+missing. Delete the 1M-cell set after a large benchmark (`rm -rf benchmarks/.bench_data/n1000000`).
 
 ## R-parity references (real data, not shipped)
 
@@ -91,3 +109,19 @@ is 0; otherwise it prints the measured number.
 the command line; `tests/test_vs_r.py` and friends compare arsc against them and skip when they are
 absent. `mmap_concurrency.py` measures memory sharing of one store across processes. Results:
 `../*_PARITY.md`, `results/*.json`.
+
+The harmony references (about 115 MB: input PCA and batch columns; per harmony version and case the corrected
+embedding in gzip float32, R's k-means start and the objective trace) live in `ARSC_REF_HARMONY`. Point it at a folder
+that no scratch cleanup prunes (in autoresearch: `.cache/arsc/ref_harmony`, set in `tests/local.env`); the default,
+`$ARSC_SCRATCH/ref_harmony`, is for a throwaway setup. Rebuild them (harmony 1.2.0, 2.0.5 and 2.1.0, each from its
+own R library; about 9 min per version, one process per version when run in parallel) with
+
+```bash
+python benchmarks/harmony_input.py <store>           # only to change the dataset: $ARSC_REF_HARMONY/input
+Rscript benchmarks/r_reference_harmony_all.R         # or name versions: ... r_reference_harmony_all.R 2.0.5
+python benchmarks/harmony_parity.py                  # results/harmony_parity.json
+```
+
+`r_reference_harmony_all.R` finds the 2.0.5 / 2.1.0 libraries at `<AR_HOME>/.Rlib_harmony_<version>` or in
+`ARSC_HARMONY_LIB_2_0_5` / `ARSC_HARMONY_LIB_2_1_0`; 1.2.0 comes from the default library. Keep every cell: the
+per-dimension r is driven by a few hundred cells that change cluster, and a 1-in-10 subset moved it by up to 0.015.
