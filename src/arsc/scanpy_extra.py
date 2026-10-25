@@ -704,8 +704,8 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
               random_state: int = 0) -> dict:
     """``sc.pp.neighbors`` (``method="umap"``): kNN + UMAP fuzzy-simplicial-set connectivities.
 
-    Uses :func:`arsc.knn` with scanpy's switch (``method="auto"``: exact up to 4,096 cells, pynndescent with
-    scanpy's settings above; ``"exact"`` forces exact search). As
+    Uses :func:`arsc.knn` with scanpy's switch (``method="auto"``: exact up to 4,096 cells, arsc's approximate
+    search above; ``"exact"`` forces exact search). As
     scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbours).
 
     Parameters
@@ -714,7 +714,7 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
     n_neighbors : neighbourhood size including the cell itself (default 15).
     metric : ``"euclidean"`` or ``"cosine"``.
     method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`arsc.knn`).
-    random_state : integer seed (default 0): pynndescent's ``random_state`` (unused by exact search).
+    random_state : integer seed (default 0) of the approximate search's partition (unused by exact search).
 
     Returns
     -------
@@ -993,7 +993,7 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
     n_components : number of eigenvectors (default 10).
     knn : neighbourhood size (default 30).
     alpha : anisotropy (default 0).
-    seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN (pynndescent).
+    seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN partition.
     method : kNN method, ``"auto"`` (default: exact up to 4,096 cells), ``"exact"`` or ``"approximate"``.
 
     Returns

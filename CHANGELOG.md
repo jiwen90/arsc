@@ -29,6 +29,18 @@ All notable changes to arsc are recorded here. The format follows
 - `genesets.msigdb` no longer searches `$AR_ROOT/scratch/arsc/msigdb`.
 
 ### Changed
+- k-NN backend: arsc's own kernel replaces pynndescent (approximate) and scikit-learn (exact); neither is a
+  dependency any more. Approximate: seeded k-means into 2 sqrt(n) clusters, each cell scans its 24 nearest
+  clusters with float32 matrix products, the k + 8 best re-scored in float64. Exact: the same partition with
+  triangle-inequality pruning and a proven float32 margin. Chosen by a time-vs-recall sweep against FAISS, hnswlib,
+  Voyager, Annoy, pynndescent and scanpy on real PCs (SCANPY_PARITY.md, "k-NN backend"): fastest at recall 0.95 and
+  0.99 at 100k and 1M cells; 22 s vs 47 s (pynndescent) and 56 s (hnswlib) at 1M cells. The graph no longer
+  depends on the thread count. `method="pynndescent"` maps to `"approximate"` with a DeprecationWarning;
+  `n_clusters` is used again.
+- Benchmarks keep their data in memory: `paired_bench.py`, the speed gate and `cold_start.py` build the input from a
+  real store (`ARSC_BENCH_STORE`, memory-mapped, read-only) or the toy data generated in memory from a fixed seed
+  (`benchdata.py`); nothing is written under `benchmarks/` (tested). The speed gate defaults to 10,000 toy cells in
+  one process. `run_suite.py` (Seurat side) writes data only with an explicit `--bench-dir`; no `.bench_data` cache.
 - k-NN (`knn`, `find_neighbors`, `wnn`, `scanpy_extra.neighbors`, `palantir_diffusion_maps`, and through them
   `cluster`/`umap` graph building): `method="auto"` (new default) searches exactly up to 4,096 points and
   approximately above, as `scanpy.pp.neighbors`. Approximate search is pynndescent with the settings scanpy uses

@@ -121,23 +121,13 @@ def _blobs(n=600, d=8, seed=0):
     return np.vstack([c + r.normal(size=(n // 4, d)) for c in r.normal(scale=3, size=(4, d))]).astype(np.float32)
 
 
-def test_knn_pynndescent_repeatable_at_fixed_threads(threads):
-    pytest.importorskip("pynndescent")
-    E = _blobs()
-    a, b = threads(lambda: (arsc.knn(E, 10, method="pynndescent", seed=0),
-                            arsc.knn(E, 10, method="pynndescent", seed=0)))
-    assert same(a[0], a[1]) and same(b[0], b[1])  # same seed + same thread count -> identical
-
-
-@pytest.mark.xfail(reason="pynndescent 0.6 is not thread-invariant: its parallel NN-descent updates depend on the "
-                          "numba thread count (measured: 5 of 6000 neighbour entries differ, 1 vs 4 threads). "
-                          "Documented in SEEDS.md; use method='exact' when the graph must not depend on threads.",
-                   strict=False)
-def test_knn_pynndescent_thread_invariant(threads):
-    pytest.importorskip("pynndescent")
-    E = _blobs()
-    a, b = threads(lambda: arsc.knn(E, 10, method="pynndescent", seed=0))
+def test_knn_approximate_repeatable_and_thread_invariant(threads):
+    """arsc's own approximate search: every query row is written by one thread, heaps ordered by (distance, index),
+    so the graph depends on the seed only, not on the thread count (pynndescent's did)."""
+    E = _blobs(4000)
+    a, b = threads(lambda: arsc.knn(E, 10, method="approximate", seed=0))
     assert same(a, b)
+    assert same(a, arsc.knn(E, 10, method="approximate", seed=0))
 
 
 def test_fgsea_thread_invariant(threads):

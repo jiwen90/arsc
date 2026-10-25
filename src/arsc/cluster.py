@@ -174,8 +174,8 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
          engine: str = "arsc") -> np.ndarray:
     """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbours, min_dist 0.3).
 
-    The k-NN graph comes from :func:`arsc.knn` with its default (exact up to 4,096 cells, pynndescent above, as
-    umap-learn and uwot search approximately); pass ``knn=arsc.knn(emb, n_neighbors, method="exact")`` (cosine:
+    The k-NN graph comes from :func:`arsc.knn` with its default (exact up to 4,096 cells, arsc's approximate search
+    above, as umap-learn and uwot search approximately); pass ``knn=arsc.knn(emb, n_neighbors, method="exact")`` (cosine:
     on L2-normalised rows) for exact neighbours at any size.
     ``seed`` (default 42 = Seurat ``RunUMAP(seed.use = 42)``) seeds the layout; the same input + seed
     gives bit-identical coordinates. Pass other integers to see alternative layouts. ``seed=None``

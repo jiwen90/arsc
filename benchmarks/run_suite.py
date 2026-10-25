@@ -2,8 +2,8 @@
 
 One command (from the repo root)::
 
-    python benchmarks/run_suite.py                         # 10k + 100k, all tools, all steps
-    python benchmarks/run_suite.py --sizes 10000,100000,1000000 --tools arsc,scanpy
+    python benchmarks/run_suite.py --bench-dir <scratch dir>        # 10k + 100k, all tools, all steps (writes data)
+    python benchmarks/run_suite.py --bench-dir <scratch dir> --sizes 10000,100000 --tools arsc,scanpy
     python benchmarks/run_suite.py --compare-only          # recompute agreement + summary from saved outputs
     python benchmarks/render_table.py                      # headline table -> README.md
 
@@ -16,7 +16,10 @@ To compare like with like, steps that need upstream results (PCA, neighbours, cl
 shared inputs computed once with arsc (``common/``): the 2,000 HVGs, the 30-PC embedding and the
 pseudobulk matrix of cell type T0. Agreement is then a property of the step alone.
 
-Environment: ``ARSC_BENCH_DIR`` (data + raw outputs; default ``benchmarks/.bench_data``, git-ignored),
+Data on disk is opt-in: this suite needs ``--bench-dir`` (or ``ARSC_BENCH_DIR``), the directory it WRITES the
+simulated data and raw outputs to (put it outside the repository). arsc vs scanpy timing without writing any
+data is ``paired_bench.py`` (in memory).
+Environment: ``ARSC_BENCH_DIR`` (data + raw outputs; no default),
 ``ARSC_RLIB`` (an extra R library path), ``RSCRIPT`` (default ``Rscript``).
 Results: ``benchmarks/results/suite/`` (``runs.jsonl``, ``summary.json``, ``summary.csv``,
 ``agreement.csv``, ``environment.json``).
@@ -151,8 +154,10 @@ def _tree_rss(p: psutil.Process) -> int:
     return tot
 
 
-def run_child(cmd: list, res_file: Path, timeout: float, env=None) -> dict:
-    if res_file.exists():
+def run_child(cmd: list, res_file: Path | None, timeout: float, env=None) -> dict:
+    """Run one child, sampling its memory. Its result is ``res_file`` (on-disk suite) or, with ``res_file=None``,
+    the child's stdout line starting with ``@@RESULT`` (in-memory benchmarks: nothing is written)."""
+    if res_file is not None and res_file.exists():
         res_file.unlink()
     t_launch = time.time()
     p = psutil.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
@@ -179,10 +184,17 @@ def run_child(cmd: list, res_file: Path, timeout: float, env=None) -> dict:
     p.wait()
     th.join(timeout=5)
     wall = time.time() - t_launch
-    res = json.loads(res_file.read_text()) if res_file.exists() else {"ok": False}
+    if res_file is not None:
+        got = res_file.exists()
+        res = json.loads(res_file.read_text()) if got else {"ok": False}
+    else:
+        hit = [l for l in log if l.startswith("@@RESULT ")]
+        got = bool(hit)
+        res = json.loads(hit[-1][len("@@RESULT "):]) if got else {"ok": False}
+        log = [l for l in log if not l.startswith("@@RESULT ")]
     if timed_out:
         res.update(ok=False, error=f"timeout after {timeout:.0f} s")
-    elif not res_file.exists():
+    elif not got:
         res["error"] = "child exited without a result: " + "".join(log)[-1500:]
     ts, rs = (np.array([s[0] for s in samples]), np.array([s[1] for s in samples])) if samples else (np.zeros(0), np.zeros(0))
     t0, t1 = res.get("t_start"), res.get("t_end")
@@ -221,13 +233,19 @@ def main():
     ap.add_argument("--sizes", default="10000,100000")
     ap.add_argument("--tools", default="arsc,scanpy,seurat")
     ap.add_argument("--steps", default=",".join(STEPS))
-    ap.add_argument("--bench-dir", default=os.environ.get("ARSC_BENCH_DIR", str(HERE / ".bench_data")))
+    ap.add_argument("--bench-dir", default=os.environ.get("ARSC_BENCH_DIR", ""),
+                    help="directory the simulated data are WRITTEN to (required: the Seurat side reads files). "
+                         "Opt-in; for arsc vs scanpy timing use paired_bench.py, which keeps everything in memory")
     ap.add_argument("--out", default=str(HERE / "results" / "suite"))
     ap.add_argument("--python", default=sys.executable)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--rerun", action="store_true", help="re-run steps that already have a result")
     ap.add_argument("--compare-only", action="store_true")
     a = ap.parse_args()
+    if not a.bench_dir:
+        raise SystemExit("run_suite.py writes its simulated data to disk (Seurat reads files), so it needs an explicit "
+                         "--bench-dir (or ARSC_BENCH_DIR). For arsc vs scanpy timing without any data on disk use "
+                         "benchmarks/paired_bench.py.")
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     bench = Path(a.bench_dir)

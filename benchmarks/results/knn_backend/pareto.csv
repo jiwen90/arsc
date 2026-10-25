@@ -1,0 +1,648 @@
+ds,dataset,n,d,k,lib,library,config,build_s,query_s,total_s,recall,threads,cpu_percent_1s
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": -1}",0.514,0.653,1.167,0.51457,6,4.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 300}",0.514,0.719,1.232,0.63587,6,4.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 600}",0.514,1.025,1.538,0.7634,6,4.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 750}",0.885,1.647,2.532,0.81943,6,9.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 1200}",0.514,2.144,2.657,0.8652,6,4.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 1500}",0.885,2.908,3.792,0.90783,6,9.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 2400}",0.514,3.793,4.307,0.9396,6,4.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 3000}",0.885,4.891,5.776,0.9597,6,9.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 50} {""search_k"": 3000}",1.292,5.459,6.751,0.96363,6,4.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 6000}",0.885,8.868,9.753,0.9874,6,9.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 50} {""search_k"": 12000}",1.292,16.758,18.05,0.99673,6,4.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 24000}",2.216,32.406,34.622,0.9992,6,4.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arsc,arsc 0.4 (pynndescent),{} {},1.294,0.0,1.294,0.95,6,5.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 4} {}",0.431,0.0,0.431,0.82023,4,5.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 6} {}",0.469,0.0,0.469,0.88867,4,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 8} {}",0.527,0.0,0.527,0.92647,4,4.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 12} {}",0.665,0.0,0.665,0.96407,4,18.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 16} {}",0.722,0.0,0.722,0.9793,4,15.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 24} {}",0.908,0.0,0.908,0.9929,4,3.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 6, ""rounds"": 0} {}",0.604,0.0,0.604,0.88867,6,10.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 8, ""rounds"": 0} {}",0.692,0.0,0.692,0.92647,6,6.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 6, ""rounds"": 0} {}",0.853,0.0,0.853,0.9391,6,15.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 12, ""rounds"": 0} {}",0.876,0.0,0.876,0.96407,6,5.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 16, ""rounds"": 0} {}",1.04,0.0,1.04,0.9793,6,19.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 6, ""rounds"": 1} {}",1.344,0.0,1.344,0.98083,6,14.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 12, ""rounds"": 0} {}",1.378,0.0,1.378,0.98447,6,4.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 12, ""rounds"": 1} {}",1.379,0.0,1.379,0.98937,6,7.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 24, ""rounds"": 0} {}",1.443,0.0,1.443,0.9929,6,5.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 16, ""rounds"": 1} {}",1.649,0.0,1.649,0.99393,6,8.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 24, ""rounds"": 1} {}",2.014,0.0,2.014,0.99787,6,14.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 24, ""rounds"": 0} {}",2.581,0.0,2.581,0.99793,6,5.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 24, ""rounds"": 1} {}",3.364,0.0,3.364,0.99927,6,4.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 16}",0.519,0.177,0.696,0.882,6,5.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 24}",0.519,0.246,0.765,0.91743,6,5.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 32}",0.519,0.353,0.872,0.93813,6,5.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 48}",0.519,0.479,0.998,0.95907,6,5.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 16}",0.83,0.289,1.119,0.96877,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 64}",0.519,0.624,1.143,0.97233,6,5.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 24}",0.83,0.386,1.216,0.9803,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 32}",0.83,0.488,1.318,0.9867,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 48}",0.83,0.711,1.541,0.99303,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 64}",0.83,1.19,2.02,0.996,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 96}",0.83,1.763,2.593,0.99797,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 100} {""ef"": 128}",1.185,2.044,3.229,0.9989,6,12.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 128}",0.83,2.434,3.265,0.99897,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.967,2.135,4.102,0.99957,6,13.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 192}",0.83,3.652,4.482,0.99967,6,21.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 200} {""ef"": 192}",1.967,3.491,5.458,0.99987,6,13.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 200} {""ef"": 256}",1.967,5.072,7.038,0.99993,6,13.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 4}",0.425,0.219,0.644,0.75923,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 8}",0.425,0.335,0.761,0.88427,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 12}",0.425,0.478,0.903,0.93277,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 16}",0.425,0.669,1.095,0.95873,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 24}",0.425,0.831,1.256,0.98217,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 32}",0.425,1.338,1.764,0.99097,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 48}",0.425,2.009,2.434,0.99693,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 64}",0.425,2.673,3.099,0.99887,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 1264} {""nprobe"": 128}",1.353,2.978,4.331,0.99947,6,4.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 96}",0.425,3.934,4.36,0.9998,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 128}",0.425,5.372,5.797,0.99997,6,8.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 16}",16.414,1.448,17.862,0.9256,6,5.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 16}",16.414,1.533,17.947,0.92593,6,5.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 32}",16.414,2.53,18.944,0.9764,6,5.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 32}",16.414,2.612,19.026,0.9769,6,5.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 64}",16.414,4.716,21.13,0.99463,6,5.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 64}",16.414,4.84,21.254,0.99517,6,5.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 16}",0.576,0.234,0.81,0.91883,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 24}",0.586,0.279,0.865,0.9309,6,11.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 24}",0.576,0.308,0.884,0.94567,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.586,0.346,0.932,0.95107,6,11.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 32}",0.576,0.374,0.95,0.96333,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.586,0.427,1.012,0.96967,6,11.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 48}",0.576,0.51,1.087,0.977,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 64}",0.586,0.538,1.123,0.97873,6,11.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 64}",0.576,0.636,1.213,0.98417,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.586,0.808,1.393,0.98817,6,11.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 96}",0.576,1.028,1.604,0.99227,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 128}",0.586,1.201,1.787,0.99273,6,11.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 64}",1.061,0.79,1.85,0.99317,6,8.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 128}",0.576,1.325,1.902,0.99503,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 128}",0.978,1.208,2.185,0.99653,6,4.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 96}",1.061,1.179,2.24,0.99733,6,8.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 192}",0.576,1.86,2.436,0.99743,6,18.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 128}",1.061,1.491,2.551,0.99833,6,8.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 96}",1.881,1.274,3.155,0.99897,6,3.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 192}",1.061,2.19,3.251,0.999,6,8.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.881,1.688,3.569,0.9995,6,3.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 200} {""ef"": 256}",1.813,2.173,3.986,0.99973,6,11.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 192}",1.881,2.261,4.142,0.99987,6,3.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 256}",1.881,3.005,4.886,0.99993,6,3.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 1} {}",0.586,0.0,0.586,0.49537,6,11.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 4} {}",1.661,0.0,1.661,0.9749,6,4.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 8} {}",1.813,0.0,1.813,0.98643,6,6.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,pynndescent,pynndescent,"{""max_candidates"": 20} {}",1.28,0.0,1.28,0.96037,6,15.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,pynndescent,pynndescent,"{""max_candidates"": 30} {}",1.365,0.0,1.365,0.97007,6,8.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,pynndescent,pynndescent,{} {},1.509,0.0,1.509,0.97827,6,11.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,pynndescent,pynndescent,"{""kb"": 22, ""max_candidates"": 30} {}",1.874,0.0,1.874,0.9881,6,17.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,pynndescent,pynndescent,"{""kb"": 22} {}",2.179,0.0,2.179,0.99387,6,22.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,scanpy,scanpy pp.neighbors,{} {},6.051,0.0,6.051,0.91397,6,11.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 16}",0.855,0.321,1.176,0.86773,6,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 16}",0.882,0.366,1.249,0.89543,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 24}",0.855,0.437,1.292,0.906,6,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 24}",0.882,0.49,1.373,0.93117,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.882,0.56,1.442,0.94883,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 48}",0.855,0.681,1.536,0.95387,6,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 32}",0.957,0.65,1.607,0.95923,6,7.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.882,0.876,1.759,0.9656,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 64}",0.855,0.953,1.808,0.96767,6,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 48}",0.957,1.035,1.993,0.9731,6,7.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 64}",0.882,1.155,2.037,0.97567,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 96}",0.855,1.305,2.16,0.9813,6,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.882,1.564,2.446,0.98527,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 128}",0.855,1.672,2.527,0.98777,6,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 96}",0.957,1.763,2.721,0.98827,6,7.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 128}",0.882,1.943,2.825,0.9898,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 96}",1.519,1.362,2.88,0.9899,6,12.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 192}",0.855,2.251,3.106,0.9924,6,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 96}",1.477,1.644,3.121,0.99297,6,13.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 128}",1.519,1.761,3.279,0.99397,6,12.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 128}",1.477,2.009,3.487,0.99503,6,13.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 100} {""ef"": 96}",1.793,2.069,3.863,0.9953,6,15.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 192}",1.519,2.444,3.963,0.99647,6,12.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 192}",1.477,2.905,4.383,0.99723,6,13.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 256}",1.519,2.992,4.51,0.9974,6,12.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 256}",1.477,3.496,4.973,0.99783,6,13.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 96}",3.064,2.245,5.309,0.9984,6,7.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 200} {""ef"": 256}",2.348,3.103,5.45,0.99853,6,12.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 128}",3.064,2.757,5.821,0.9989,6,7.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 192}",3.064,3.574,6.639,0.9993,6,7.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 256}",3.064,4.631,7.695,0.99937,6,7.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": -1}",0.519,0.874,1.393,0.55907,6,7.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 600}",0.519,1.136,1.655,0.69928,6,7.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": -1}",0.861,1.556,2.417,0.75823,6,22.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 1200}",0.519,2.248,2.767,0.82058,6,7.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 1500}",0.861,3.067,3.928,0.86743,6,22.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 2400}",0.519,4.005,4.524,0.91092,6,7.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 3000}",0.861,5.379,6.24,0.93802,6,22.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 50} {""search_k"": 3000}",1.39,5.783,7.173,0.94193,6,5.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 4800}",0.519,7.145,7.664,0.96382,6,7.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 6000}",0.861,9.397,10.259,0.97778,6,22.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 12000}",0.861,16.986,17.848,0.994,6,22.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 50} {""search_k"": 24000}",1.39,31.444,32.834,0.99865,6,5.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 48000}",2.459,60.25,62.709,0.99977,6,7.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsc,arsc 0.4 (pynndescent),{} {},3.029,0.0,3.029,0.99048,6,12.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 4} {}",0.513,0.0,0.513,0.78845,4,5.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 6} {}",0.605,0.0,0.605,0.79185,4,31.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 6} {}",0.625,0.0,0.625,0.86525,4,18.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 8} {}",0.629,0.0,0.629,0.90883,4,8.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 12} {}",0.746,0.0,0.746,0.9532,4,19.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 16} {}",0.826,0.0,0.826,0.97298,4,12.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 24} {}",1.066,0.0,1.066,0.99,4,22.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 8, ""rounds"": 0} {}",0.834,0.0,0.834,0.90883,6,18.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 12, ""rounds"": 0} {}",0.976,0.0,0.976,0.9532,6,10.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 8, ""rounds"": 0} {}",1.32,0.0,1.32,0.95452,6,32.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 16, ""rounds"": 0} {}",1.426,0.0,1.426,0.97298,6,14.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 24, ""rounds"": 0} {}",1.499,0.0,1.499,0.99,6,13.0
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 16, ""rounds"": 0} {}",2.13,0.0,2.13,0.99147,6,15.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 12, ""rounds"": 1} {}",3.018,0.0,3.018,0.99495,6,7.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 24, ""rounds"": 0} {}",3.022,0.0,3.022,0.99753,6,10.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 12, ""rounds"": 1} {}",3.627,0.0,3.627,0.99788,6,14.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 24, ""rounds"": 1} {}",3.791,0.0,3.791,0.99888,6,4.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 16, ""rounds"": 1} {}",4.026,0.0,4.026,0.99898,6,15.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 24, ""rounds"": 1} {}",5.095,0.0,5.095,0.9997,6,10.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 16}",0.469,0.23,0.699,0.81972,6,6.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 24}",0.469,0.289,0.758,0.87323,6,6.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 32}",0.469,0.335,0.804,0.9042,6,6.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 48}",0.469,0.493,0.962,0.93757,6,6.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 64}",0.469,0.628,1.097,0.95687,6,6.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 24}",0.847,0.429,1.276,0.96568,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 32}",0.847,0.506,1.353,0.9765,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 48}",0.847,0.742,1.589,0.98678,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 64}",0.847,1.265,2.113,0.99188,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 96}",0.847,1.804,2.652,0.99658,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 100} {""ef"": 128}",1.261,2.085,3.346,0.99723,6,17.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 128}",0.847,2.499,3.347,0.9982,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 200} {""ef"": 128}",2.079,2.225,4.304,0.99863,6,8.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 100} {""ef"": 192}",1.261,3.191,4.452,0.99875,6,17.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 192}",0.847,3.886,4.733,0.99948,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 256}",0.847,5.061,5.909,0.99972,6,30.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 4}",0.41,0.228,0.638,0.71512,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 8}",0.41,0.342,0.753,0.85705,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 12}",0.41,0.473,0.883,0.9143,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 16}",0.41,0.564,0.974,0.9456,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 24}",0.41,0.785,1.196,0.9746,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 32}",0.41,1.376,1.786,0.987,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 48}",0.41,2.1,2.51,0.99538,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 64}",0.41,2.678,3.089,0.9983,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 96}",0.41,3.926,4.336,0.99962,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 128}",0.41,5.318,5.728,0.99992,6,7.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 16}",16.476,1.542,18.018,0.8999,6,7.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 16}",16.476,1.713,18.189,0.89997,6,7.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 32}",16.476,2.64,19.116,0.9661,6,7.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 32}",16.476,2.715,19.191,0.96622,6,7.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 64}",16.476,4.695,21.171,0.9926,6,7.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 25, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 64}",16.476,4.896,21.372,0.99278,6,7.1
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 24}",0.66,0.284,0.944,0.88475,6,9.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 16}",0.601,0.35,0.951,0.91307,6,28.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.601,0.397,0.998,0.91917,6,28.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 16}",0.646,0.385,1.031,0.93272,6,34.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 32}",0.646,0.419,1.065,0.9377,6,34.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.601,0.513,1.113,0.95047,6,28.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 64}",0.66,0.516,1.176,0.9537,6,9.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 48}",0.646,0.565,1.211,0.96303,6,34.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 64}",0.601,0.621,1.221,0.96682,6,28.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 64}",0.646,0.715,1.361,0.97502,6,34.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.601,0.945,1.546,0.98263,6,28.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 128}",0.601,1.148,1.748,0.98882,6,28.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 96}",0.963,0.994,1.957,0.98957,6,19.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 128}",0.646,1.345,1.991,0.99202,6,34.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 128}",0.963,1.259,2.222,0.99377,6,19.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 192}",0.601,1.645,2.246,0.99483,6,28.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 100} {""ef"": 192}",0.945,1.562,2.507,0.9953,6,18.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 128}",1.083,1.51,2.593,0.99697,6,8.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 192}",0.963,1.755,2.719,0.99715,6,19.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 100} {""ef"": 256}",0.945,2.049,2.994,0.9972,6,18.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 256}",0.963,2.171,3.135,0.99815,6,19.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 192}",1.083,2.139,3.222,0.99837,6,8.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.928,1.647,3.575,0.99842,6,24.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 256}",1.083,2.658,3.741,0.9989,6,8.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 200} {""ef"": 256}",1.919,2.381,4.3,0.99932,6,14.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 256}",1.928,3.04,4.968,0.99978,6,24.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 1} {}",0.758,0.0,0.758,0.44813,6,23.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 8} {}",3.824,0.0,3.824,0.99675,6,7.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,pynndescent,pynndescent,"{""max_candidates"": 20} {}",2.466,0.0,2.466,0.98365,6,20.9
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,pynndescent,pynndescent,"{""max_candidates"": 30} {}",2.817,0.0,2.817,0.99048,6,36.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,pynndescent,pynndescent,{} {},3.231,0.0,3.231,0.99573,6,31.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,pynndescent,pynndescent,"{""kb"": 45, ""max_candidates"": 30} {}",4.353,0.0,4.353,0.99613,6,8.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,pynndescent,pynndescent,"{""kb"": 45} {}",4.892,0.0,4.892,0.99872,6,5.6
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,scanpy,scanpy pp.neighbors,{} {},11.529,0.0,11.529,0.96373,6,11.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 16}",0.871,0.498,1.369,0.88577,6,26.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 32}",0.871,0.523,1.395,0.89315,6,26.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 16}",0.869,0.567,1.436,0.90847,6,9.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.869,0.609,1.478,0.91503,6,9.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 48}",0.871,0.738,1.609,0.93043,6,26.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 32}",0.949,0.739,1.689,0.93317,6,12.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.869,0.905,1.774,0.94563,6,9.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 64}",0.871,1.018,1.889,0.95102,6,26.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 64}",0.869,1.102,1.972,0.96273,6,9.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 96}",0.871,1.378,2.249,0.97142,6,26.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.869,1.498,2.368,0.97905,6,9.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 128}",0.871,1.711,2.582,0.9804,6,26.4
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 128}",0.869,1.828,2.698,0.98572,6,9.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 96}",1.468,1.589,3.057,0.9881,6,12.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 128}",0.949,2.314,3.264,0.98852,6,12.8
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 192}",0.869,2.58,3.45,0.99178,6,9.5
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 128}",1.468,2.013,3.482,0.9923,6,12.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 100} {""ef"": 96}",1.658,2.103,3.761,0.99395,6,11.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 192}",1.468,2.731,4.199,0.99577,6,12.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 100} {""ef"": 128}",1.658,2.653,4.311,0.99635,6,11.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 256}",1.468,3.466,4.935,0.99675,6,12.3
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 100} {""ef"": 192}",1.658,3.62,5.278,0.99785,6,11.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 100} {""ef"": 256}",1.658,4.281,5.939,0.99838,6,11.7
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 200} {""ef"": 256}",2.931,3.657,6.588,0.99862,6,12.2
+fin100k,"PBMC 1.37M store, 100k cells, 50 PCs",100000,50,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 256}",3.348,5.012,8.36,0.9988,6,19.4
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 600}",9.438,38.375,47.814,0.596,4,34.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 1200}",9.438,61.104,70.543,0.7203,4,34.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 1500}",17.994,84.279,102.273,0.79777,4,36.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 2400}",9.438,113.866,123.304,0.82817,4,34.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 3000}",17.994,152.43,170.424,0.8876,4,36.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 6000}",17.994,264.007,282.001,0.94777,4,36.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsc,arsc 0.4 (pynndescent),{} {},41.073,0.0,41.073,0.9275,4,40.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 4} {}",10.614,0.0,10.614,0.7752,4,35.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 8} {}",13.77,0.0,13.77,0.8396,4,46.2
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 8} {}",14.67,0.0,14.67,0.8928,4,35.4
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 12} {}",15.947,0.0,15.947,0.89823,4,39.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 16} {}",18.264,0.0,18.264,0.92993,4,41.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 12} {}",18.695,0.0,18.695,0.9384,4,37.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 24} {}",23.12,0.0,23.12,0.96137,4,39.0
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 16} {}",23.642,0.0,23.642,0.96253,4,27.0
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 32} {}",27.16,0.0,27.16,0.9775,4,42.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 24} {}",30.77,0.0,30.77,0.98297,4,18.2
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 48} {}",36.883,0.0,36.883,0.99053,4,43.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 48} {}",53.549,0.0,53.549,0.99653,4,52.2
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 16}",14.638,6.232,20.87,0.78187,6,24.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 24}",14.638,8.308,22.946,0.82637,6,24.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 32}",14.638,10.112,24.75,0.85437,6,24.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 48}",14.638,13.877,28.515,0.89027,6,24.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 64}",14.638,17.752,32.39,0.9157,6,24.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 16}",26.906,10.546,37.452,0.92117,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 96}",14.638,24.695,39.333,0.94317,6,24.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 24}",26.906,13.778,40.684,0.94373,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 32}",26.906,17.059,43.965,0.95657,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 128}",14.638,32.911,47.549,0.95893,6,24.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 48}",26.906,22.904,49.81,0.97057,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 64}",26.906,29.95,56.855,0.97993,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 96}",26.906,40.998,67.904,0.98883,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 128}",26.906,53.047,79.952,0.99283,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 192}",26.906,77.384,104.289,0.99643,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 256}",26.906,100.027,126.932,0.99783,6,5.8
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 12}",5.702,25.968,31.67,0.90003,6,5.3
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 16}",5.702,34.811,40.514,0.9302,6,5.3
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 24}",5.702,51.934,57.637,0.96183,6,5.3
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 32}",5.702,72.115,77.818,0.97737,6,5.3
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 48}",5.702,103.918,109.62,0.9904,6,5.3
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 64}",5.702,138.099,143.802,0.99493,6,5.3
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 96}",5.702,215.17,220.872,0.99843,6,5.3
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 16}",11.72,4.562,16.282,0.76363,6,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 24}",11.72,5.811,17.531,0.81387,6,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 32}",11.72,7.29,19.01,0.84477,6,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 24}",12.698,6.879,19.577,0.85157,6,17.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 16}",13.963,6.578,20.541,0.86117,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 48}",11.72,9.543,21.263,0.88473,6,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 24}",13.963,8.764,22.726,0.896,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 64}",11.72,12.199,23.919,0.906,6,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 48}",12.698,11.392,24.09,0.91177,6,17.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 32}",13.963,10.898,24.861,0.91893,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 64}",12.698,14.559,27.257,0.93107,6,17.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 48}",13.963,14.622,28.585,0.94377,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 96}",12.698,20.572,33.269,0.95387,6,17.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 64}",13.963,19.562,33.525,0.95827,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 128}",12.698,25.731,38.428,0.9662,6,17.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 96}",13.963,27.072,41.035,0.97337,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 128}",13.963,34.046,48.009,0.98263,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 192}",13.963,50.025,63.988,0.99007,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 256}",13.963,62.794,76.756,0.99337,6,4.6
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 4} {}",65.199,0.0,65.199,0.94807,4,31.7
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 8} {}",67.918,0.0,67.918,0.97067,4,43.7
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,pynndescent,pynndescent,"{""max_candidates"": 20} {}",38.276,0.0,38.276,0.9364,4,38.4
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,pynndescent,pynndescent,"{""max_candidates"": 30} {}",39.446,0.0,39.446,0.9464,4,29.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,pynndescent,pynndescent,{} {},44.554,0.0,44.554,0.95753,4,32.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,scanpy,scanpy pp.neighbors,{} {},116.451,0.0,116.451,0.90157,4,33.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 16}",30.182,14.351,44.533,0.76,4,13.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 16}",32.96,15.091,48.05,0.8062,4,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 24}",30.182,18.374,48.557,0.80777,4,13.9
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 24}",32.96,18.826,51.786,0.85197,4,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 16}",35.83,17.821,53.652,0.8595,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 32}",32.96,24.281,57.24,0.88063,4,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 24}",35.83,23.265,59.096,0.89367,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 32}",35.83,28.7,64.53,0.91547,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 48}",35.83,39.409,75.239,0.93967,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 64}",35.83,49.108,84.938,0.95447,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 96}",32.96,57.339,90.298,0.95463,4,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 96}",35.83,75.514,111.344,0.96993,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 192}",32.96,95.473,128.433,0.97827,4,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 128}",35.83,92.989,128.819,0.9791,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 256}",32.96,124.283,157.243,0.98387,4,19.1
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 192}",35.83,123.247,159.078,0.98697,4,14.5
+fin1m,"PBMC 1.37M store, 1M cells, 50 PCs",1000000,50,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 256}",35.83,159.382,195.212,0.9909,4,14.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 16}",20.63,11.23,31.86,0.83197,4,12.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 24}",20.63,14.031,34.661,0.86413,4,12.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 32}",20.63,17.185,37.815,0.88673,4,12.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 48}",20.63,23.122,43.752,0.91487,4,12.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 16}",34.393,15.266,49.659,0.9459,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 24}",34.393,21.731,56.124,0.9612,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 32}",34.393,27.177,61.57,0.96953,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 48}",34.393,38.398,72.791,0.9805,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 64}",34.393,47.283,81.676,0.98693,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 96}",34.393,65.613,100.006,0.9934,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 128}",34.393,86.178,120.571,0.9958,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 192}",34.393,125.813,160.206,0.99777,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 256}",34.393,168.129,202.522,0.9985,4,32.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 12}",6.8,24.335,31.135,0.89127,4,37.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 16}",6.8,32.396,39.196,0.9266,4,37.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 24}",6.8,44.588,51.388,0.96153,4,37.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 32}",6.8,61.81,68.61,0.9769,4,37.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 48}",6.8,88.486,95.286,0.98783,4,37.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 64}",6.8,111.153,117.953,0.9929,4,37.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 2000} {""nprobe"": 96}",6.8,169.712,176.512,0.99643,4,37.5
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 16}",24.238,8.627,32.864,0.8103,4,13.2
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 16}",23.981,9.575,33.556,0.85517,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 24}",23.981,13.003,36.985,0.8886,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 32}",23.981,15.939,39.92,0.9106,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 24}",28.172,16.691,44.864,0.92087,4,10.8
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 48}",23.981,21.266,45.248,0.93337,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 32}",28.172,20.944,49.116,0.93627,4,10.8
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 64}",23.981,27.461,51.443,0.9472,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 48}",28.172,28.182,56.355,0.954,4,10.8
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 96}",23.981,38.41,62.391,0.964,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 128}",23.981,48.727,72.708,0.97223,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 96}",28.172,53.191,81.363,0.97313,4,10.8
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 192}",23.981,68.993,92.974,0.9794,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 256}",23.981,89.171,113.152,0.9823,4,13.0
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 192}",28.172,96.074,124.247,0.98373,4,10.8
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 256}",28.172,121.74,149.913,0.98623,4,10.8
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 16}",34.442,14.357,48.799,0.80947,4,24.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 24}",34.442,19.112,53.554,0.84933,4,24.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 32}",34.442,23.579,58.021,0.8749,4,24.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 24}",41.818,23.733,65.551,0.8852,4,53.1
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 16}",44.957,21.297,66.254,0.89253,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 48}",34.442,32.419,66.861,0.90467,4,24.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 32}",41.818,28.177,69.995,0.90553,4,53.1
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 24}",44.957,28.351,73.307,0.9182,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 64}",34.442,39.967,74.409,0.92273,4,24.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 32}",44.957,34.745,79.702,0.9335,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 96}",34.442,56.204,90.646,0.9473,4,24.4
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 48}",44.957,47.754,92.711,0.95167,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 64}",44.957,56.434,101.391,0.96133,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 96}",41.818,77.812,119.63,0.96157,4,53.1
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 96}",44.957,79.008,123.965,0.97117,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 128}",44.957,102.013,146.969,0.97713,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 192}",44.957,141.628,186.585,0.9826,4,28.6
+gauss1m,"Gaussian copy, 1M cells, 30 PCs",1000000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 256}",44.957,176.638,221.594,0.98513,4,28.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": -1}",0.386,0.667,1.053,0.68397,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 300}",0.386,0.745,1.131,0.814,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 600}",0.386,0.955,1.341,0.91327,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 750}",0.741,1.414,2.155,0.93987,6,5.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 1200}",0.386,1.908,2.294,0.96813,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 1500}",0.741,2.677,3.417,0.9801,6,5.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 2400}",0.386,3.365,3.751,0.9924,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 3000}",0.741,4.512,5.253,0.99503,6,5.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 50} {""search_k"": 3000}",1.186,5.218,6.403,0.9952,6,14.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 6000}",0.741,8.033,8.774,0.99903,6,5.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 6000}",1.966,10.333,12.299,0.9993,6,9.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 50} {""search_k"": 12000}",1.186,15.782,16.967,0.99983,6,14.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 12000}",1.966,17.505,19.47,0.99997,6,9.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 24000}",1.966,31.631,33.597,1.0,6,9.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsc,arsc 0.4 (pynndescent),{} {},1.104,0.0,1.104,0.98813,6,7.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 4} {}",0.401,0.0,0.401,0.9204,4,39.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 6} {}",0.467,0.0,0.467,0.9266,4,18.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 8} {}",0.503,0.0,0.503,0.95483,4,15.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 12} {}",0.533,0.0,0.533,0.98003,4,31.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsck,arsc (shipped),"{""cf"": 2.0, ""probe"": 16} {}",0.637,0.0,0.637,0.98963,4,24.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 12} {}",0.674,0.0,0.674,0.99357,4,48.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 24} {}",0.722,0.0,0.722,0.9993,4,45.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 6, ""rounds"": 0} {}",0.38,0.0,0.38,0.9635,6,21.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 8, ""rounds"": 0} {}",0.413,0.0,0.413,0.9819,6,11.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 12, ""rounds"": 0} {}",0.478,0.0,0.478,0.99357,6,27.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 16, ""rounds"": 0} {}",0.549,0.0,0.549,0.99727,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 24, ""rounds"": 0} {}",0.656,0.0,0.656,0.9993,6,12.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 12, ""rounds"": 1} {}",0.821,0.0,0.821,0.99953,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 24, ""rounds"": 1} {}",0.851,0.0,0.851,0.9998,6,24.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 16, ""rounds"": 1} {}",0.854,0.0,0.854,0.99987,6,11.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 24, ""rounds"": 1} {}",1.0,0.0,1.0,1.0,6,8.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 16}",0.386,0.144,0.53,0.94597,6,4.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 24}",0.386,0.197,0.584,0.96697,6,4.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 32}",0.386,0.252,0.638,0.97753,6,4.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 48}",0.386,0.375,0.762,0.987,6,4.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 16}",0.625,0.225,0.849,0.99047,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 64}",0.386,0.484,0.871,0.99203,6,4.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 24}",0.625,0.307,0.931,0.9957,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 32}",0.625,0.388,1.013,0.9975,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 100} {""ef"": 48}",0.819,0.448,1.267,0.99753,6,9.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 48}",0.625,0.655,1.28,0.99877,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 64}",0.625,0.802,1.427,0.9991,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 100} {""ef"": 96}",0.819,1.079,1.898,0.99943,6,9.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 96}",0.625,1.338,1.963,0.9996,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 100} {""ef"": 128}",0.819,1.525,2.343,0.99963,6,9.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 128}",0.625,1.741,2.365,0.99983,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 200} {""ef"": 128}",1.389,1.423,2.811,0.99987,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.476,1.576,3.053,0.9999,6,19.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 192}",0.625,2.77,3.394,0.99993,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 200} {""ef"": 192}",1.389,2.286,3.674,0.99997,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 4}",0.385,0.193,0.578,0.87057,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 8}",0.385,0.269,0.655,0.9587,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 12}",0.385,0.347,0.732,0.98183,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 16}",0.385,0.472,0.857,0.99127,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 24}",0.385,0.626,1.012,0.9975,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 32}",0.385,0.94,1.325,0.9988,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 48}",0.385,1.633,2.019,0.99967,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 64}",0.385,2.266,2.651,0.99987,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 96}",0.385,3.262,3.647,0.99993,6,4.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 1264} {""nprobe"": 128}",1.269,2.581,3.85,1.0,6,6.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 16}",10.33,0.938,11.268,0.97913,6,7.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 16}",10.33,1.016,11.346,0.97957,6,7.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 32}",10.33,1.593,11.923,0.99563,6,7.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 32}",10.33,1.676,12.006,0.99617,6,7.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 64}",10.33,2.894,13.224,0.99873,6,7.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 64}",10.33,2.985,13.315,0.99937,6,7.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 16}",0.455,0.156,0.611,0.9458,6,11.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 16}",0.447,0.172,0.619,0.95743,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 24}",0.455,0.203,0.658,0.97017,6,11.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 24}",0.447,0.212,0.66,0.9773,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 32}",0.455,0.243,0.698,0.9803,6,11.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.447,0.259,0.706,0.98513,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.447,0.357,0.804,0.99163,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 64}",0.455,0.434,0.889,0.99337,6,11.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 64}",0.447,0.485,0.932,0.99417,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 64}",0.538,0.481,1.019,0.9951,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.447,0.598,1.046,0.99673,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 96}",0.538,0.661,1.198,0.99693,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 128}",0.455,0.768,1.223,0.9977,6,11.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 48}",0.825,0.424,1.249,0.99787,6,15.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 64}",0.839,0.495,1.334,0.99827,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 64}",0.825,0.524,1.35,0.99867,6,15.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 96}",0.839,0.64,1.479,0.99917,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 100} {""ef"": 128}",0.769,0.826,1.595,0.99933,6,5.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 96}",0.825,0.839,1.665,0.99947,6,15.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 128}",0.839,0.903,1.742,0.99957,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 128}",0.825,1.015,1.841,0.99973,6,15.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 100} {""ef"": 192}",0.769,1.178,1.947,0.99977,6,5.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 192}",0.839,1.24,2.079,0.9998,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 100} {""ef"": 256}",0.769,1.5,2.268,0.99983,6,5.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 192}",0.825,1.533,2.358,0.9999,6,15.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 200} {""ef"": 192}",1.315,1.205,2.52,0.99993,6,6.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.447,1.155,2.602,0.99997,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,hnswlib,hnswlib,"{""M"": 12, ""efc"": 200} {""ef"": 256}",1.315,1.541,2.855,1.0,6,6.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 1} {}",0.407,0.0,0.407,0.5933,6,14.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 8} {}",0.767,0.0,0.767,0.99757,6,14.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,pynndescent,pynndescent,"{""max_candidates"": 20} {}",1.03,0.0,1.03,0.99033,6,16.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,pynndescent,pynndescent,"{""max_candidates"": 30} {}",1.113,0.0,1.113,0.9931,6,6.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,pynndescent,pynndescent,{} {},1.183,0.0,1.183,0.99443,6,11.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,pynndescent,pynndescent,"{""kb"": 22, ""max_candidates"": 30} {}",1.646,0.0,1.646,0.9978,6,17.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,pynndescent,pynndescent,"{""kb"": 22} {}",1.74,0.0,1.74,0.99877,6,12.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,scanpy,scanpy pp.neighbors,{} {},5.502,0.0,5.502,0.93087,6,6.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 16}",0.533,0.212,0.745,0.94377,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 16}",0.541,0.224,0.765,0.95483,6,20.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 24}",0.533,0.264,0.797,0.96633,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 24}",0.541,0.283,0.825,0.97433,6,20.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 32}",0.533,0.32,0.853,0.9759,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.541,0.342,0.884,0.98197,6,20.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 48}",0.533,0.419,0.952,0.98497,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.541,0.446,0.987,0.9892,6,20.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 64}",0.533,0.515,1.048,0.9893,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 64}",0.541,0.543,1.084,0.99243,6,20.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.541,0.771,1.312,0.99463,6,20.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 64}",0.889,0.529,1.417,0.9947,6,5.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 128}",0.541,1.076,1.617,0.99533,6,20.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 64}",1.038,0.692,1.73,0.99633,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 96}",0.889,0.856,1.744,0.99637,6,5.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 128}",0.889,1.089,1.977,0.99713,6,5.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 96}",1.038,0.976,2.014,0.99733,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 128}",1.038,1.222,2.261,0.9977,6,6.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 48}",1.709,0.731,2.44,0.99803,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 200} {""ef"": 128}",1.539,1.02,2.558,0.99813,6,5.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 64}",1.709,0.881,2.59,0.99853,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 200} {""ef"": 128}",1.619,1.267,2.886,0.99867,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 96}",1.709,1.181,2.89,0.99883,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.709,1.529,3.238,0.9989,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,15,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 192}",1.709,1.841,3.551,0.99893,6,6.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": -1}",0.429,0.844,1.273,0.74057,6,28.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 600}",0.429,1.054,1.484,0.86767,6,28.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": -1}",0.771,1.463,2.233,0.89945,6,29.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 1200}",0.429,1.915,2.345,0.94618,6,28.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 1500}",0.771,2.681,3.452,0.96463,6,29.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 2400}",0.429,3.428,3.857,0.98405,6,28.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 3000}",0.771,4.891,5.662,0.99077,6,29.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 10} {""search_k"": 4800}",0.429,6.354,6.784,0.996,6,28.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 6000}",0.771,8.505,9.276,0.99792,6,29.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 25} {""search_k"": 12000}",0.771,15.691,16.461,0.99952,6,29.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 12000}",1.997,17.35,19.347,0.9997,6,18.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 50} {""search_k"": 24000}",1.147,30.471,31.618,0.99975,6,12.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 24000}",1.997,30.701,32.698,0.9999,6,18.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,annoy,Annoy (Spotify),"{""n_trees"": 100} {""search_k"": 48000}",1.997,58.095,60.093,0.99992,6,18.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arsc,arsc 0.4 (pynndescent),{} {},2.448,0.0,2.448,0.9984,6,5.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 4} {}",0.469,0.0,0.469,0.89985,4,22.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 6} {}",0.486,0.0,0.486,0.95223,4,16.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 8} {}",0.557,0.0,0.557,0.97448,4,26.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 12} {}",0.627,0.0,0.627,0.99037,4,24.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 16} {}",0.673,0.0,0.673,0.99557,4,42.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arsck,arsc (shipped),"{""cf"": 1.0, ""probe"": 24} {}",0.866,0.0,0.866,0.9987,4,28.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 6, ""rounds"": 0} {}",0.444,0.0,0.444,0.95223,6,12.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 8, ""rounds"": 0} {}",0.482,0.0,0.482,0.97448,6,8.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 6, ""rounds"": 0} {}",0.509,0.0,0.509,0.97473,6,14.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 12, ""rounds"": 0} {}",0.554,0.0,0.554,0.99037,6,8.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 16, ""rounds"": 0} {}",0.636,0.0,0.636,0.99557,6,31.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 1.0, ""probe"": 24, ""rounds"": 0} {}",0.715,0.0,0.715,0.9987,6,6.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 24, ""rounds"": 0} {}",0.911,0.0,0.911,0.99902,6,8.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 8, ""rounds"": 1} {}",1.069,0.0,1.069,0.99913,6,8.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 12, ""rounds"": 1} {}",1.2,0.0,1.2,0.99975,6,13.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 16, ""rounds"": 1} {}",1.328,0.0,1.328,0.99997,6,8.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,arscnew,arsc probe kernel (superseded),"{""cf"": 0.5, ""probe"": 24, ""rounds"": 1} {}",1.444,0.0,1.444,1.0,6,7.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 16}",0.4,0.194,0.593,0.89827,6,18.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 24}",0.4,0.247,0.647,0.941,6,18.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 32}",0.4,0.283,0.683,0.9611,6,18.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 48}",0.4,0.392,0.792,0.9787,6,18.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 64}",0.4,0.532,0.932,0.9871,6,18.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 24}",0.797,0.417,1.213,0.99067,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 16, ""efc"": 40} {""ef"": 96}",0.4,0.824,1.223,0.99307,6,18.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 32}",0.797,0.483,1.279,0.99493,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 48}",0.797,0.601,1.397,0.99765,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 64}",0.797,0.911,1.708,0.99867,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 100} {""ef"": 96}",0.889,1.196,2.085,0.99878,6,6.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 96}",0.797,1.328,2.125,0.99943,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 128}",0.797,1.742,2.538,0.99973,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.572,1.653,3.225,0.99977,6,7.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 40} {""ef"": 192}",0.797,2.771,3.568,0.99988,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_hnsw,FAISS HNSW,"{""M"": 32, ""efc"": 200} {""ef"": 192}",1.572,2.577,4.149,0.99993,6,7.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 4}",0.386,0.209,0.594,0.83643,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 8}",0.386,0.314,0.699,0.94438,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 12}",0.386,0.415,0.8,0.97525,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 16}",0.386,0.528,0.913,0.98792,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 24}",0.386,0.742,1.128,0.99617,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 32}",0.386,1.184,1.57,0.99822,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 48}",0.386,1.712,2.098,0.99937,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 64}",0.386,2.244,2.63,0.99973,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 632} {""nprobe"": 96}",0.386,3.291,3.677,0.99983,6,9.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivf,FAISS IVF-Flat,"{""nlist"": 1264} {""nprobe"": 128}",1.368,2.517,3.885,0.99995,6,10.2
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 16}",10.534,1.042,11.576,0.9696,6,10.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 16}",10.534,1.207,11.741,0.96967,6,10.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 32}",10.534,1.641,12.174,0.99403,6,10.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 32}",10.534,1.81,12.344,0.99418,6,10.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 2, ""nprobe"": 64}",10.534,2.893,13.427,0.99905,6,10.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,faiss_ivfpq,FAISS IVF-PQ (+exact re-rank),"{""m"": 15, ""nlist"": 1264} {""kf"": 4, ""nprobe"": 64}",10.534,3.016,13.55,0.9992,6,10.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 16}",0.479,0.253,0.732,0.95672,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 32}",0.479,0.254,0.733,0.9609,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 16}",0.473,0.262,0.735,0.96633,6,6.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.473,0.28,0.753,0.9699,6,6.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 16}",0.481,0.297,0.778,0.97407,6,5.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 32}",0.481,0.308,0.789,0.97703,6,5.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 48}",0.479,0.34,0.819,0.98005,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.473,0.379,0.852,0.98408,6,6.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 64}",0.479,0.417,0.897,0.98773,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 48}",0.481,0.42,0.901,0.9881,6,5.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 64}",0.481,0.496,0.977,0.99257,6,5.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 96}",0.479,0.571,1.05,0.99428,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.473,0.635,1.108,0.99502,6,6.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 64}",0.794,0.46,1.254,0.99527,6,5.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 50} {""ef"": 96}",0.481,0.791,1.272,0.99628,6,5.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 50} {""ef"": 128}",0.479,0.818,1.298,0.99675,6,14.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 64}",0.8,0.562,1.362,0.99717,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 96}",0.794,0.686,1.479,0.99785,6,5.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 100} {""ef"": 128}",0.783,0.876,1.659,0.99848,6,22.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 96}",0.8,0.921,1.721,0.99902,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 128}",0.794,0.989,1.782,0.99913,6,5.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 128}",0.8,1.084,1.884,0.99943,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 12, ""efc"": 100} {""ef"": 192}",0.783,1.243,2.026,0.99952,6,22.8
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 100} {""ef"": 192}",0.794,1.325,2.119,0.99955,6,5.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 192}",0.8,1.483,2.283,0.99972,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 100} {""ef"": 256}",0.8,1.919,2.718,0.99977,6,6.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 128}",1.571,1.183,2.754,0.9999,6,11.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 16, ""efc"": 200} {""ef"": 256}",1.401,1.705,3.107,0.99993,6,9.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,hnswlib,hnswlib,"{""M"": 32, ""efc"": 200} {""ef"": 192}",1.571,1.685,3.256,0.99995,6,11.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 1} {}",0.631,0.0,0.631,0.54603,6,5.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,kernel,perf/knn-custom-kernel (NN-descent),"{""cf"": 1.0, ""probe"": 8} {}",1.305,0.0,1.305,0.99925,6,7.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,pynndescent,pynndescent,"{""max_candidates"": 20} {}",2.211,0.0,2.211,0.99728,6,8.4
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,pynndescent,pynndescent,"{""max_candidates"": 30} {}",2.274,0.0,2.274,0.9984,6,9.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,pynndescent,pynndescent,{} {},2.519,0.0,2.519,0.99915,6,10.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,pynndescent,pynndescent,"{""kb"": 45, ""max_candidates"": 30} {}",3.776,0.0,3.776,0.99963,6,6.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,pynndescent,pynndescent,"{""kb"": 45} {}",4.076,0.0,4.076,0.99992,6,5.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,scanpy,scanpy pp.neighbors,{} {},12.226,0.0,12.226,0.96652,6,18.7
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 24}",0.539,0.325,0.864,0.95373,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 32}",0.539,0.337,0.876,0.95827,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 24}",0.553,0.356,0.909,0.96365,6,10.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 32}",0.553,0.381,0.935,0.96682,6,10.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 16}",0.583,0.389,0.972,0.97073,6,10.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 48}",0.539,0.442,0.981,0.97672,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 48}",0.553,0.487,1.04,0.98222,6,10.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 64}",0.539,0.531,1.069,0.98425,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 64}",0.553,0.582,1.135,0.9877,6,10.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 64}",0.583,0.714,1.296,0.9892,6,10.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 96}",0.539,0.84,1.378,0.99113,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 96}",0.553,0.931,1.484,0.99232,6,10.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 50} {""ef"": 128}",0.539,1.07,1.609,0.9936,6,5.9
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 64}",0.985,0.696,1.682,0.99388,6,9.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 50} {""ef"": 128}",0.553,1.158,1.711,0.99447,6,10.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 96}",0.893,0.895,1.788,0.99477,6,8.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 50} {""ef"": 128}",0.583,1.343,1.926,0.99478,6,10.1
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 100} {""ef"": 128}",0.893,1.066,1.959,0.9964,6,8.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 96}",0.985,0.985,1.971,0.99648,6,9.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 100} {""ef"": 96}",1.089,1.146,2.235,0.99717,6,12.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 128}",0.985,1.272,2.257,0.99728,6,9.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 100} {""ef"": 128}",1.089,1.378,2.467,0.99763,6,12.0
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 16, ""efc"": 100} {""ef"": 192}",0.985,1.642,2.628,0.99768,6,9.5
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 200} {""ef"": 128}",1.618,1.082,2.701,0.99825,6,5.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 32, ""efc"": 200} {""ef"": 96}",1.811,1.271,3.082,0.99853,6,12.3
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 200} {""ef"": 192}",1.618,1.585,3.203,0.99877,6,5.6
+pbmc100k,"PBMC CITE-seq, 100k cells, 30 PCs",100000,30,30,voyager,Voyager (Spotify),"{""M"": 12, ""efc"": 200} {""ef"": 256}",1.618,1.962,3.58,0.99892,6,5.6

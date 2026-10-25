@@ -1,7 +1,7 @@
-"""arsc's kNN: the exact method (scikit-learn brute force + float64 re-scoring) equals float64 brute force (ties,
-duplicates, odd dimensions, external queries, large coordinates); the approximate method (pynndescent, scanpy's
-settings) finds nearly all true neighbours, reports exact distances and is reproducible with a seed; "auto" switches
-at 4,096 points like scanpy; the SNN graph matches its definition."""
+"""arsc's kNN: the exact method (clustered search with proven pruning, float64 distances) equals float64 brute
+force (ties, duplicates, odd dimensions, external queries, large coordinates, any partition); the approximate method
+(the same kernel scanning each query's nearest clusters) finds nearly all true neighbours, reports exact distances and
+is reproducible with a seed; "auto" switches at 4,096 points like scanpy; the SNN graph matches its definition."""
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -63,7 +63,21 @@ def test_approx_recall_exact_distances_and_seed():
     assert np.all(np.diff(d, axis=1) >= 0) and (i[:, 0] == np.arange(X.shape[0])).all()
     i3, _ = arsc.knn(X, 15, method="approximate", seed=1)  # another seed: nearly the same graph
     assert np.mean([len(set(a) & set(b)) for a, b in zip(i, i3)]) / 15 > 0.95
-    assert all(np.array_equal(p, q) for p, q in zip(arsc.knn(X, 15, method="pynndescent"), (i, d)))  # alias
+    with pytest.warns(DeprecationWarning):   # the old backend name maps to the approximate method
+        assert all(np.array_equal(p, q) for p, q in zip(arsc.knn(X, 15, method="pynndescent"), (i, d)))
+
+
+def test_exact_any_partition_and_short_clusters():
+    X = _mix(2000, d=9, seed=3)
+    ri, rd = _brute(X, X, 12)
+    for nc, seed in [(1, 0), (7, 1), (45, 2), (400, 3), (2000, 4)]:   # the partition changes speed, never the answer
+        i, d = arsc.knn(X, 12, method="exact", n_clusters=nc, seed=seed)
+        assert np.array_equal(i, ri) and np.array_equal(d, rd), (nc, seed)
+    # approximate search over clusters smaller than k: rows that found fewer than k points are completed exactly
+    i, d = arsc.knn(X, 12, method="approximate", n_clusters=1500, seed=0)
+    assert (i >= 0).all() and np.all(np.diff(d, axis=1) >= 0) and (i[:, 0] == np.arange(2000)).all()
+    exact = np.sqrt(((X[:, None, :] - X[i]) ** 2).sum(-1))
+    assert np.allclose(d, exact, rtol=1e-12)
 
 
 def test_auto_switch(monkeypatch):

@@ -190,7 +190,7 @@ def test_dendrogram_regress_qc(d):
 
 @pytest.fixture(scope="module")
 def nbr(d):
-    n = 3000  # scanpy uses exact kNN below 4,096 cells (approximate pynndescent above)
+    n = 3000  # scanpy uses exact kNN below 4,096 cells (approximate above)
     E = np.asarray(d["st"].embedding("pca_harmony"))[d["idx"]][:n]
     b = ad.AnnData(np.zeros((n, 1)), obs=pd.DataFrame(index=[str(i) for i in range(n)]))
     b.obsm["X_pca_harmony"] = E

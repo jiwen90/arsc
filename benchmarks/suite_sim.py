@@ -11,7 +11,11 @@ One dataset per size ``n``, deterministic for a given seed:
 * ``clone_id`` for cell types ``T0``-``T3`` (T-cell-like): a per-patient clone pool, with 5 clones per
   patient expanding at ``post`` in ``T0``.
 
-Writes, under ``<root>/n<size>/``:
+``simulate_memory(n, seed)`` returns the counts, cell table, genes and truth in memory (what paired_bench.py and
+the speed gate use; nothing is written). ``simulate(n, root)`` writes the same data to disk, only for the full
+three-tool suite (``run_suite.py --bench-dir``), whose Seurat side needs files; it never runs by default.
+
+``simulate`` writes, under ``<root>/n<size>/``:
 
 * ``store/``          arsc store (RNA/counts, float32 CSR)
 * ``data.h5ad``       the same counts for scanpy (CSR X)
@@ -42,7 +46,7 @@ DISP = 0.3
 CHUNK = 50_000
 
 
-@nb.njit(parallel=True, cache=True)
+@nb.njit(parallel=True)   # no cache=True: numba's cache would write next to this file
 def _nnz_pass(mu_type, tix, pix, size, pat, post_up, is_post, seed0, disp, out_nnz):
     n = tix.shape[0]
     G = mu_type.shape[1]
@@ -61,7 +65,7 @@ def _nnz_pass(mu_type, tix, pix, size, pat, post_up, is_post, seed0, disp, out_n
         out_nnz[c] = k
 
 
-@nb.njit(parallel=True, cache=True)
+@nb.njit(parallel=True)   # no cache=True: numba's cache would write next to this file
 def _fill_pass(mu_type, tix, pix, size, pat, post_up, is_post, seed0, disp, indptr, indices, data):
     n = tix.shape[0]
     G = mu_type.shape[1]
@@ -139,6 +143,41 @@ def _cells(n: int, seed: int):
     return obs, tix, pix, is_post, size
 
 
+def _chunks(n: int, seed: int, mu_type, tix, pix, size, pat, post_up, is_post):
+    """CSR chunks of CHUNK cells; cell c always draws from seed * 1_000_003 + c, so the chunking never changes it."""
+    import scipy.sparse as sp
+    for s in range(0, n, CHUNK):
+        e = min(n, s + CHUNK)
+        sl = slice(s, e)
+        nz = np.zeros(e - s, np.int64)
+        args = (mu_type, tix[sl], pix[sl], size[sl], pat, post_up, is_post[sl], seed * 1_000_003 + s, DISP)
+        _nnz_pass(*args, nz)
+        indptr = np.zeros(e - s + 1, np.int64)
+        np.cumsum(nz, out=indptr[1:])
+        ind = np.empty(indptr[-1], np.int32)
+        dat = np.empty(indptr[-1], np.float32)
+        _fill_pass(*args, indptr, ind, dat)
+        yield s, e, indptr, ind, dat
+
+
+def simulate_memory(n: int, seed: int = 0):
+    """The benchmark data of size n in memory: (X, obs, genes, truth). X is a cells x genes CSR (float32 counts),
+    identical value for value to what ``simulate`` writes for the same (n, seed). Writes nothing."""
+    import scipy.sparse as sp
+    genes, mu_type, pat, post_up, truth = _design(seed)
+    obs, tix, pix, is_post, size = _cells(n, seed)
+    ptr, inds, dats, nnz = [np.zeros(1, np.int64)], [], [], 0
+    for s, e, indptr, ind, dat in _chunks(n, seed, mu_type, tix, pix, size, pat, post_up, is_post):
+        ptr.append(indptr[1:] + nnz)
+        nnz += int(indptr[-1])
+        inds.append(ind)
+        dats.append(dat)
+    X = sp.csr_matrix((np.concatenate(dats) if dats else np.zeros(0, np.float32),
+                       np.concatenate(inds) if inds else np.zeros(0, np.int32), np.concatenate(ptr)),
+                      shape=(n, N_GENES))
+    return X, obs, pd.Index(genes), truth
+
+
 def simulate(n: int, root: Path, seed: int = 0, formats=("store", "h5ad", "r"), verbose: bool = True) -> Path:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
     import arsc
@@ -162,17 +201,7 @@ def simulate(n: int, root: Path, seed: int = 0, formats=("store", "h5ad", "r"), 
     b.set_cells(list(obs.index), obs)
     b.add_assay("RNA", list(genes))
     with b.layer("RNA", "counts", src_dtype="float32") as sink:
-        for s in range(0, n, CHUNK):
-            e = min(n, s + CHUNK)
-            sl = slice(s, e)
-            nz = np.zeros(e - s, np.int64)
-            args = (mu_type, tix[sl], pix[sl], size[sl], pat, post_up, is_post[sl], seed * 1_000_003 + s, DISP)
-            _nnz_pass(*args, nz)
-            indptr = np.zeros(e - s + 1, np.int64)
-            np.cumsum(nz, out=indptr[1:])
-            ind = np.empty(indptr[-1], np.int32)
-            dat = np.empty(indptr[-1], np.float32)
-            _fill_pass(*args, indptr, ind, dat)
+        for s, e, indptr, ind, dat in _chunks(n, seed, mu_type, tix, pix, size, pat, post_up, is_post):
             m = sp.csr_matrix((dat, ind, indptr), shape=(e - s, N_GENES))
             sink.add(m)
             dat.tofile(fx)
@@ -202,7 +231,8 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("n", type=int)
-    ap.add_argument("--root", default=os.environ.get("ARSC_BENCH_DIR", str(Path(__file__).with_name(".bench_data"))))
+    ap.add_argument("--root", required=True, help="directory to WRITE the data to (opt-in; paired_bench.py and the "
+                                                   "speed gate never need it: they generate the data in memory)")
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     simulate(a.n, Path(a.root), a.seed)

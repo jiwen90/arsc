@@ -9,21 +9,40 @@ Two kinds of evidence live here:
    against R on real datasets. These need the datasets and are not runnable without them; their
    results are recorded in the `*_PARITY.md` files at the repo root.
 
+## No benchmark data on disk
+
+Benchmark inputs are never written to disk and never committed, at any size (no toy files either):
+
+* `paired_bench.py` and the speed gate (`tests/test_speed_gate.py`) build their data **in memory**
+  (`benchdata.py`). By default (`--source auto`) that is the real arsc store named by `ARSC_BENCH_STORE`,
+  opened memory-mapped and read-only, with a seeded subset of `--sizes` cells (column names mapped with
+  `ARSC_BENCH_STORE_COLUMNS`, see `benchdata.py`); without it, the toy data of `suite_sim.py`, generated in
+  memory from a fixed seed at 20,000 cells (larger sizes only when asked with `--sizes`, still in memory).
+  The shared 30-PC embedding is computed once by the parent and passed to the child processes through
+  shared memory (RAM); children return their results, including the neighbour lists and cluster labels
+  used for the agreement check, on stdout. Only the small result tables go to `--out`.
+  `tests/test_speed_gate.py::test_paired_bench_writes_nothing_under_benchmarks` checks that a run writes
+  nothing under `benchmarks/`.
+* `run_suite.py` (arsc vs scanpy vs Seurat) is the one exception: Seurat runs in R and reads files, so this
+  suite writes its simulated data, and only when given an explicit `--bench-dir` (or `ARSC_BENCH_DIR`) outside
+  the repository. There is no default data directory and no `.bench_data` cache.
+
 ## Benchmark suite
 
 ```bash
 # from the repo root, with the dev extras installed (pip install -e ".[dev]" scikit-misc)
-python benchmarks/run_suite.py                                   # 10k + 100k cells, all tools, all steps
-python benchmarks/run_suite.py --sizes 1000000 --tools arsc,scanpy
-python benchmarks/run_suite.py --steps markers,pseudobulk --sizes 10000
-python benchmarks/run_suite.py --compare-only                    # recompute agreement from saved outputs
+python benchmarks/paired_bench.py --gate                         # arsc vs scanpy, 20k toy cells in memory
+ARSC_BENCH_STORE=<store> python benchmarks/paired_bench.py --sizes 100000,1000000   # a real store, in memory
+python benchmarks/run_suite.py --bench-dir <scratch dir>         # three tools; WRITES data to <scratch dir>
+python benchmarks/run_suite.py --bench-dir <scratch dir> --steps markers,pseudobulk --sizes 10000
+python benchmarks/run_suite.py --bench-dir <scratch dir> --compare-only   # recompute agreement
 python benchmarks/render_table.py                                # headline table -> README.md (BENCH markers)
 ```
 
-Environment variables: `ARSC_BENCH_DIR` (simulated data and raw outputs; default
-`benchmarks/.bench_data/`, git-ignored; 1M cells needs about 40 GB of disk), `ARSC_RLIB` (an extra R
-library path), `RSCRIPT` (default `Rscript`). Finished steps are skipped on a re-run (results are
-appended to `runs.jsonl`); `--rerun` forces them.
+Environment variables: `ARSC_BENCH_STORE` / `ARSC_BENCH_STORE_COLUMNS` (real store for the in-memory
+benchmarks), `ARSC_BENCH_DIR` (run_suite.py only: where it writes data and raw outputs; no default),
+`ARSC_RLIB` (an extra R library path), `RSCRIPT` (default `Rscript`). Finished steps are skipped on a
+re-run (results are appended to `runs.jsonl`); `--rerun` forces them.
 
 R side: R 4.3 with Seurat 4.3, presto, DESeq2, limma, edgeR, UCell, Matrix and jsonlite. Python side:
 scanpy (with `scikit-misc` for `flavor="seurat_v3"`), pydeseq2, psutil.
@@ -34,8 +53,9 @@ scanpy (with `scikit-misc` for `flavor="seurat_v3"`), pydeseq2, psutil.
 dispersion 0.3) with a log-normal abundance profile and library sizes around 2,500 UMI, so about
 1,600 genes are detected per cell. 10 cell types each up-regulate 60 marker genes about 6x; 8 patients
 x 2 timepoints give 16 samples; in cell type T0, 150 genes go up 2x at `post` (the DE ground truth).
-T-cell-like types carry clone ids, with 5 clones per patient expanding at `post`. The same counts are
-written as an arsc store, an `.h5ad` (for scanpy) and raw dgCMatrix binaries (for R).
+T-cell-like types carry clone ids, with 5 clones per patient expanding at `post`. `simulate_memory(n, seed)`
+returns them in memory (paired_bench, speed gate); only `run_suite.py --bench-dir` writes the same counts as an
+arsc store, an `.h5ad` (for scanpy) and raw dgCMatrix binaries (for R).
 
 ### What is measured
 

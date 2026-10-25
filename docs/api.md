@@ -1983,7 +1983,7 @@ Neighbours and WNN.
 Seurat ``FindNeighbors``: k-NN (self included) and SNN graphs from an embedding.
 
 ``method`` and ``seed`` are passed to :func:`knn`: by default (``"auto"``) the k-NN is exact up to
-4,096 cells and approximate (pynndescent, scanpy's settings) above; ``method="exact"`` forces exact search.
+4,096 cells and approximate (arsc's clustered search) above; ``method="exact"`` forces exact search.
 Seurat's Annoy is approximate, so SNN graphs differ slightly from Seurat's (see the README validation
 table).
 
@@ -2019,30 +2019,35 @@ Examples
 ### `arsc.neighbors.knn(X, k: 'int', query=None, *, method: 'str' = 'auto', seed: 'int' = 0, n_clusters: 'int | None' = None)`
 
 ```text
-k nearest neighbours (Euclidean): exact up to 4,096 points, approximate (pynndescent) above (``"auto"``).
+k nearest neighbours (Euclidean): exact up to 4,096 points, approximate above (``"auto"``).
 
-``method="exact"``: scikit-learn brute force (BLAS) for ``k + 8`` candidates, re-scored in float64 and ordered
-by (distance, index); a row whose candidate list could have missed a closer point through rounding (proven
-bound) is re-scored against every point. The answer is the exact float64 k-NN. Deterministic; the query point
-itself comes first when ``query`` is None.
+Both methods start from a seeded k-means partition of the points (numba and BLAS, no other dependency) and
+report exact float64 distances (the plain sum of squared differences, as brute force), ordered by (distance,
+index).
 
-``method="approximate"`` (alias ``"approx"``, ``"pynndescent"``): pynndescent's NN-descent with the settings of
-UMAP's ``nearest_neighbors`` that ``scanpy.pp.neighbors`` uses (``n_trees = min(64, 5 + sqrt(n) / 20)``,
-``n_iters = max(5, log2 n)``), seeded with ``seed``; the distances reported are re-computed exactly (float64).
-Recall and downstream clusters vs scanpy: ``SCANPY_PARITY.md``.
+``method="exact"``: each query scans clusters in order of their centre's distance, skipping a cluster or a
+ring of it when the triangle inequality proves it cannot hold a closer point; candidates pass a float32 filter
+with a proven rounding margin before the float64 check. The answer is the exact k-NN at any size; ``seed`` and
+``n_clusters`` change only the speed. Deterministic; the query point itself comes first when ``query`` is None.
+
+``method="approximate"`` (alias ``"approx"``): about 2 sqrt(n) clusters; each query scans every point of its
+24 nearest clusters. Distances to a cluster's points are float32 matrix products of the queries that probe it
+(grouped by nearest centre) and the cluster's points, both centred on the cluster's centre; the k + 8 best
+candidates are re-scored exactly in float64. Recall@k on real PCs: 0.96-0.996 (100k and 1M cells, k = 15 and
+30). Deterministic for a given ``seed`` and independent of the thread count. Speed against FAISS, hnswlib,
+Voyager, Annoy, pynndescent and scanpy: ``SCANPY_PARITY.md`` ("k-NN backend").
 
 ``method="auto"`` (default): exact when n <= 4,096 or ``query`` is given, approximate above, as
-``scanpy.pp.neighbors``. arsc 0.3.x used exact search at every size: pass ``method="exact"`` to reproduce
-those graphs.
+``scanpy.pp.neighbors``.
 
 Parameters
 ----------
 X : (n x d) dense embedding (e.g. PCs).
 k : neighbours per query (self included when ``query`` is None); capped at n.
 query : optional (m x d) query points; default ``X`` itself.
-method : ``"auto"``, ``"exact"`` or ``"approximate"`` (``"approx"``, ``"pynndescent"``).
-seed : integer ``random_state`` of pynndescent (the exact method does not use it).
-n_clusters : ignored (arsc 0.3's exact-search partition count; kept so old calls still run).
+method : ``"auto"``, ``"exact"`` or ``"approximate"`` (``"approx"``).
+seed : integer seed of the k-means partition.
+n_clusters : number of partitions (default about sqrt(n)).
 
 Returns
 -------
@@ -6075,8 +6080,8 @@ Examples
 ```text
 ``sc.pp.neighbors`` (``method="umap"``): kNN + UMAP fuzzy-simplicial-set connectivities.
 
-Uses :func:`arsc.knn` with scanpy's switch (``method="auto"``: exact up to 4,096 cells, pynndescent with
-scanpy's settings above; ``"exact"`` forces exact search). As
+Uses :func:`arsc.knn` with scanpy's switch (``method="auto"``: exact up to 4,096 cells, arsc's approximate
+search above; ``"exact"`` forces exact search). As
 scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbours).
 
 Parameters
@@ -6085,7 +6090,7 @@ emb : cells x d embedding (e.g. PCA or Harmony).
 n_neighbors : neighbourhood size including the cell itself (default 15).
 metric : ``"euclidean"`` or ``"cosine"``.
 method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`arsc.knn`).
-random_state : integer seed (default 0): pynndescent's ``random_state`` (unused by exact search).
+random_state : integer seed (default 0) of the approximate search's partition (unused by exact search).
 
 Returns
 -------
@@ -6152,7 +6157,7 @@ emb : cells x d embedding (e.g. PCA / Harmony).
 n_components : number of eigenvectors (default 10).
 knn : neighbourhood size (default 30).
 alpha : anisotropy (default 0).
-seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN (pynndescent).
+seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN partition.
 method : kNN method, ``"auto"`` (default: exact up to 4,096 cells), ``"exact"`` or ``"approximate"``.
 
 Returns

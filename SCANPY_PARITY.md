@@ -20,7 +20,7 @@ counts), harmony PCs for graph steps (3,000 cells, because scanpy switches from 
 | `sc.pp.regress_out` (1) | numeric covariates | `scanpy_extra.regress_out` (numeric, or single categorical key) | NEW | max diff 1e-13 |
 | `sc.tl.pca` / `sc.pp.pca` (20+9) | `svd_solver='arpack'`, `n_comps=30/50` | `arsc.pp.pca` | covered | per-PC abs r >= 0.998 (arpack on 1,000 HVG vs gram), variance ratio diff 1.6e-5; scanpy 1.7 s vs arsc 0.46 s |
 | `sce.pp.harmony_integrate` (12) | key = sample | `arsc.run_harmony` (R harmony port) | covered, NOT validated against harmonypy | validated vs R harmony 2.0.5 / 2.1.0 / 1.2 (see HARMONY_PARITY.md). harmonypy is a different port, so expect r ~0.99 per dim, not identity |
-| `sc.pp.neighbors` (42) | `n_neighbors=30`, `use_rep='X_pca_harmony'`; 16 with `X_pca` euclidean / `X_scANVI` cosine | `scanpy_extra.neighbors` (kNN as scanpy: exact up to 4,096 cells, pynndescent above; + UMAP fuzzy simplicial set) | NEW | connectivities exact (max diff 0.0), distances 6e-14, euclidean and cosine |
+| `sc.pp.neighbors` (42) | `n_neighbors=30`, `use_rep='X_pca_harmony'`; 16 with `X_pca` euclidean / `X_scANVI` cosine | `scanpy_extra.neighbors` (kNN as scanpy: exact up to 4,096 cells, approximate above; + UMAP fuzzy simplicial set) | NEW | connectivities exact (max diff 0.0), distances 6e-14, euclidean and cosine |
 | `sc.tl.leiden` (25+) | `resolution` 0.4-2.0, default `leidenalg`, `random_state=0` | `scanpy_extra.leiden` | NEW | labels identical (res 0.5, 2.0), ARI 1.0 |
 | `sc.tl.umap` (25+) | default, or `min_dist=0.4, spread=1.0` | `scanpy_extra.umap_from_connectivities` | NEW | coordinates identical (max diff 0.0) |
 | `sc.tl.rank_genes_groups` (36+) | `method='wilcoxon'`, `pts=True`, `use_raw=True/False`, group by leiden / celltype / antigen_type | `scanpy_extra.rank_genes_groups` | NEW | wilcoxon (+ `tie_correct`), t-test, t-test_overestim_var, reference `rest` and a group: p-values equal to 1e-13, scores equal to float32 storage (rel 6e-8), pts exact |
@@ -81,19 +81,57 @@ Measured 2026-10-25 08:13:44 to 2026-10-25 10:04:12; leases seen: leased 10/16 b
 
 <!-- PAIRED:END -->
 
-k-NN: `arsc.knn` (and `find_neighbors`, `scanpy_extra.neighbors`) searches exactly up to 4,096 cells and with
-pynndescent above, with the settings scanpy passes (UMAP's `nearest_neighbors`), seeded; distances are re-computed
-in float64. Library choice (2026-10-25, 2 threads each, a 1M-cell Gaussian copy of the benchmark PCA, 500 random
-queries against brute force; one run each, machine shared): pynndescent 105 s, recall 0.951; FAISS IVFFlat
-(nlist 2,000 / nprobe 64) 251 s, 0.961; FAISS HNSW (M 16, efSearch 48) 128 s, 0.776; hnswlib (M 16, ef 48) 181 s,
-0.854; scanpy `pp.neighbors` 121 s, 0.913. pynndescent was the fastest established library at scanpy's quality, so
-it is the only backend (no GPU path: pynndescent has none, and FAISS GPU wheels exist only for Linux).
-First call in a fresh process (numba compilation included; `benchmarks/cold_start.py`, 3 threads, 3 interleaved
-runs, 2026-10-25): k-NN graph at 10,000 cells arsc 30.6 s vs scanpy 54.2 s, at 100,000 cells 33.2 s vs 42.6 s. Most of
-it is pynndescent's one-off compilation, which both pay; arsc 0.3's exact search was compiled once and cached on disk,
-so a first call on 4,097-100,000 cells is now about 30 s slower than in arsc 0.3 (pass `method="exact"` in short
-scripts on small data). Reproducibility: the same seed and thread count give the same graph; another thread count changes about 2% of the
-neighbour entries (pynndescent's parallel updates).
+## k-NN backend
+
+**arsc uses its own k-NN kernel** (2026-10-25): it was the fastest backend at recall@k >= 0.95 and >= 0.99 on every
+real dataset tested, ahead of FAISS (Meta), hnswlib, Voyager and Annoy (Spotify), pynndescent and scanpy. pynndescent
+and scikit-learn are no longer used. `arsc.knn` (and `find_neighbors`, `scanpy_extra.neighbors`) searches exactly
+up to 4,096 cells and approximately above, as scanpy.
+
+* **Approximate** (`method="approximate"`, the default above 4,096 cells): a seeded k-means splits the cells into
+  2 sqrt(n) clusters; every cell scans all cells of its 24 nearest clusters. The distances are float32 matrix
+  products (BLAS) of the cells that probe a cluster and the cluster's cells, centred on its centre; the k + 8 best
+  candidates are re-scored exactly in float64 and ordered by (distance, index). Deterministic for a seed and
+  independent of the thread count.
+* **Exact** (`method="exact"`): the same partition, every cluster a candidate, skipped or narrowed by the triangle
+  inequality, a float32 filter with a proven rounding margin and float64 distances: the exact k-NN at any size.
+
+Time to build the full graph (build + every cell queries) at the cheapest setting of each library that reaches the
+recall, from a parameter sweep of each library (FAISS IVF-Flat nlist/nprobe, IVF-PQ, HNSW M/efConstruction/efSearch;
+hnswlib and Voyager M/ef; Annoy trees/search_k; pynndescent max_candidates/n_neighbors; arsc clusters/probes).
+Recall@k is scored against exact float64 neighbours of 2,000 random cells (self included; ties counted). Data: real
+PCs held in memory, never written: "PBMC CITE-seq" = the stored 30-PC PCA of a 260k-cell PBMC CITE-seq store,
+100k random cells; "PBMC 1.37M" = 50 PCs (vst top 2,000 genes, log1p CP10k, z clip 10) of a 1.37M-cell PBMC store,
+100k or 1M random cells. Pinned to the same 16 logical CPUs; most sweep points at 6 threads, arsc's and the later
+1M points at 4 threads (the machine was shared), so arsc's lead at 100k is understated:
+
+| Data | k | arsc | hnswlib | FAISS HNSW | FAISS IVF-Flat | Voyager | pynndescent | Annoy | scanpy |
+|---|---:|---|---|---|---|---|---|---|---|
+| PBMC CITE-seq, 100k, 30 PCs | 15 | **0.50 / 0.67 s** | 0.62 / 0.80 | 0.58 / 0.85 | 0.66 / 0.86 | 0.77 / 1.08 | 1.03 / 1.03 | 2.3 / 3.8 | recall 0.931 (best) |
+| PBMC CITE-seq, 100k, 30 PCs | 30 | **0.49 / 0.63 s** | 0.73 / 0.98 | 0.68 / 1.21 | 0.80 / 1.13 | 0.86 / 1.38 | 2.2 / 2.2 | 3.5 / 5.7 | 12.2 / - |
+| PBMC 1.37M, 100k, 50 PCs | 15 | **0.67 / 0.91 s** | 0.93 / 1.60 | 1.00 / 1.54 | 1.10 / 1.76 | 1.54 / 3.11 | 1.28 / 2.18 | 5.8 / 18 | recall 0.914 (best) |
+| PBMC 1.37M, 100k, 50 PCs | 30 | **0.75 / 1.07 s** | 1.11 / 1.99 | 1.10 / 2.11 | 1.20 / 2.51 | 1.89 / 3.45 | 2.47 / 2.82 | 7.7 / 18 | 11.5 / - |
+| PBMC 1.37M, 1M, 50 PCs | 15 | **23 / 37 s** | 33 / 64 | 44 / 80 | 58 / 110 | 85 / 195 | 45 / - | - / - | recall 0.902 |
+
+Cells: seconds to reach recall 0.95 / 0.99 ("-": not reached in the sweep). The 1M row mixes 6 threads (hnswlib, FAISS)
+and 4 threads (arsc, Voyager, pynndescent, Annoy, scanpy). A Gaussian copy of the CITE-seq PCs (1M cells, 30 dims) was
+swept for the HNSW and IVF libraries before the sweep was stopped; arsc was not run on it.
+
+**Confirmation at 1M cells, k = 15, everything at 4 threads, one run each, in memory** (`benchmarks/results/knn_backend/confirm_1m.csv`):
+arsc defaults 22.4 s (recall 0.961); pynndescent (scanpy's settings) 46.8 s (0.958); hnswlib M 16 / ef 96 56.1 s (0.952);
+FAISS HNSW M 32 / efSearch 32 71.0 s (0.957); FAISS IVF-Flat nlist 2,000 / nprobe 24 73.8 s (0.962); Voyager M 32 / ef 64
+95.9 s (0.953); scanpy `pp.neighbors` 141.5 s (0.902). arsc is 2.1x faster than the next library at the same recall.
+
+Defaults: 2 sqrt(n) clusters and 24 probes give recall 0.961-0.996 on the data above (k = 15 and 30); more probes
+(`arsc.neighbors.APPROX_PROBE`) raise recall: 32 probes 0.978 and 48 probes 0.991 at 1M cells.
+
+![time vs recall](benchmarks/results/knn_backend/knn_backend_recall.png)
+
+Every configuration: `benchmarks/results/knn_backend/sweep_points.csv`, frontiers `pareto.csv`.
+
+First call in a fresh process (`benchmarks/cold_start.py --what knn`, 100,000 toy cells, 4 threads, 2026-10-25):
+`arsc.knn` 7.1 s with an empty numba cache (one-off compilation) and 1.1 s once compiled kernels are cached on disk;
+`scanpy.pp.neighbors` 50-55 s. pynndescent's own one-off compilation (about 30 s) is gone from arsc.
 
 ## Speed, earlier single measurements (32-thread workstation, not paired)
 

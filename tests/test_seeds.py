@@ -140,7 +140,7 @@ def _cases():
         "run_harmony": (lambda **k: arsc.run_harmony(E, np.tile(["x", "y"], len(E) // 2), None, nclust=4, max_iter=3,
                                                      **k), "seed", True),
         "knn[exact]": (lambda **k: arsc.knn(E, 8, **k), "seed", False),
-        "knn[pynndescent]": (lambda **k: arsc.knn(_blobs(300, 5, 10), 8, method="pynndescent", **k), "seed", False),
+        "knn[approximate]": (lambda **k: arsc.knn(_blobs(300, 5, 10), 8, method="approximate", **k), "seed", False),
         "find_neighbors": (lambda **k: arsc.find_neighbors(E, k=10, **k), "seed", False),
         "wnn": (lambda **k: arsc.wnn([E, E2], k_nn=10, knn_range=40, **k), "seed", False),
         "cluster[leiden]": (lambda **k: arsc.cluster(SNN_N, method="leiden", **k), "seed", True),

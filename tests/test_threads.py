@@ -27,7 +27,7 @@ def test_explicit_library_var_is_kept():
     assert got[0] == "2" and got[1] == "1"
 
 
-def test_pynndescent_not_all_cores():
+def test_knn_not_all_cores():
     import inspect
     from arsc import neighbors
     assert "n_jobs=-1" not in inspect.getsource(neighbors)

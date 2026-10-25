@@ -76,7 +76,7 @@ Measured 2026-10-25 08:13:44 to 2026-10-25 10:04:12; leases seen: leased 10/16 b
 ### Earlier full suite (arsc 0.2.0, 2026-10-15; each tool at its default threading, not paired)
 
 Kept for the Seurat columns and memory. Its k-NN rows timed arsc 0.2's exact search at every size (13 min at
-1M cells); arsc now searches like scanpy (exact up to 4,096 cells, pynndescent above): see the paired table above.
+1M cells); arsc now searches like scanpy (exact up to 4,096 cells, approximate above) with its own k-NN kernel, 2.1x faster than the next library at 1M cells: SCANPY_PARITY.md, "k-NN backend".
 
 <!-- BENCH:START -->
 Synthetic data generated in code (`benchmarks/suite_sim.py`: 20,000 genes, negative-binomial counts, ~1,600 genes detected per cell, 10 cell types, 8 patients x 2 timepoints). Time = wall time of the analysis call only; memory = peak resident memory of the process during that call (GB, includes the loaded data). Shared inputs (HVGs, PCs, pseudobulk) are computed once so every step is compared on identical input. Speed-up = the other tool's time / arsc's time.
@@ -138,7 +138,7 @@ Scaling (seconds; `-` = no equivalent, `n/r` = not run (time budget), `t/o` = ti
 | UCell score (5 sets) | 0.06 / - / 23 | 0.50 / - / 326 | 4.97 / - / n/r |
 | Clone table + dynamics + STARTRAC | 0.07 / - / - | 0.14 / - / - | 1.02 / - / - |
 
-Notes: arsc's k-NN is exact (recall vs brute force on 1,000 random cells: 1.000 at 10,000, 1.000 at 100,000, 1.000 at 1,000,000); scanpy (pynndescent) and Seurat (Annoy) are approximate, so their overlap with arsc is their recall. Exact search is the slowest arsc step at 1M cells; `arsc.knn(method="pynndescent")` exists but is not benchmarked here. Python steps are timed after an untimed warm-up run in the same process (JIT compilation excluded; scanpy's first `neighbors` call in a fresh process spends 25-40 s compiling).
+Notes: arsc's k-NN is exact (recall vs brute force on 1,000 random cells: 1.000 at 10,000, 1.000 at 100,000, 1.000 at 1,000,000); scanpy (pynndescent) and Seurat (Annoy) are approximate, so their overlap with arsc is their recall. (This table predates arsc's approximate kernel; see SCANPY_PARITY.md, "k-NN backend".) Python steps are timed after an untimed warm-up run in the same process (JIT compilation excluded; scanpy's first `neighbors` call in a fresh process spends 25-40 s compiling).
 
 Machine: AMD Ryzen Threadripper PRO 5955WX 16-Cores, 32 threads, 511.9 GB RAM, Windows 11 (10.0.26200). arsc 0.2.0, scanpy 1.11.5, anndata 0.12.19, pydeseq2 0.5.2, numpy 2.4.6; R version 4.3.1 (2023-06-16 ucrt), Seurat 4.3.0, presto 1.0.0, DESeq2 1.42.1, limma 3.58.1, UCell 2.6.2. Default threading for every tool (arsc and scanpy use all cores; most Seurat steps are single-threaded). Measured 2026-10-14 to 2026-10-15; reproduce with `python benchmarks/run_suite.py` (details in `benchmarks/README.md`).
 <!-- BENCH:END -->
@@ -202,7 +202,7 @@ reference outputs are available):
 | `run_harmony(version="2.0")` (default) | `harmony::RunHarmony` 2.0.5 (CRAN) | 1-3 batch variables, distinct theta / lambda: same objective path; per-dim r min 0.9992-0.9998 from R's start ([HARMONY_PARITY.md](HARMONY_PARITY.md)) |
 | `run_harmony(version="2.1")` | `harmony::RunHarmony` 2.1.0 (GitHub tag) | same cases: per-dim r min 0.994-0.999 from R's start |
 | `run_harmony(version="1.2")` | `harmony::RunHarmony` 1.2 | same objective path (801.4 vs 801.7); per-dim r 0.989-0.998 (one variable); 1-3 variables: r min 0.984-0.9997 from R's start |
-| `knn`, `find_neighbors`, `cluster` | scanpy `pp.neighbors` k-NN / Seurat `FindNeighbors` / `FindClusters` | `method="auto"`: exact up to 4,096 cells (scikit-learn brute force, float64 re-scoring), pynndescent with scanpy's settings above; `"exact"` at any size. Recall, overlap with scanpy and cluster ARI: [SCANPY_PARITY.md](SCANPY_PARITY.md); Leiden ARI 0.92 vs Seurat |
+| `knn`, `find_neighbors`, `cluster` | scanpy `pp.neighbors` k-NN / Seurat `FindNeighbors` / `FindClusters` | `method="auto"`: exact up to 4,096 cells, approximate above (arsc's own clustered kernel, float64 re-scoring; faster than FAISS, hnswlib, Voyager, Annoy and pynndescent at equal recall); `"exact"` at any size. Recall, overlap with scanpy and cluster ARI: [SCANPY_PARITY.md](SCANPY_PARITY.md); Leiden ARI 0.92 vs Seurat |
 | `wnn` | Seurat `FindMultiModalNeighbors` | modality weight r 0.97; cluster ARI 0.87 |
 | `symphony.build_reference` / `map_query` / `transfer_labels` | R `symphony` 0.1.1 (`buildReference`, `mapQuery`, `knnPredict`) | deterministic steps <= 1e-12 and identical labels given R's reference; own reference: query r >= 0.99 ([SYMPHONY_PARITY.md](SYMPHONY_PARITY.md)) |
 | scanpy functions (`qc_metrics`, `normalize_total_log1p`, `highly_variable_genes`, `rank_genes_groups`, `score_genes`, `neighbors`, `leiden`, UMAP) | scanpy 1.11.5 | exact to 1e-13; identical Leiden labels and UMAP coordinates below 4,096 cells |
