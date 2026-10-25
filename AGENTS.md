@@ -82,7 +82,7 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 | Reduce | Harmony batch correction (R harmony 2.0 / 2.1 / 1.2 port, version=) | `arsc.run_harmony(pcs, obs, 'batch')` |
 | Reduce | map a query onto a reference (Symphony: build once, map, kNN labels) | `ref = arsc.symphony.build_reference(counts, genes, obs, 'batch'); q = arsc.symphony.map_query(qcounts, qgenes, qobs, ref, 'batch')` |
 | Reduce | transfer reference labels to the query, with confidence | `arsc.symphony.transfer_labels(ref, q, 'cell_type', k=5)` |
-| Graph | kNN + SNN graph (Seurat FindNeighbors, exact kNN) | `arsc.find_neighbors(emb, k=20)['snn']` |
+| Graph | kNN + SNN graph (Seurat FindNeighbors; exact kNN up to 4,096 cells, pynndescent above) | `arsc.find_neighbors(emb, k=20)['snn']` |
 | Graph | multimodal WNN (Seurat FindMultiModalNeighbors) | `arsc.wnn([rna_emb, adt_emb]).wsnn` |
 | Graph | scanpy neighbors / leiden | `arsc.scanpy_extra.neighbors(emb); arsc.scanpy_extra.leiden(conn)` |
 | Cluster | Louvain / Leiden clusters (default Louvain 0.6) | `arsc.cluster(snn, resolution=0.6)` |

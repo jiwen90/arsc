@@ -7,6 +7,19 @@ All notable changes to arsc are recorded here. The format follows
 ## [Unreleased]
 
 ### Changed
+- k-NN (`knn`, `find_neighbors`, `wnn`, `scanpy_extra.neighbors`, `palantir_diffusion_maps`, and through them
+  `cluster`/`umap` graph building): `method="auto"` (new default) searches exactly up to 4,096 points and
+  approximately above, as `scanpy.pp.neighbors`. Approximate search is pynndescent with the settings scanpy uses
+  (UMAP's `nearest_neighbors`: `n_trees = min(64, 5 + sqrt(n)/20)`, `n_iters = max(5, log2 n)`), seeded; it is
+  now a hard dependency (`pynndescent>=0.5`, BSD-2). Exact search is scikit-learn's brute force for k + 8
+  candidates, re-scored in float64 and ordered by (distance, index), with a proven rounding check that re-scores
+  a row against every point when needed; arsc's own partition search is removed. Distances are always the exact
+  float64 values. arsc 0.3.x searched exactly at every size: pass `method="exact"` to reproduce those graphs.
+  `knn(n_clusters=)` is accepted and ignored. Methods: `"auto"`, `"exact"`, `"approximate"` (aliases `"approx"`,
+  `"pynndescent"`). The 1M-cell k-NN step went from 13 min (exact) to scanpy's speed (benchmark table in
+  SCANPY_PARITY.md). `clonotrace` keeps exact search (dbscan::kNN semantics).
+- `snn_graph`: only the shared-neighbour pairs that pass `prune` are sorted (3x faster at 100,000 cells; output
+  identical).
 - `run_harmony` reproduces R harmony 2.0.5 (the current CRAN release, "Harmony2") by default; `version="1.2"`
   gives the previous behaviour (harmony 1.2), `version="2.1"` the GitHub tag v2.1.0 (per-variable penalties
   multiplied). 2.x differs from 1.2 in its k-means start, fixed centroids during clustering (set from the
@@ -20,6 +33,11 @@ All notable changes to arsc are recorded here. The format follows
   change with several variables.
 
 ### Added
+- `benchmarks/paired_bench.py`: arsc vs scanpy timed in the same session (interleaved, alternating order, the same
+  thread count, machine load recorded per run; median and range of repeats; k-NN recall vs brute force, overlap with
+  scanpy and scanpy's own seed-to-seed overlap; cluster ARI). `--gate` fails when arsc is slower; the speed
+  regression test `tests/test_speed_gate.py` (marker `bench`, `ARSC_SPEED_GATE=1`) runs it.
+  `benchmarks/symphony_timing.py`: the same pairing for Symphony against R.
 - Subset stores as views (`arsc.views`): a store whose cells are rows of other (parent) stores keeps only what is new
   (metadata, reductions, graphs, neighbors, `uns`, dense layers, features, and every layer whose values differ) and
   reads each layer row that equals a parent row bit for bit from the parent, through a feature map and the store's own

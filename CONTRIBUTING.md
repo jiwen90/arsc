@@ -50,7 +50,12 @@ Set `ARSC_SCRATCH` to the directory that holds the references (the other data va
    DataFrames and return arrays or tidy DataFrames. Nothing is modified in place.
 7. **Statistics.** For patient-level questions the sample/patient is the unit; functions that
    test conditions should work on per-sample tables (pseudobulk, composition), not cells.
-8. **No private data.** Tests and docs use synthetic data generated in code (`arsc.datasets`) or
+8. **Never slower than scanpy.** An arsc step that has a scanpy equivalent must be at least as fast,
+   measured in the same session: `ARSC_SPEED_GATE=1 python -m pytest -q tests/test_speed_gate.py`
+   (`benchmarks/paired_bench.py --gate`: both tools interleaved, alternating order, the same threads, median of 3
+   runs). Run it before merging a change to a compute kernel and before a release. Prefer a proven, optimized
+   library (for example pynndescent, scikit-learn, BLAS) over re-implementing one.
+9. **No private data.** Tests and docs use synthetic data generated in code (`arsc.datasets`) or
    public data downloaded by a script. Never commit patient data, internal project names or local
    paths.
 
