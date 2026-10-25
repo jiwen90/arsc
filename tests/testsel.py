@@ -21,7 +21,7 @@ How a changed path maps to tests (DIRECT links only; the full suite is not run h
   * anything else            -> printed as "no test reads it"; nothing runs for it.
 The output is always exact paths (tests/test_x.py, tests/test_x.py::test_y[param]), never the tests directory.
 
-The whole suite runs only when the operator asks for it (FULL_ENV=1 python -m pytest -q <tests dir>): the conftest
+The full suite runs on GitHub CI on push; locally only when the maintainer asks (ARSC_FULL=1 python -m pytest -q tests): the conftest
 refuses a directory argument without that variable. Pure standard library; reads source with ast, imports nothing.
 """
 from __future__ import annotations
