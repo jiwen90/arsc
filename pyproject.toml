@@ -60,4 +60,5 @@ arsc = ["R/*.R"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: needs the real datasets / R reference outputs"]
+markers = ["slow: needs the real datasets / R reference outputs",
+           "bench: speed gate vs scanpy (ARSC_SPEED_GATE=1; tests/test_speed_gate.py)"]

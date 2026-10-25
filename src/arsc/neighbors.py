@@ -3,15 +3,15 @@
 =======================  =====================================================
 arsc                     Seurat equivalent
 =======================  =====================================================
-``knn``                  ``NNHelper`` / ``AnnoyNN`` (here: exact, BLAS + numba)
+``knn``                  ``NNHelper`` / ``AnnoyNN`` (here: FAISS, exact or IVF)
 ``snn_graph``            ``ComputeSNN`` (Jaccard of k-NN sets, pruned)
 ``find_neighbors``       ``FindNeighbors`` (nn + snn graphs)
 ``wnn``                  ``FindMultiModalNeighbors`` (Hao et al. 2021)
 =======================  =====================================================
 
-Seurat uses Annoy (approximate, randomized); arsc uses exact search by
-default, so results are deterministic. Exact search is a few seconds for 260k
-cells x 30 dims.
+Seurat uses Annoy (approximate, randomized). arsc searches with FAISS: exact up to
+4,096 cells and seeded IVF (approximate, deterministic on the CPU) above, as scanpy
+switches to pynndescent; method="exact" gives the exact graph at any size.
 """
 from __future__ import annotations
 
@@ -28,443 +28,149 @@ __all__ = ["knn", "snn_graph", "find_neighbors", "wnn", "WNNResult", "l2_normali
 
 
 # --------------------------------------------------------------------------- kNN
-@nb.njit(parallel=True, cache=True)
-def _heap_finish(hd, hi, out_idx, out_d2, row0):
-    """Sort each row's heap by (distance, index), in place (insertion sort of k entries: no allocation inside the
-    parallel loop, which contends on the Windows heap)."""
-    m, k = hd.shape
-    n_chunks = min(m, 256)
-    step = (m + n_chunks - 1) // max(n_chunks, 1)
-    for ch in nb.prange(n_chunks):
-        for r in range(ch * step, min(m, (ch + 1) * step)):
-            for t in range(k):
-                out_d2[row0 + r, t] = hd[r, t]
-                out_idx[row0 + r, t] = hi[r, t]
-            for t in range(1, k):
-                dv = out_d2[row0 + r, t]
-                iv = out_idx[row0 + r, t]
-                u = t - 1
-                while u >= 0 and (out_d2[row0 + r, u] > dv or (out_d2[row0 + r, u] == dv and out_idx[row0 + r, u] > iv)):
-                    out_d2[row0 + r, u + 1] = out_d2[row0 + r, u]
-                    out_idx[row0 + r, u + 1] = out_idx[row0 + r, u]
-                    u -= 1
-                out_d2[row0 + r, u + 1] = dv
-                out_idx[row0 + r, u + 1] = iv
-            for t in range(k):
-                if not out_d2[row0 + r, t] > 0:
-                    out_d2[row0 + r, t] = 0.0
-
-
-@nb.njit(inline="always")
-def _heap_push(hd, hi, r, d, j, k):
-    """Replace the top of row r's max-heap, keyed by (distance, index), with (d, j) and sift down."""
-    pos = 0
-    while True:
-        c = 2 * pos + 1
-        if c >= k:
-            break
-        if c + 1 < k and (hd[r, c + 1] > hd[r, c] or (hd[r, c + 1] == hd[r, c] and hi[r, c + 1] > hi[r, c])):
-            c += 1
-        if hd[r, c] < d or (hd[r, c] == d and hi[r, c] < j):
-            break
-        hd[r, pos] = hd[r, c]
-        hi[r, pos] = hi[r, c]
-        pos = c
-    hd[r, pos] = d
-    hi[r, pos] = j
-
-
-_U32 = 2.0 ** -24  # float32 unit roundoff
-_SLACK = 1e-9      # relative slack on float64 pruning bounds (rounding of reassociated sums; only widens the search)
-
-
-@nb.njit(fastmath=True)
-def _dot_min(qc, X32, a, e, acc, xs):
-    """float32 dot products of one centred query with the centred reference rows a..e (rows padded to a multiple
-    of 8 so the reduction vectorises), and the min over rows of xs[p] - 2 * dot. ``acc`` gets the dots."""
-    d = qc.size
-    mn = np.inf
-    for j in range(e - a):
-        x = X32[a + j]
-        s = np.float32(0.0)
-        for t in range(d):
-            s += qc[t] * x[t]
-        acc[j] = s
-        mn = min(mn, xs[a + j] - 2.0 * s)
-    return mn
-
-
-@nb.njit(fastmath=True)
-def _centre_dists(Qb, centersT, out):
-    """|q - c| for a block of queries vs all centres: sums of squared differences (no cancellation), vectorised
-    over centres; used only for pruning, with slack."""
-    m, d = Qb.shape
-    C = centersT.shape[1]
-    for i in range(m):
-        for c in range(C):
-            out[i, c] = 0.0
-        for t in range(d):
-            q = Qb[i, t]
-            row = centersT[t]
-            for c in range(C):
-                df = q - row[c]
-                out[i, c] += df * df
-        for c in range(C):
-            out[i, c] = np.sqrt(out[i, c])
+# The search runs in FAISS (Meta; MIT licence; a hard dependency, ``faiss-cpu``): IndexFlatL2 (BLAS brute force) for
+# the exact method, IndexIVFFlat for the approximate one, the same indexes on a CUDA GPU with ``faiss-gpu``. arsc only
+# re-scores the candidates FAISS returns in float64 and orders them by (distance, index).
+AUTO_EXACT_MAX = 4096   # method="auto": exact up to this many points (scanpy's switch to approximate), approximate above
+IVF_LISTS = 4.0         # approximate: IVF lists = IVF_LISTS * sqrt(n)
+IVF_PROBE = 0.04        # approximate: lists probed per query = IVF_PROBE * lists (at least 8)
+_EXTRA = 8              # exact: extra candidates per query beyond k for the float64 re-scoring
+_U32 = 2.0 ** -24
 
 
 @nb.njit(parallel=True, cache=True)
-def _knn_blocks(Q, wq0, wq1, wc, Xp, X32, xs, ids, starts, centers, centersT, radius, rpt, hd, hi, maxsz, qb,
-                n_chunks, n_probe, shrink):
-    """Exact k-NN over a clustered reference set (triangle-inequality pruning, vectorised filter).
-
-    Queries are sorted by their nearest centre and cut into work items Q[wq0[w]:wq1[w]] of at most ``qb`` queries
-    that share that centre (wc[w]); ``n_chunks`` contiguous runs of items go to the threads. For each candidate
-    cluster c, in order of its centre's distance to the item's centre (so the first ones fill the heaps): skip it
-    when every query's bound max(0, |q - c| - radius_c) exceeds its k-th distance; else, per query, keep only the
-    ring | |x - c| - |q - c| | <= k-th distance (points are sorted by |x - c|), compute float32 dot products of
-    (q - c) with the ring's (x - c), vectorised over points, and give every point whose float32 squared distance
-    lies within a proven rounding bound of the k-th distance the exact float64 check: the same sum of squared
-    differences, in the same order, as a plain scan, so distances are bit-identical to brute force. A point enters
-    on (distance, index) order, so the result does not depend on the scan order. Buffers are allocated once per
-    chunk, never inside the per-query loops (Windows heap contention). ``n_probe`` < number of clusters scans, for
-    each query, only its ``n_probe`` nearest clusters (approximate search)."""
-    nw = wq0.size
+def _exact_d2(Q, X, cand, out):
+    """out[i, j] = squared distance of Q[i] to X[cand[i, j]] in float64 (plain left-to-right sum; inf for -1)."""
+    m, kk = cand.shape
     d = Q.shape[1]
-    C = centers.shape[0]
-    k = hd.shape[1]
-    eps = 4.0 * (d + 8) * _U32
-    step = (nw + n_chunks - 1) // n_chunks
-    for ch in nb.prange(n_chunks):
-        dc = np.empty((qb, C))
-        acc = np.empty(maxsz, dtype=np.float32)
-        qc = np.zeros(X32.shape[1], dtype=np.float32)
-        cc = np.empty(C)
-        corder = np.arange(C)
-        pth = np.full(qb, np.inf)
-        rowbuf = np.empty(C)
-        prev = -1
-        for w_ in range(ch * step, min(nw, (ch + 1) * step)):
-            s0 = wq0[w_]
-            s1 = wq1[w_]
-            m = s1 - s0
-            ca = wc[w_]
-            if ca != prev:
-                for c in range(C):
-                    s = 0.0
-                    for t in range(d):
-                        df = centers[ca, t] - centers[c, t]
-                        s += df * df
-                    cc[c] = s
-                corder = np.argsort(cc)
-                prev = ca
-            _centre_dists(Q[s0:s1], centersT, dc)
-            if n_probe < C:
-                for i in range(m):
-                    for c in range(C):
-                        rowbuf[c] = dc[i, c]
-                    pth[i] = np.partition(rowbuf, n_probe - 1)[n_probe - 1]
-            for oi in range(C):
-                c = corder[oi]
-                ac = starts[c]
-                ec = starts[c + 1]
-                if ec <= ac:
-                    continue
-                rc = radius[c]
-                need = False
-                for i in range(m):
-                    if dc[i, c] > pth[i]:
-                        continue
-                    lb = dc[i, c] * (1.0 - _SLACK) - rc * (1.0 + _SLACK)
-                    if not (lb > 0 and lb * lb > shrink * hd[s0 + i, 0]):
-                        need = True
-                        break
-                if not need:
-                    continue
-                for i in range(m):
-                    r = s0 + i
-                    top = hd[r, 0]
-                    dcc = dc[i, c]
-                    if dcc > pth[i]:
-                        continue
-                    lb = dcc * (1.0 - _SLACK) - rc * (1.0 + _SLACK)
-                    if lb > 0 and lb * lb > shrink * top:
-                        continue
-                    a = ac
-                    e = ec
-                    if top < np.inf:
-                        wd = np.sqrt(shrink * top) * (1.0 + _SLACK) + _SLACK * (dcc + rc)
-                        lo_v = dcc - wd
-                        hi_v = dcc + wd
-                        hb = e
-                        while a < hb:
-                            mid = (a + hb) >> 1
-                            if rpt[mid] < lo_v:
-                                a = mid + 1
-                            else:
-                                hb = mid
-                        lo = a
-                        hb = e
-                        while lo < hb:
-                            mid = (lo + hb) >> 1
-                            if rpt[mid] <= hi_v:
-                                lo = mid + 1
-                            else:
-                                hb = mid
-                        e = lo
-                    if e <= a:
-                        continue
-                    qq = 0.0
-                    for t in range(d):
-                        v = Q[r, t] - centers[c, t]
-                        qc[t] = v
-                        qq += v * v
-                    thr = top - (1.0 - eps) * qq
-                    if _dot_min(qc, X32, a, e, acc, xs) > thr:
-                        continue
-                    for j in range(e - a):
-                        if xs[a + j] - 2.0 * acc[j] > thr:
-                            continue
-                        p = a + j
-                        s = 0.0
-                        for t in range(d):
-                            df = Q[r, t] - Xp[p, t]
-                            s += df * df
-                        if s < top or (s == top and ids[p] < hi[r, 0]):
-                            _heap_push(hd, hi, r, s, ids[p], k)
-                            top = hd[r, 0]
-                            thr = top - (1.0 - eps) * qq
-
-
-# --------------------------------------------------------------------------- NN-descent (approximate)
-@nb.njit(fastmath=True, inline="always")
-def _dfast(Xf, i, j):
-    """Squared distance with a reassociated (vectorised) sum over rows padded to a multiple of 8."""
-    s = 0.0
-    for t in range(Xf.shape[1]):
-        df = Xf[i, t] - Xf[j, t]
-        s += df * df
-    return s
-
-
-@nb.njit(inline="always")
-def _d64(X, i, j):
-    s = 0.0
-    for t in range(X.shape[1]):
-        df = X[i, t] - X[j, t]
-        s += df * df
-    return s
-
-
-@nb.njit(inline="always")
-def _try(X, Xf, i, l, hd, hi):
-    """Offer point l to row i's heap (fast filter with a rounding margin, then the exact float64 sum in the
-    plain order, so reported distances equal the exact method's; no duplicates). Returns 1 when it entered."""
-    top = hd[i, 0]
-    if _dfast(Xf, i, l) * (1.0 - 1e-12) > top:
-        return 0
-    s = _d64(X, i, l)
-    if not (s < top or (s == top and l < hi[i, 0])):
-        return 0
-    k = hd.shape[1]
-    for t in range(k):
-        if hi[i, t] == l:
-            return 0
-    _heap_push(hd, hi, i, s, l, k)
-    return 1
-
-
-@nb.njit(parallel=True, cache=True)
-def _nnd_round(X, Xf, oi, onew, rptr, ridx, rnew, hd, hi, stamp):
-    """One pull-style NN-descent round. Row i reads only the previous graph (oi, its 'new' flags onew, and the
-    reverse lists rptr/ridx with flags rnew) and writes only its own heap (hd, hi; started as a copy of row i),
-    so the result does not depend on the thread count. Candidates: neighbours of neighbours, neighbours of
-    reverse neighbours and reverse neighbours of neighbours, each pair skipped when neither hop is new; each
-    candidate is evaluated once per row (``stamp``: one row of marks per thread)."""
-    n, k = oi.shape
-    upd = np.zeros(n, dtype=np.int64)
-    for i in nb.prange(n):
-        st = stamp[nb.get_thread_id()]
-        mark = i + 1
-        st[i] = mark
-        for a in range(k):
-            j = oi[i, a]
-            if j >= 0:
-                st[j] = mark
-        u = 0
-        for a in range(k):
-            j = oi[i, a]
-            if j < 0 or j == i:
+    for i in nb.prange(m):
+        for j in range(kk):
+            c = cand[i, j]
+            if c < 0:
+                out[i, j] = np.inf
                 continue
-            na = onew[i, a]
-            for b in range(k):
-                l = oi[j, b]
-                if l < 0 or st[l] == mark or not (na or onew[j, b]):
-                    continue
-                st[l] = mark
-                u += _try(X, Xf, i, l, hd, hi)
-            for q in range(rptr[j], rptr[j + 1]):
-                l = ridx[q]
-                if st[l] == mark or not (na or rnew[q]):
-                    continue
-                st[l] = mark
-                u += _try(X, Xf, i, l, hd, hi)
-        for q in range(rptr[i], rptr[i + 1]):
-            j = ridx[q]
-            nq = rnew[q]
-            for b in range(k):
-                l = oi[j, b]
-                if l < 0 or st[l] == mark or not (nq or onew[j, b]):
-                    continue
-                st[l] = mark
-                u += _try(X, Xf, i, l, hd, hi)
-        upd[i] = u
-    return upd.sum()
+            s = 0.0
+            for t in range(d):
+                df = Q[i, t] - X[c, t]
+                s += df * df
+            out[i, j] = s
 
 
-@nb.njit(cache=True)
-def _reverse(oi, onew):
-    """Reverse lists of a k-NN graph (CSR, sources in increasing order) with the 'new' flag of each edge."""
-    n, k = oi.shape
-    cnt = np.zeros(n + 1, dtype=np.int64)
-    for i in range(n):
-        for a in range(k):
-            j = oi[i, a]
-            if j >= 0 and j != i:
-                cnt[j + 1] += 1
-    for i in range(n):
-        cnt[i + 1] += cnt[i]
-    pos = cnt[:-1].copy()
-    ridx = np.empty(cnt[n], dtype=np.int64)
-    rnew = np.empty(cnt[n], dtype=np.bool_)
-    for i in range(n):
-        for a in range(k):
-            j = oi[i, a]
-            if j >= 0 and j != i:
-                ridx[pos[j]] = i
-                rnew[pos[j]] = onew[i, a]
-                pos[j] += 1
-    return cnt, ridx, rnew
+def _rescore(Q, X, cand, k):
+    """Exact float64 distances of the candidates, ordered by (distance, index); the k best per row."""
+    d2 = np.empty(cand.shape)
+    _exact_d2(Q, X, cand, d2)
+    big = np.iinfo(np.int64).max
+    order = np.lexsort((np.where(cand < 0, big, cand), d2), axis=-1)[:, :k]
+    return np.take_along_axis(cand, order, 1), np.take_along_axis(d2, order, 1)
 
 
-@nb.njit(parallel=True, cache=True)
-def _new_flags(oi, hi, nf):
-    """nf[i, a] = entry hi[i, a] was not in the previous row oi[i]."""
-    n, k = hi.shape
-    for i in nb.prange(n):
-        for a in range(k):
-            v = hi[i, a]
-            f = True
-            for b in range(k):
-                if oi[i, b] == v:
-                    f = False
-                    break
-            nf[i, a] = f
+def _faiss(device: str):
+    """faiss with arsc's thread count; returns (faiss, GPU resources or None)."""
+    import faiss
+    from ._threads import get_threads
+    faiss.omp_set_num_threads(get_threads())  # never all cores
+    if device not in ("auto", "cpu", "gpu"):
+        raise ValueError(f"unknown device {device!r}; use 'auto', 'cpu' or 'gpu'")
+    ngpu = faiss.get_num_gpus() if hasattr(faiss, "get_num_gpus") else 0
+    if device == "gpu" and ngpu == 0:
+        raise RuntimeError("device='gpu' needs a CUDA GPU and a GPU build of faiss (pip install 'arsc[gpu]' on Linux); "
+                           "use device='cpu' or 'auto'")
+    if device == "cpu" or ngpu == 0:
+        return faiss, None
+    return faiss, faiss.StandardGpuResources()
 
 
-def _nn_descent(Xp, hd, hi, max_iter, delta):
-    """Refine a start graph (heaps hd/hi, indices into Xp) by NN-descent until fewer than delta * n * k entries
-    change in a round, or max_iter rounds."""
-    n, k = hi.shape
-    d = Xp.shape[1]
-    Xf = np.zeros((n, -(-d // 8) * 8))
-    Xf[:, :d] = Xp
-    onew = np.ones((n, k), dtype=np.bool_)
-    stamp = np.zeros((nb.config.NUMBA_NUM_THREADS, n), dtype=np.int64)
-    rounds = 0
-    for _ in range(max_iter):
-        oi = hi.copy()
-        rptr, ridx, rnew = _reverse(oi, onew)
-        upd = _nnd_round(Xp, Xf, oi, onew, rptr, ridx, rnew, hd, hi, stamp)
-        rounds += 1
-        _new_flags(oi, hi, onew)
-        if upd < delta * n * k:
-            break
-    return rounds
+def _to_device(faiss, res, index):
+    return index if res is None else faiss.index_cpu_to_gpu(res, 0, index)
 
 
-_QB = 128  # queries per work item
-AUTO_EXACT_MAX = 50_000  # method="auto": exact search up to this many points, NN-descent above
-APPROX_EPS = 0.0
-NND_PROBE = 4            # NN-descent start graph: exact search within each point's nearest clusters
-NND_MAX_ITER = 12
-NND_DELTA = 0.001        # stop when fewer than delta * n * k graph entries change in a round (pynndescent's default)
+def _centred32(X, Q):
+    mu = X.mean(0)
+    X32 = np.ascontiguousarray(X - mu, dtype=np.float32)
+    Q32 = X32 if Q is X else np.ascontiguousarray(Q - mu, dtype=np.float32)
+    return X32, Q32
 
 
-def _work_items(qstarts, qb):
-    """Cut each centre's query range into items of at most qb queries: (start, end, centre) arrays."""
-    sz = np.diff(qstarts)
-    nper = (sz + qb - 1) // qb
-    wc = np.repeat(np.arange(sz.size, dtype=np.int64), nper)
-    first = np.repeat(np.cumsum(nper) - nper, nper)
-    j = np.arange(wc.size) - first
-    wq0 = qstarts[wc] + j * qb
-    wq1 = np.minimum(wq0 + qb, qstarts[wc + 1])
-    return wq0.astype(np.int64), wq1.astype(np.int64), wc
+def _knn_exact(X, Q, k, faiss, res):
+    n, d = X.shape
+    X32, Q32 = _centred32(X, Q)
+    k2 = min(n, k + _EXTRA)
+    index = _to_device(faiss, res, faiss.IndexFlatL2(d))
+    index.add(X32)
+    D32, cand = index.search(Q32, k2)
+    idx, d2 = _rescore(Q, X, cand.astype(np.int64), k)
+    if k2 < n:
+        # A point outside the k2 candidates can be closer than the k-th only if float32 rounding of FAISS's
+        # |q|^2 + |x|^2 - 2 q.x moved it past the k2-th candidate: bound that error and search those rows in full.
+        qn = (Q32.astype(np.float64) ** 2).sum(1)
+        xmax = float((X32.astype(np.float64) ** 2).sum(1).max())
+        err = 8.0 * (d + 8) * _U32 * (qn + xmax) + 4.0 * _U32 * np.abs(D32[:, -1])
+        bad = np.flatnonzero(D32[:, -1].astype(np.float64) - err <= d2[:, -1])
+        if bad.size:
+            allc = np.arange(n, dtype=np.int64)
+            for a in range(0, bad.size, 256):
+                rows = bad[a:a + 256]
+                full = np.ascontiguousarray(np.broadcast_to(allc, (rows.size, n)))
+                idx[rows], d2[rows] = _rescore(np.ascontiguousarray(Q[rows]), X, full, k)
+    return idx, d2
 
 
-def _assign(X, centers, chunk=65536):
-    """Nearest centre of every row (float32 BLAS; only the partition geometry depends on it, never the answer)."""
-    C32 = np.ascontiguousarray(centers, dtype=np.float32)
-    cn = (C32.astype(np.float64) ** 2).sum(1).astype(np.float32)
-    out = np.empty(X.shape[0], dtype=np.int64)
-    for a in range(0, X.shape[0], chunk):
-        b = min(X.shape[0], a + chunk)
-        D = X[a:b].astype(np.float32) @ C32.T
-        D *= -2.0
-        D += cn
-        out[a:b] = np.argmin(D, axis=1)
-    return out
-
-
-def _partition(X, n_clusters, seed, iters=3, chunk=65536):
-    """Cheap k-means partition: Lloyd iterations on a sample of at most 64 points per centre, then one assignment
-    of every point (float32 BLAS); returns permuted data and the cluster geometry (float64)."""
-    n = X.shape[0]
+def _knn_ivf(X, Q, k, faiss, res, seed, n_lists, n_probe):
+    n, d = X.shape
+    X32, Q32 = _centred32(X, Q)
+    nl = int(n_lists) if n_lists is not None else max(1, int(IVF_LISTS * np.sqrt(n)))
+    nl = max(1, min(nl, n // 39))  # faiss wants >= 39 training points per list
+    npr = int(n_probe) if n_probe is not None else max(8, int(round(IVF_PROBE * nl)))
+    npr = max(1, min(npr, nl))
+    index = faiss.IndexIVFFlat(faiss.IndexFlatL2(d), d, nl)
+    index.cp.seed = int(seed)
     rng = np.random.default_rng(seed)
-    C = int(min(n_clusters, n))
-    centers = X[rng.choice(n, C, replace=False)].copy()
-    S = X if n <= 64 * C else X[np.sort(rng.choice(n, 64 * C, replace=False))]
-    for it in range(iters):
-        sa = _assign(S, centers, chunk)
-        counts = np.bincount(sa, minlength=C)
-        sums = np.zeros_like(centers)
-        np.add.at(sums, sa, S)
-        nz = counts > 0
-        centers[nz] = sums[nz] / counts[nz, None]
-    assign = _assign(X, centers, chunk)
-    counts = np.bincount(assign, minlength=C)
-    starts = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
-    rpt_all = np.sqrt(((X - centers[assign]) ** 2).sum(1))
-    order = np.lexsort((np.arange(n), rpt_all, assign))  # by cluster, then distance to its centre (ring search)
-    Xp = np.ascontiguousarray(X[order])
-    rpt = rpt_all[order]
-    radius = np.zeros(C)
-    np.maximum.at(radius, assign[order], rpt)
-    return Xp, order.astype(np.int64), starts, centers, radius, rpt
+    ntrain = min(n, 64 * nl)
+    train = X32 if ntrain == n else X32[np.sort(rng.choice(n, ntrain, replace=False))]
+    index.train(train)  # on the CPU, so the partition does not depend on the device
+    index.add(X32)
+    index.nprobe = npr
+    index = _to_device(faiss, res, index)
+    _, cand = index.search(Q32, k)
+    return _rescore(Q, X, cand.astype(np.int64), k)
 
 
 @records_seed("seed")
-def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None = None, seed: int = 0):
-    """k nearest neighbours (Euclidean), exact by default.
+def knn(X, k: int, query=None, *, method: str = "auto", device: str = "auto", n_lists: int | None = None,
+        n_probe: int | None = None, seed: int = 0, n_clusters: int | None = None):
+    """k nearest neighbours (Euclidean) with FAISS: exact up to 4,096 points, approximate above (``"auto"``).
 
-    ``method="exact"`` (default): exact search in float64 with cluster-based
-    triangle-inequality pruning (numba, parallel over queries). Deterministic;
-    ties are ordered by index and the query point itself comes first when
-    ``query`` is None. ``method="pynndescent"``: approximate (for very large data).
+    ``method="exact"``: FAISS brute force (``IndexFlatL2``, BLAS) for ``k + 8`` candidates, re-scored in float64
+    and ordered by (distance, index); a row whose float32 candidate list could have missed a closer point (by a
+    proven rounding bound) is searched again in full. The answer is the exact float64 k-NN. Deterministic; the
+    query point itself comes first when ``query`` is None.
 
-    ``seed`` (default 0): for ``"exact"`` it only seeds the k-means partition used for
-    pruning, which never changes the (exact) answer; for ``"pynndescent"`` it is the
-    ``random_state`` of the random-projection forest and NN-descent.
+    ``method="approximate"`` (alias ``"approx"``): FAISS ``IndexIVFFlat``: k-means into ``n_lists`` lists (default
+    ``4 * sqrt(n)``, trained on a seeded sample), each query scans its ``n_probe`` nearest lists (default 4% of
+    the lists, at least 8). Distances of the neighbours found are exact (float64). Seeded; deterministic on the
+    CPU. Recall against exact neighbours and downstream clusters vs scanpy's pynndescent: ``SCANPY_PARITY.md``.
+
+    ``method="auto"`` (default): exact when n <= 4,096 or ``query`` is given, approximate above, as
+    ``scanpy.pp.neighbors`` (exact below 4,096 cells, pynndescent above). arsc 0.3.x used exact search at every
+    size: pass ``method="exact"`` to reproduce those graphs.
+
+    ``method="pynndescent"``: pynndescent's NN-descent (scanpy's large-n route; needs the ``graph`` extra).
+
+    ``device``: ``"auto"`` (default) runs on a CUDA GPU when the installed faiss has GPU support (``arsc[gpu]``,
+    Linux) and a GPU is present, else on the CPU; ``"cpu"`` forces the CPU; ``"gpu"`` requires the GPU.
 
     Parameters
     ----------
     X : (n x d) dense embedding (e.g. PCs).
     k : neighbours per query (self included when ``query`` is None); capped at n.
     query : optional (m x d) query points; default ``X`` itself.
-    method : ``"exact"`` or ``"pynndescent"``.
-    n_clusters : partitions used for pruning (default ``2 * sqrt(n)``).
-    seed : integer seed.
+    method : ``"auto"``, ``"exact"``, ``"approximate"`` (``"approx"``) or ``"pynndescent"``.
+    device : ``"auto"``, ``"cpu"`` or ``"gpu"``.
+    n_lists, n_probe : IVF lists, and lists scanned per query (approximate method; defaults above).
+    seed : integer seed of the IVF training sample and k-means (approximate) or pynndescent's ``random_state``;
+        the exact method does not use it.
+    n_clusters : older name of ``n_lists`` (kept for compatibility).
 
     Returns
     -------
@@ -497,69 +203,35 @@ def knn(X, k: int, query=None, *, method: str = "exact", n_clusters: int | None 
         else:
             idx, dist = index.query(Q, k=k)
         return idx.astype(np.int64), dist.astype(np.float64)
+    if method == "approx":
+        method = "approximate"
     if method == "auto":
-        method = "exact" if (query is not None or n <= AUTO_EXACT_MAX) else "nndescent"
-    if method not in ("exact", "nndescent"):
-        raise ValueError(f"unknown method {method!r}; use 'auto', 'exact', 'nndescent' or 'pynndescent'")
-    if method == "nndescent" and query is not None:
-        method = "exact"   # NN-descent builds a graph on X itself; queries against X use the exact search
-    if n_clusters is None:
-        n_clusters = max(1, int(2 * np.sqrt(n)))
-    Xp, ids, starts, centers, radius, rpt = _partition(X, n_clusters, seed)
-    # Process queries in partition order: consecutive queries share candidate
-    # clusters, so their data stays cache-resident.
-    C = centers.shape[0]
-    if query is None:
-        qorder = ids
-        Qs = Xp
-        qstarts = starts
+        method = "exact" if (query is not None or n <= AUTO_EXACT_MAX) else "approximate"
+    if method not in ("exact", "approximate"):
+        raise ValueError(f"unknown method {method!r}; use 'auto', 'exact', 'approximate' or 'pynndescent'")
+    faiss, res = _faiss(device)
+    if method == "exact":
+        idx, d2 = _knn_exact(X, Q, k, faiss, res)
     else:
-        cn = (centers * centers).sum(1)
-        qa = np.argmin(cn[None, :] - 2.0 * (Q @ centers.T), axis=1)
-        qorder = np.argsort(qa, kind="stable").astype(np.int64)
-        Qs = np.ascontiguousarray(Q[qorder])
-        qstarts = np.concatenate([[0], np.cumsum(np.bincount(qa, minlength=C))]).astype(np.int64)
-    wq0, wq1, wc = _work_items(qstarts, _QB)
-    own = np.repeat(np.arange(C), np.diff(starts))
-    R = Xp - centers[own]
-    dpad = -(-X.shape[1] // 8) * 8
-    X32 = np.zeros((R.shape[0], dpad), dtype=np.float32)
-    X32[:, :X.shape[1]] = R
-    xs = (1.0 - 4.0 * (X.shape[1] + 8) * _U32) * (R * R).sum(1)
-    del R
-    maxsz = int(max(1, np.diff(starts).max()))
-    m = Q.shape[0]
-    hd = np.full((m, k), np.inf)
-    hi = np.full((m, k), -1, dtype=np.int64)
-    n_probe = C if method == "exact" else min(C, NND_PROBE)
-    shrink = 1.0 if method == "exact" else 1.0 / (1.0 + APPROX_EPS) ** 2
-    _knn_blocks(Qs, wq0, wq1, wc, Xp, X32, xs, ids, starts, centers, np.ascontiguousarray(centers.T), radius, rpt,
-                hd, hi, maxsz, _QB, max(1, 8 * nb.get_num_threads()), n_probe, shrink)
-    del X32, xs
-    if method == "nndescent":
-        inv = np.empty(n, dtype=np.int64)
-        inv[ids] = np.arange(n)
-        hp = np.where(hi >= 0, inv[np.maximum(hi, 0)], -1)
-        _nn_descent(Xp, hd, hp, NND_MAX_ITER, NND_DELTA)
-        hi = np.where(hp >= 0, ids[np.maximum(hp, 0)], -1)
-    idx_s = np.empty((m, k), dtype=np.int64)
-    d2_s = np.empty((m, k))
-    _heap_finish(hd, hi, idx_s, d2_s, 0)
-    idx = np.empty_like(idx_s)
-    d2 = np.empty_like(d2_s)
-    idx[qorder] = idx_s
-    d2[qorder] = d2_s
+        idx, d2 = _knn_ivf(X, Q, k, faiss, res, seed, n_lists if n_lists is not None else n_clusters, n_probe)
     if query is None:
-        # put self first if it tied with a duplicate point at distance 0
-        rows = np.arange(m)
+        # the point itself first: when it tied with a duplicate at distance 0, or the approximate search missed it
+        rows = np.arange(n)
         is_self = idx == rows[:, None]
+        has = is_self.any(1)
         self_pos = np.argmax(is_self, axis=1)
-        fix = is_self.any(1) & (self_pos > 0) & (d2[rows, self_pos] <= d2[:, 0])
-        for r in np.flatnonzero(fix):
+        for r in np.flatnonzero(has & (self_pos > 0) & (d2[rows, self_pos] <= d2[:, 0])):
             p = self_pos[r]
-            idx[r, 1 : p + 1] = idx[r, 0:p].copy()
+            idx[r, 1:p + 1] = idx[r, 0:p].copy()
+            d2[r, 1:p + 1] = d2[r, 0:p].copy()
             idx[r, 0] = r
-    return idx, np.sqrt(d2)
+            d2[r, 0] = 0.0
+        for r in np.flatnonzero(~has):
+            idx[r, 1:] = idx[r, :-1].copy()
+            d2[r, 1:] = d2[r, :-1].copy()
+            idx[r, 0] = r
+            d2[r, 0] = 0.0
+    return idx, np.sqrt(np.maximum(d2, 0.0))
 
 
 def l2_normalize(X: np.ndarray) -> np.ndarray:
@@ -596,6 +268,7 @@ def _snn_count(idx, rev_ptr, rev_idx, n, prune, k, out_ptr, out_idx, out_val, fi
     for t in nb.prange(nt):
         cnt = np.zeros(n, dtype=np.int32)
         touched = np.empty(n, dtype=np.int64)
+        surv = np.empty(n, dtype=np.int64)
         for i in range(t * chunk, min(n, (t + 1) * chunk)):
             nt_ = 0
             for a in range(idx.shape[1]):
@@ -606,19 +279,25 @@ def _snn_count(idx, rev_ptr, rev_idx, n, prune, k, out_ptr, out_idx, out_val, fi
                         touched[nt_] = j
                         nt_ += 1
                     cnt[j] += 1
-            touched[:nt_].sort()  # in place: no allocation inside the parallel loop (Windows heap contention)
+            # keep the pairs that pass the cutoff; only those are sorted (by column), and only when filling
             w = 0
-            base = out_ptr[i]
             for q in range(nt_):
                 j = touched[q]
                 s = cnt[j]
                 v = s / (k + (k - s))
                 if v >= prune and v > 0:
-                    if fill:
-                        out_idx[base + w] = j
-                        out_val[base + w] = v
+                    surv[w] = j
                     w += 1
-                cnt[j] = 0
+            if fill:
+                surv[:w].sort()  # in place: no allocation inside the parallel loop (Windows heap contention)
+                base = out_ptr[i]
+                for q in range(w):
+                    j = surv[q]
+                    s = cnt[j]
+                    out_idx[base + q] = j
+                    out_val[base + q] = s / (k + (k - s))
+            for q in range(nt_):
+                cnt[touched[q]] = 0
             if not fill:
                 out_ptr[i + 1] = w
 
@@ -672,12 +351,13 @@ def _nn_matrix(idx: np.ndarray, n: int) -> sp.csr_matrix:
 
 @records_seed("seed")
 def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm: bool = False,
-                   method: str = "exact", seed: int = 0) -> dict:
+                   method: str = "auto", seed: int = 0) -> dict:
     """Seurat ``FindNeighbors``: k-NN (self included) and SNN graphs from an embedding.
 
-    ``seed`` is passed to :func:`knn` (matters only for ``method="pynndescent"``). The k-NN is
-    exact; Seurat's Annoy is approximate, so SNN graphs differ slightly from Seurat's
-    (see the README validation table).
+    ``method`` and ``seed`` are passed to :func:`knn`: by default (``"auto"``) the k-NN is exact up to
+    50,000 cells and arsc's approximate search above (``method="exact"`` forces exact search at any size).
+    Seurat's Annoy is approximate, so SNN graphs differ slightly from Seurat's (see the README validation
+    table).
 
     Parameters
     ----------
@@ -685,7 +365,7 @@ def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm:
     k : neighbours including self (Seurat ``k.param``).
     prune : SNN Jaccard cutoff (Seurat ``prune.SNN``).
     l2_norm : L2-normalize rows first (Seurat ``l2.norm``).
-    method : ``"exact"`` or ``"pynndescent"``.
+    method : ``"auto"`` (default), ``"exact"``, ``"approx"`` or ``"pynndescent"`` (see :func:`knn`).
     seed : integer seed.
 
     Returns
@@ -862,7 +542,7 @@ class WNNResult:
 @records_seed("seed")
 def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float = 1 / 15,
         sd_scale: float = 1.0, cross_constant=1e-4, l2_norm: bool = True, smooth: bool = False,
-        knn_method: str = "exact", seed: int = 0) -> WNNResult:
+        knn_method: str = "auto", seed: int = 0) -> WNNResult:
     """Weighted nearest neighbours (Seurat ``FindMultiModalNeighbors`` / ``FindModalityWeights``).
 
     Parameters
@@ -871,7 +551,7 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
         harmony_adt[:, :15]]``).
     k_nn, knn_range, prune_snn, sd_scale, cross_constant, l2_norm, smooth : as in Seurat
         (``cross.contant.list`` -> ``cross_constant``, scalar or per modality).
-    knn_method, seed : passed to :func:`knn` (``seed`` matters only for ``"pynndescent"``).
+    knn_method, seed : passed to :func:`knn` (``"auto"``: exact up to 50,000 cells, approximate above).
 
     Returns
     -------

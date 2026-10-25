@@ -95,7 +95,7 @@ def encode_clones(clones, levels: Sequence[str] | None = None) -> tuple[np.ndarr
 def _knn_excl_self(X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
     """k nearest neighbours excluding the point itself (like ``dbscan::kNN``); exact Euclidean."""
     from .neighbors import knn
-    idx, _ = knn(X, k + 1)
+    idx, _ = knn(X, k + 1, method="exact")
     n = X.shape[0]
     rows = np.arange(n)[:, None]
     out = np.empty((n, k), dtype=np.int64)

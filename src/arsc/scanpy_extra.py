@@ -700,12 +700,13 @@ def qc_metrics(counts, features=None, qc_vars: dict | None = None, percent_top=(
 
 # --------------------------------------------------------------------------- neighbors / leiden / umap
 @records_seed("random_state")
-def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: str = "exact",
+def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: str = "auto",
               random_state: int = 0) -> dict:
     """``sc.pp.neighbors`` (``method="umap"``): kNN + UMAP fuzzy-simplicial-set connectivities.
 
-    Uses arsc's *exact* kNN (scanpy uses exact kNN below 4,096 cells and approximate pynndescent above, so
-    graphs agree exactly only for small data; ``method="pynndescent"`` reproduces the large-n route). As
+    Uses arsc's kNN (``method="auto"``: exact up to 50,000 cells, arsc's approximate search above; scanpy uses
+    exact kNN below 4,096 cells and approximate pynndescent above, so graphs agree exactly only for small data;
+    ``method="pynndescent"`` reproduces scanpy's large-n route, ``"exact"`` forces exact search). As
     scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbours).
 
     Parameters
@@ -713,8 +714,8 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
     emb : cells x d embedding (e.g. PCA or Harmony).
     n_neighbors : neighbourhood size including the cell itself (default 15).
     metric : ``"euclidean"`` or ``"cosine"``.
-    method : ``"exact"`` (default) or ``"pynndescent"``.
-    random_state : integer seed (default 0) passed to the kNN; matters only for ``"pynndescent"``.
+    method : ``"auto"`` (default), ``"exact"``, ``"approx"`` or ``"pynndescent"`` (see :func:`arsc.knn`).
+    random_state : integer seed (default 0) passed to the kNN (partition seed; pynndescent's random_state).
 
     Returns
     -------
@@ -979,7 +980,7 @@ def dpt(dm: dict, root: int, n_dcs: int = 10, *, thresh: float = 0.9994) -> np.n
 # --------------------------------------------------------------------------- palantir pieces (deterministic parts)
 @records_seed("seed")
 def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: float = 0.0, seed: int = 0,
-                            method: str = "exact") -> dict:
+                            method: str = "auto") -> dict:
     """``palantir.utils.run_diffusion_maps`` (adaptive anisotropic kernel, Setty 2019).
 
     kNN (self excluded, ``knn - 1`` neighbours as scanpy's distance matrix), adaptive bandwidth = distance to
@@ -994,7 +995,7 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
     knn : neighbourhood size (default 30).
     alpha : anisotropy (default 0).
     seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN (pynndescent).
-    method : kNN method, ``"exact"`` (default) or ``"pynndescent"``.
+    method : kNN method, ``"auto"`` (default: exact up to 50,000 cells), ``"exact"``, ``"approx"`` or ``"pynndescent"``.
 
     Returns
     -------

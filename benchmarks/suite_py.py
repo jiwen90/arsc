@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import traceback
@@ -25,6 +26,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 warnings.filterwarnings("ignore")
 
 N_HVG, N_PC, K_NN, RES = 2000, 30, 20, 0.8
+# Threads: ARSC_BENCH_THREADS (set by paired_bench.py) gives both tools the same count: the parent puts it in
+# AR_THREADS / NUMBA_NUM_THREADS / OMP / BLAS variables; here it also sets scanpy's n_jobs and pydeseq2's n_cpus.
+BENCH_THREADS = int(os.environ.get("ARSC_BENCH_THREADS", "8"))
+SCANPY_NN_SEED = int(os.environ.get("ARSC_BENCH_SCANPY_SEED", "0"))  # pynndescent random_state (run-to-run variation)
 N_KEEP = 500  # cells whose normalised values are saved for the agreement check
 
 
@@ -80,7 +85,7 @@ def run_arsc(step, data, out, T):
         E = np.load(common / "pca.npy").astype(np.float64)
         with T:
             nn = arsc.find_neighbors(E, k=K_NN)
-            lab = arsc.cluster(nn["snn"], method="leiden", resolution=RES, engine="leidenalg")  # as measured for 0.2.0
+            lab = arsc.cluster(nn["snn"], method="leiden", resolution=RES)  # arsc's own engine (default since 0.3.0)
         np.save(out / "cluster.npy", np.asarray(lab, np.int32))
     elif step == "markers":
         L = arsc.pp.log_normalize(st.X("RNA", "counts"))
@@ -105,7 +110,7 @@ def run_arsc(step, data, out, T):
         cnt, cd = _pb_common(common)
         with T:
             r = arsc.de.deseq2(cnt, cd, "~ patient + timepoint", ("timepoint", "post", "pre"), min_count=0,
-                               min_samples=0, n_cpus=8)
+                               min_samples=0, n_cpus=BENCH_THREADS)
         r[["gene", "log2FoldChange", "pvalue", "padj"]].to_csv(out / "de_deseq2.csv", index=False)
     elif step == "de_voom":
         cnt, cd = _pb_common(common)
@@ -143,6 +148,7 @@ def run_arsc(step, data, out, T):
 def run_scanpy(step, data, out, T):
     import anndata as ad
     import scanpy as sc
+    sc.settings.n_jobs = BENCH_THREADS
     common = data / "common"
     truth = json.loads((data / "truth.json").read_text())
     if step in ("de_deseq2",):
@@ -154,7 +160,7 @@ def run_scanpy(step, data, out, T):
         for c in ("patient", "timepoint"):
             cd[c] = cd[c].astype("category")
         with T:
-            inf = DefaultInference(n_cpus=8)
+            inf = DefaultInference(n_cpus=BENCH_THREADS)
             dds = DeseqDataSet(counts=cnt.T.round().astype(int), metadata=cd, design="~ patient + timepoint",
                                refit_cooks=True, inference=inf, quiet=True)
             dds.deseq2()
@@ -171,7 +177,7 @@ def run_scanpy(step, data, out, T):
         a = ad.AnnData(obs=pd.DataFrame(index=[str(i) for i in range(E.shape[0])]))
         a.obsm["X_pca"] = E
         with T:
-            sc.pp.neighbors(a, n_neighbors=K_NN, use_rep="X_pca")
+            sc.pp.neighbors(a, n_neighbors=K_NN, use_rep="X_pca", random_state=SCANPY_NN_SEED)
             if step == "cluster":
                 sc.tl.leiden(a, resolution=RES, flavor="igraph", n_iterations=2, directed=False)
         if step == "neighbors":
@@ -279,7 +285,7 @@ def main():
                                                "compilation (numba in arsc, pynndescent/umap in scanpy) is excluded")
     a = ap.parse_args()
     data = Path(a.data)
-    od = data / "out" / a.tool
+    od = data / "out" / (a.tool + os.environ.get("ARSC_BENCH_OUT_TAG", ""))
     od.mkdir(parents=True, exist_ok=True)
     T = Timer()
     res = {"tool": a.tool, "step": a.step, "ok": False}
