@@ -30,3 +30,19 @@ if _env.exists():
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
+
+
+def pytest_configure(config):
+    """Refuse a whole-directory run (`pytest tests`, bare `pytest`) unless ARSC_FULL=1: on a workstation, run the
+    test files a change can break (`python tests/testsel.py`); the full suite runs on GitHub CI (ARSC_FULL=1 there)."""
+    if hasattr(config, "workerinput") or os.environ.get("ARSC_FULL") == "1":
+        return
+    import pytest
+    here = Path(str(config.invocation_params.dir))
+    dirs = [a for a in config.args if (here / str(a).split("::")[0]).is_dir()]
+    if dirs:
+        raise pytest.UsageError(
+            f"refusing to run a whole directory ({', '.join(map(str, dirs))}). Name test files: "
+            "`python tests/testsel.py` selects and runs the tests your change can break (`--list` to only print), "
+            "or `python -m pytest -q tests/test_x.py[::test_name]`. The full suite runs on GitHub CI on push; "
+            "locally only when the operator asks: ARSC_FULL=1 python -m pytest -q tests")

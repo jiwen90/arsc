@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
@@ -22,6 +22,8 @@ jobs:
     env:
       # small thread count keeps numba/BLAS memory use predictable on shared runners
       AR_THREADS: "2"
+      # whole-directory runs are refused without it (tests/conftest.py): CI is where the full suite runs
+      ARSC_FULL: "1"
       NUMBA_CACHE_DIR: ${{ github.workspace }}/.numba_cache
     steps:
       - uses: actions/checkout@v4

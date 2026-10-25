@@ -15,11 +15,26 @@ python -m pip install -e ".[dev,clonotrace]"
 
 ## Running the tests
 
+The tests run on **GitHub CI on every push** (any branch) and on pull requests: Linux and Windows, Python
+3.10-3.12, the docstring and docs-snippet tests and then `pytest -m "not slow"` (`.github/workflows/ci.yml`).
+After a change, push and check the run (in the autoresearch framework: `python tools/ci_status.py arsc --wait`);
+fix a failure before relying on the change.
+
+Locally, run nothing by default. To iterate on a change, run only the test files it can break, by name:
+
 ```bash
-python -m pytest -q -m "not slow" tests          # fast suite (what CI runs)
-python -m pytest -q tests                        # everything, including slow parity tests
-python -m pytest -q tests/test_docstrings.py tests/test_docs_snippets.py   # docs only
+python tests/testsel.py --list            # what your change (vs main, plus uncommitted files) can break
+python tests/testsel.py                   # run exactly those files / tests
+python tests/testsel.py src/arsc/views.py # the tests of named paths
+python -m pytest -q tests/test_views.py   # or one file, or one test: tests/test_views.py::test_name
 ```
+
+`tests/testsel.py` maps each source module to the test files that import or use it (direct links only, plus a small
+override table in the file); a docs-only change runs that document's snippet test only; a module no test uses
+directly runs a sample of at most three test files through the modules that import it. A local command always
+names test files: `tests/conftest.py` refuses a whole directory (`pytest tests`, bare `pytest`) unless
+`ARSC_FULL=1`. The full suite runs locally only when the maintainer asks for it:
+`ARSC_FULL=1 python -m pytest -q tests` (add `-m "not slow"` for CI's selection).
 
 The R-parity tests compare against reference outputs produced by the R scripts in `benchmarks/`
 (`r_reference_*.R`, R 4.3 with Seurat 4.3, harmony 1.2 (and 2.0.5 / 2.1.0 in separate libraries), presto, UCell, DESeq2, limma, edgeR,
@@ -56,7 +71,8 @@ listed in `tests/conftest.py`; `benchmarks/README.md` has the table of sets). Ke
 8. **Never slower than scanpy.** An arsc step that has a scanpy equivalent must be at least as fast,
    measured in the same session: `ARSC_SPEED_GATE=1 python -m pytest -q tests/test_speed_gate.py`
    (`benchmarks/paired_bench.py --gate`: both tools interleaved, alternating order, the same threads, median of 3
-   runs). Run it before merging a change to a compute kernel and before a release. Prefer a proven, optimized
+   runs). It is opt-in (it skips unless `ARSC_SPEED_GATE=1`; CI does not run it): run it when a change to a compute
+   kernel claims or may cost speed, and before a release. Prefer a proven, optimized
    library (for example pynndescent, scikit-learn, BLAS) over re-implementing one.
 9. **No private data.** Tests and docs use synthetic data generated in code (`arsc.datasets`) or
    public data downloaded by a script. Never commit patient data, internal project names or local
@@ -66,7 +82,7 @@ listed in `tests/conftest.py`; `benchmarks/README.md` has the table of sets). Ke
 
 - One topic per pull request; include the parity numbers in the description for numerical changes.
 - Add an entry under `[Unreleased]` in `CHANGELOG.md`.
-- CI (Linux and Windows, Python 3.10-3.12) must pass.
+- CI (Linux and Windows, Python 3.10-3.12) must pass; it is the test run of record.
 
 ## Reporting problems
 
