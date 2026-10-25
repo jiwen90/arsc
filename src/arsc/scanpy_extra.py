@@ -704,9 +704,8 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
               random_state: int = 0) -> dict:
     """``sc.pp.neighbors`` (``method="umap"``): kNN + UMAP fuzzy-simplicial-set connectivities.
 
-    Uses arsc's kNN (``method="auto"``: exact up to 50,000 cells, arsc's approximate search above; scanpy uses
-    exact kNN below 4,096 cells and approximate pynndescent above, so graphs agree exactly only for small data;
-    ``method="pynndescent"`` reproduces scanpy's large-n route, ``"exact"`` forces exact search). As
+    Uses :func:`arsc.knn` with scanpy's switch (``method="auto"``: exact up to 4,096 cells, pynndescent with
+    scanpy's settings above; ``"exact"`` forces exact search). As
     scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbours).
 
     Parameters
@@ -714,8 +713,8 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
     emb : cells x d embedding (e.g. PCA or Harmony).
     n_neighbors : neighbourhood size including the cell itself (default 15).
     metric : ``"euclidean"`` or ``"cosine"``.
-    method : ``"auto"`` (default), ``"exact"``, ``"approx"`` or ``"pynndescent"`` (see :func:`arsc.knn`).
-    random_state : integer seed (default 0) passed to the kNN (partition seed; pynndescent's random_state).
+    method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`arsc.knn`).
+    random_state : integer seed (default 0): pynndescent's ``random_state`` (unused by exact search).
 
     Returns
     -------
@@ -995,7 +994,7 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
     knn : neighbourhood size (default 30).
     alpha : anisotropy (default 0).
     seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN (pynndescent).
-    method : kNN method, ``"auto"`` (default: exact up to 50,000 cells), ``"exact"``, ``"approx"`` or ``"pynndescent"``.
+    method : kNN method, ``"auto"`` (default: exact up to 4,096 cells), ``"exact"`` or ``"approximate"``.
 
     Returns
     -------

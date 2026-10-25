@@ -1,7 +1,7 @@
-"""arsc's kNN on FAISS: the exact method equals float64 brute force (ties, duplicates, odd dimensions, external
-queries, large coordinates); the approximate method (IVF) finds nearly all true neighbours, reports exact distances,
-is reproducible with a seed and does not depend on the thread count; "auto" switches at 4,096 points like scanpy;
-device="gpu" without a GPU build fails cleanly; the SNN graph matches its definition."""
+"""arsc's kNN: the exact method (scikit-learn brute force + float64 re-scoring) equals float64 brute force (ties,
+duplicates, odd dimensions, external queries, large coordinates); the approximate method (pynndescent, scanpy's
+settings) finds nearly all true neighbours, reports exact distances and is reproducible with a seed; "auto" switches
+at 4,096 points like scanpy; the SNN graph matches its definition."""
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -48,18 +48,11 @@ def test_exact_ties_duplicates_and_queries():
     assert np.array_equal(qi, ri) and np.allclose(qd, rd, rtol=1e-12, atol=1e-12)
 
 
-def test_approx_recall_exact_distances_and_threads():
+def test_approx_recall_exact_distances_and_seed():
     X = _mix(30000, d=20, seed=5, noise_dims=12)
-    n0 = arsc.get_threads()
-    outs = []
-    try:
-        for th in (1, 2):
-            arsc.set_threads(th)
-            outs.append(arsc.knn(X, 15, method="approximate", device="cpu"))
-    finally:
-        arsc.set_threads(n0)
-    (i, d), (i2, d2) = outs
-    assert np.array_equal(i, i2) and np.array_equal(d, d2)  # independent of the thread count
+    i, d = arsc.knn(X, 15, method="approximate", seed=0)
+    i2, d2 = arsc.knn(X, 15, method="approximate", seed=0)
+    assert np.array_equal(i, i2) and np.array_equal(d, d2)  # same seed, same graph
     qs = np.random.default_rng(0).choice(X.shape[0], 300, replace=False)
     ri, _ = _brute(X, X[qs], 15)
     rec = np.mean([len(set(i[q]) & set(ri[a])) / 15 for a, q in enumerate(qs)])
@@ -68,13 +61,9 @@ def test_approx_recall_exact_distances_and_threads():
     exact = np.sqrt(((X[qs, None, :] - X[i[qs]]) ** 2).sum(-1))
     assert np.allclose(d[qs], exact, rtol=1e-12)
     assert np.all(np.diff(d, axis=1) >= 0) and (i[:, 0] == np.arange(X.shape[0])).all()
-    # scanning every list is (up to float32 near-ties) the exact search
-    ia, da = arsc.knn(X[:5000], 10, method="approx", n_lists=50, n_probe=50)
-    ie, de = arsc.knn(X[:5000], 10, method="exact")
-    assert np.mean([len(set(a) & set(b)) for a, b in zip(ia, ie)]) / 10 > 0.999
-    # same seed, same graph; another seed, nearly the same
-    i3, _ = arsc.knn(X, 15, method="approximate", seed=1)
+    i3, _ = arsc.knn(X, 15, method="approximate", seed=1)  # another seed: nearly the same graph
     assert np.mean([len(set(a) & set(b)) for a, b in zip(i, i3)]) / 15 > 0.95
+    assert all(np.array_equal(p, q) for p, q in zip(arsc.knn(X, 15, method="pynndescent"), (i, d)))  # alias
 
 
 def test_auto_switch(monkeypatch):
@@ -82,33 +71,15 @@ def test_auto_switch(monkeypatch):
     e = arsc.knn(X, 10, method="exact")
     assert all(np.array_equal(a, b) for a, b in zip(arsc.knn(X, 10), e))   # n <= AUTO_EXACT_MAX: exact
     monkeypatch.setattr(N, "AUTO_EXACT_MAX", 1000)
-    a = arsc.knn(X, 10, n_probe=3)
-    b = arsc.knn(X, 10, method="approximate", n_probe=3)
-    assert all(np.array_equal(p, q) for p, q in zip(a, b))                 # above it: approx
+    a = arsc.knn(X, 10)
+    b = arsc.knn(X, 10, method="approximate")
+    assert all(np.array_equal(p, q) for p, q in zip(a, b))                 # above it: approximate
     q = arsc.knn(X, 10, query=X[:50])                                       # queries stay exact
     assert all(np.array_equal(p, r) for p, r in zip(q, arsc.knn(X, 10, query=X[:50], method="exact")))
     with pytest.raises(ValueError):
         arsc.knn(X, 10, method="nope")
     monkeypatch.undo()
     assert N.AUTO_EXACT_MAX == 4096  # scanpy.pp.neighbors switches to approximate kNN above 4,096 cells
-
-
-def test_gpu_device():
-    import faiss
-    X = _mix(2000, d=8, seed=4)
-    if getattr(faiss, "get_num_gpus", lambda: 0)() == 0:
-        with pytest.raises(RuntimeError):
-            arsc.knn(X, 10, device="gpu")
-        # "auto" falls back to the CPU
-        assert all(np.array_equal(p, q) for p, q in zip(arsc.knn(X, 10), arsc.knn(X, 10, device="cpu")))
-        pytest.skip("no GPU build of faiss / no CUDA GPU")
-    ie, de = arsc.knn(X, 10, method="exact", device="gpu")
-    ri, rd = _brute(X, X, 10)
-    assert np.array_equal(ie, ri)
-    Y = _mix(30000, d=20, seed=5, noise_dims=12)
-    ig, _ = arsc.knn(Y, 15, method="approximate", device="gpu")
-    ic, _ = arsc.knn(Y, 15, method="approximate", device="cpu")
-    assert np.mean([len(set(a) & set(b)) for a, b in zip(ig, ic)]) / 15 > 0.98
 
 
 def test_snn_graph_matches_reference_definition():

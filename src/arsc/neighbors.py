@@ -3,15 +3,15 @@
 =======================  =====================================================
 arsc                     Seurat equivalent
 =======================  =====================================================
-``knn``                  ``NNHelper`` / ``AnnoyNN`` (here: FAISS, exact or IVF)
+``knn``                  ``NNHelper`` / ``AnnoyNN`` (here: pynndescent / exact brute force)
 ``snn_graph``            ``ComputeSNN`` (Jaccard of k-NN sets, pruned)
 ``find_neighbors``       ``FindNeighbors`` (nn + snn graphs)
 ``wnn``                  ``FindMultiModalNeighbors`` (Hao et al. 2021)
 =======================  =====================================================
 
-Seurat uses Annoy (approximate, randomized). arsc searches with FAISS: exact up to
-4,096 cells and seeded IVF (approximate, deterministic on the CPU) above, as scanpy
-switches to pynndescent; method="exact" gives the exact graph at any size.
+Seurat uses Annoy (approximate, randomized). arsc, like scanpy, searches exactly up to
+4,096 cells (scikit-learn brute force) and with pynndescent above (seeded);
+method="exact" gives the exact graph at any size.
 """
 from __future__ import annotations
 
@@ -28,14 +28,12 @@ __all__ = ["knn", "snn_graph", "find_neighbors", "wnn", "WNNResult", "l2_normali
 
 
 # --------------------------------------------------------------------------- kNN
-# The search runs in FAISS (Meta; MIT licence; a hard dependency, ``faiss-cpu``): IndexFlatL2 (BLAS brute force) for
-# the exact method, IndexIVFFlat for the approximate one, the same indexes on a CUDA GPU with ``faiss-gpu``. arsc only
-# re-scores the candidates FAISS returns in float64 and orders them by (distance, index).
+# Approximate search: pynndescent (BSD-2; scanpy's own large-n kNN; a hard dependency) with UMAP's / scanpy's
+# settings. Exact search: scikit-learn's brute force (BLAS, as scanpy below 4,096 cells). arsc only re-scores the
+# candidates in float64 and orders them by (distance, index).
 AUTO_EXACT_MAX = 4096   # method="auto": exact up to this many points (scanpy's switch to approximate), approximate above
-IVF_LISTS = 4.0         # approximate: IVF lists = IVF_LISTS * sqrt(n)
-IVF_PROBE = 0.04        # approximate: lists probed per query = IVF_PROBE * lists (at least 8)
 _EXTRA = 8              # exact: extra candidates per query beyond k for the float64 re-scoring
-_U32 = 2.0 ** -24
+_U64 = 2.0 ** -53
 
 
 @nb.njit(parallel=True, cache=True)
@@ -65,112 +63,71 @@ def _rescore(Q, X, cand, k):
     return np.take_along_axis(cand, order, 1), np.take_along_axis(d2, order, 1)
 
 
-def _faiss(device: str):
-    """faiss with arsc's thread count; returns (faiss, GPU resources or None)."""
-    import faiss
-    from ._threads import get_threads
-    faiss.omp_set_num_threads(get_threads())  # never all cores
-    if device not in ("auto", "cpu", "gpu"):
-        raise ValueError(f"unknown device {device!r}; use 'auto', 'cpu' or 'gpu'")
-    ngpu = faiss.get_num_gpus() if hasattr(faiss, "get_num_gpus") else 0
-    if device == "gpu" and ngpu == 0:
-        raise RuntimeError("device='gpu' needs a CUDA GPU and a GPU build of faiss (pip install 'arsc[gpu]' on Linux); "
-                           "use device='cpu' or 'auto'")
-    if device == "cpu" or ngpu == 0:
-        return faiss, None
-    return faiss, faiss.StandardGpuResources()
-
-
-def _to_device(faiss, res, index):
-    return index if res is None else faiss.index_cpu_to_gpu(res, 0, index)
-
-
-def _centred32(X, Q):
-    mu = X.mean(0)
-    X32 = np.ascontiguousarray(X - mu, dtype=np.float32)
-    Q32 = X32 if Q is X else np.ascontiguousarray(Q - mu, dtype=np.float32)
-    return X32, Q32
-
-
-def _knn_exact(X, Q, k, faiss, res):
+def _knn_exact(X, Q, k):
+    """scikit-learn brute force (|q|^2 + |x|^2 - 2 q.x, BLAS) for k + 8 candidates, then the float64 re-scoring; rows
+    where rounding of that formula could have hidden a closer point (proven bound) are re-scored against all points."""
+    from sklearn.neighbors import NearestNeighbors
     n, d = X.shape
-    X32, Q32 = _centred32(X, Q)
+    mu = X.mean(0)
+    Xc = X - mu
+    Qc = Xc if Q is X else Q - mu
     k2 = min(n, k + _EXTRA)
-    index = _to_device(faiss, res, faiss.IndexFlatL2(d))
-    index.add(X32)
-    D32, cand = index.search(Q32, k2)
+    D, cand = NearestNeighbors(n_neighbors=k2, algorithm="brute").fit(Xc).kneighbors(Qc)
     idx, d2 = _rescore(Q, X, cand.astype(np.int64), k)
     if k2 < n:
-        # A point outside the k2 candidates can be closer than the k-th only if float32 rounding of FAISS's
-        # |q|^2 + |x|^2 - 2 q.x moved it past the k2-th candidate: bound that error and search those rows in full.
-        qn = (Q32.astype(np.float64) ** 2).sum(1)
-        xmax = float((X32.astype(np.float64) ** 2).sum(1).max())
-        err = 8.0 * (d + 8) * _U32 * (qn + xmax) + 4.0 * _U32 * np.abs(D32[:, -1])
-        bad = np.flatnonzero(D32[:, -1].astype(np.float64) - err <= d2[:, -1])
-        if bad.size:
-            allc = np.arange(n, dtype=np.int64)
-            for a in range(0, bad.size, 256):
-                rows = bad[a:a + 256]
-                full = np.ascontiguousarray(np.broadcast_to(allc, (rows.size, n)))
-                idx[rows], d2[rows] = _rescore(np.ascontiguousarray(Q[rows]), X, full, k)
+        qn = (Qc ** 2).sum(1)
+        xmax = float((Xc ** 2).sum(1).max())
+        err = 8.0 * (d + 8) * _U64 * (qn + xmax) + 1e-12 * D[:, -1] ** 2
+        bad = np.flatnonzero(D[:, -1] ** 2 - err <= d2[:, -1])
+        allc = np.arange(n, dtype=np.int64)
+        for a in range(0, bad.size, 256):
+            rows = bad[a:a + 256]
+            full = np.ascontiguousarray(np.broadcast_to(allc, (rows.size, n)))
+            idx[rows], d2[rows] = _rescore(np.ascontiguousarray(Q[rows]), X, full, k)
     return idx, d2
 
 
-def _knn_ivf(X, Q, k, faiss, res, seed, n_lists, n_probe):
-    n, d = X.shape
-    X32, Q32 = _centred32(X, Q)
-    nl = int(n_lists) if n_lists is not None else max(1, int(IVF_LISTS * np.sqrt(n)))
-    nl = max(1, min(nl, n // 39))  # faiss wants >= 39 training points per list
-    npr = int(n_probe) if n_probe is not None else max(8, int(round(IVF_PROBE * nl)))
-    npr = max(1, min(npr, nl))
-    index = faiss.IndexIVFFlat(faiss.IndexFlatL2(d), d, nl)
-    index.cp.seed = int(seed)
-    rng = np.random.default_rng(seed)
-    ntrain = min(n, 64 * nl)
-    train = X32 if ntrain == n else X32[np.sort(rng.choice(n, ntrain, replace=False))]
-    index.train(train)  # on the CPU, so the partition does not depend on the device
-    index.add(X32)
-    index.nprobe = npr
-    index = _to_device(faiss, res, index)
-    _, cand = index.search(Q32, k)
-    return _rescore(Q, X, cand.astype(np.int64), k)
+def _knn_pynndescent(X, Q, k, seed):
+    """pynndescent with UMAP's nearest_neighbors / scanpy's settings (n_trees, n_iters scale with n)."""
+    from pynndescent import NNDescent
+    from ._threads import get_threads
+    n = X.shape[0]
+    index = NNDescent(X, n_neighbors=k, metric="euclidean", random_state=seed, n_jobs=get_threads(),  # never -1
+                      n_trees=min(64, 5 + int(round(n ** 0.5 / 20.0))), n_iters=max(5, int(round(np.log2(n)))),
+                      max_candidates=60, low_memory=True, verbose=False)
+    if Q is X:
+        cand, _ = index.neighbor_graph
+    else:
+        cand, _ = index.query(Q, k=k)
+    return _rescore(Q, X, np.ascontiguousarray(cand, dtype=np.int64), k)
 
 
 @records_seed("seed")
-def knn(X, k: int, query=None, *, method: str = "auto", device: str = "auto", n_lists: int | None = None,
-        n_probe: int | None = None, seed: int = 0, n_clusters: int | None = None):
-    """k nearest neighbours (Euclidean) with FAISS: exact up to 4,096 points, approximate above (``"auto"``).
+def knn(X, k: int, query=None, *, method: str = "auto", seed: int = 0, n_clusters: int | None = None):
+    """k nearest neighbours (Euclidean): exact up to 4,096 points, approximate (pynndescent) above (``"auto"``).
 
-    ``method="exact"``: FAISS brute force (``IndexFlatL2``, BLAS) for ``k + 8`` candidates, re-scored in float64
-    and ordered by (distance, index); a row whose float32 candidate list could have missed a closer point (by a
-    proven rounding bound) is searched again in full. The answer is the exact float64 k-NN. Deterministic; the
-    query point itself comes first when ``query`` is None.
+    ``method="exact"``: scikit-learn brute force (BLAS) for ``k + 8`` candidates, re-scored in float64 and ordered
+    by (distance, index); a row whose candidate list could have missed a closer point through rounding (proven
+    bound) is re-scored against every point. The answer is the exact float64 k-NN. Deterministic; the query point
+    itself comes first when ``query`` is None.
 
-    ``method="approximate"`` (alias ``"approx"``): FAISS ``IndexIVFFlat``: k-means into ``n_lists`` lists (default
-    ``4 * sqrt(n)``, trained on a seeded sample), each query scans its ``n_probe`` nearest lists (default 4% of
-    the lists, at least 8). Distances of the neighbours found are exact (float64). Seeded; deterministic on the
-    CPU. Recall against exact neighbours and downstream clusters vs scanpy's pynndescent: ``SCANPY_PARITY.md``.
+    ``method="approximate"`` (alias ``"approx"``, ``"pynndescent"``): pynndescent's NN-descent with the settings of
+    UMAP's ``nearest_neighbors`` that ``scanpy.pp.neighbors`` uses (``n_trees = min(64, 5 + sqrt(n) / 20)``,
+    ``n_iters = max(5, log2 n)``), seeded with ``seed``; the distances reported are re-computed exactly (float64).
+    Recall and downstream clusters vs scanpy: ``SCANPY_PARITY.md``.
 
     ``method="auto"`` (default): exact when n <= 4,096 or ``query`` is given, approximate above, as
-    ``scanpy.pp.neighbors`` (exact below 4,096 cells, pynndescent above). arsc 0.3.x used exact search at every
-    size: pass ``method="exact"`` to reproduce those graphs.
-
-    ``method="pynndescent"``: pynndescent's NN-descent (scanpy's large-n route; needs the ``graph`` extra).
-
-    ``device``: ``"auto"`` (default) runs on a CUDA GPU when the installed faiss has GPU support (``arsc[gpu]``,
-    Linux) and a GPU is present, else on the CPU; ``"cpu"`` forces the CPU; ``"gpu"`` requires the GPU.
+    ``scanpy.pp.neighbors``. arsc 0.3.x used exact search at every size: pass ``method="exact"`` to reproduce
+    those graphs.
 
     Parameters
     ----------
     X : (n x d) dense embedding (e.g. PCs).
     k : neighbours per query (self included when ``query`` is None); capped at n.
     query : optional (m x d) query points; default ``X`` itself.
-    method : ``"auto"``, ``"exact"``, ``"approximate"`` (``"approx"``) or ``"pynndescent"``.
-    device : ``"auto"``, ``"cpu"`` or ``"gpu"``.
-    n_lists, n_probe : IVF lists, and lists scanned per query (approximate method; defaults above).
-    seed : integer seed of the IVF training sample and k-means (approximate) or pynndescent's ``random_state``;
-        the exact method does not use it.
-    n_clusters : older name of ``n_lists`` (kept for compatibility).
+    method : ``"auto"``, ``"exact"`` or ``"approximate"`` (``"approx"``, ``"pynndescent"``).
+    seed : integer ``random_state`` of pynndescent (the exact method does not use it).
+    n_clusters : ignored (arsc 0.3's exact-search partition count; kept so old calls still run).
 
     Returns
     -------
@@ -194,26 +151,16 @@ def knn(X, k: int, query=None, *, method: str = "auto", device: str = "auto", n_
     Q = X if query is None else np.ascontiguousarray(query, dtype=np.float64)
     n = X.shape[0]
     k = int(min(k, n))
-    if method == "pynndescent":
-        from pynndescent import NNDescent
-        from ._threads import get_threads
-        index = NNDescent(X, n_neighbors=k, random_state=seed, n_jobs=get_threads())  # never -1 (all cores)
-        if query is None:
-            idx, dist = index.neighbor_graph
-        else:
-            idx, dist = index.query(Q, k=k)
-        return idx.astype(np.int64), dist.astype(np.float64)
-    if method == "approx":
+    if method in ("approx", "pynndescent"):
         method = "approximate"
     if method == "auto":
         method = "exact" if (query is not None or n <= AUTO_EXACT_MAX) else "approximate"
     if method not in ("exact", "approximate"):
-        raise ValueError(f"unknown method {method!r}; use 'auto', 'exact', 'approximate' or 'pynndescent'")
-    faiss, res = _faiss(device)
+        raise ValueError(f"unknown method {method!r}; use 'auto', 'exact' or 'approximate'")
     if method == "exact":
-        idx, d2 = _knn_exact(X, Q, k, faiss, res)
+        idx, d2 = _knn_exact(X, Q, k)
     else:
-        idx, d2 = _knn_ivf(X, Q, k, faiss, res, seed, n_lists if n_lists is not None else n_clusters, n_probe)
+        idx, d2 = _knn_pynndescent(X, Q, k, seed)
     if query is None:
         # the point itself first: when it tied with a duplicate at distance 0, or the approximate search missed it
         rows = np.arange(n)
@@ -355,7 +302,7 @@ def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm:
     """Seurat ``FindNeighbors``: k-NN (self included) and SNN graphs from an embedding.
 
     ``method`` and ``seed`` are passed to :func:`knn`: by default (``"auto"``) the k-NN is exact up to
-    50,000 cells and arsc's approximate search above (``method="exact"`` forces exact search at any size).
+    4,096 cells and approximate (pynndescent, scanpy's settings) above; ``method="exact"`` forces exact search.
     Seurat's Annoy is approximate, so SNN graphs differ slightly from Seurat's (see the README validation
     table).
 
@@ -365,7 +312,7 @@ def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm:
     k : neighbours including self (Seurat ``k.param``).
     prune : SNN Jaccard cutoff (Seurat ``prune.SNN``).
     l2_norm : L2-normalize rows first (Seurat ``l2.norm``).
-    method : ``"auto"`` (default), ``"exact"``, ``"approx"`` or ``"pynndescent"`` (see :func:`knn`).
+    method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`knn`).
     seed : integer seed.
 
     Returns
@@ -551,7 +498,7 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
         harmony_adt[:, :15]]``).
     k_nn, knn_range, prune_snn, sd_scale, cross_constant, l2_norm, smooth : as in Seurat
         (``cross.contant.list`` -> ``cross_constant``, scalar or per modality).
-    knn_method, seed : passed to :func:`knn` (``"auto"``: exact up to 50,000 cells, approximate above).
+    knn_method, seed : passed to :func:`knn` (``"auto"``: exact up to 4,096 cells, approximate above).
 
     Returns
     -------
