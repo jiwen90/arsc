@@ -21,7 +21,7 @@ Reproduced from the R source (internals agree to < 1e-13, SYMPHONY_PARITY.md):
   unlike Seurat); per-group top genes are united (``vargenes_groups``).
 * scaling: (x - mean) / sd with the s.d. on n - 1, clipped to [-10, 10] (both tails, unlike Seurat's ScaleData).
 * PCA: exact SVD of the scaled reference (irlba in R); signs may differ from R, which changes nothing downstream.
-* Harmony: ``arsc.run_harmony`` (harmony 1.2 port) with ``nclust = K = 100``, theta 2, sigma 0.1, lambda 1. With
+* Harmony: ``arsc.run_harmony(version="1.2")`` (harmony 1.2 port) with ``nclust = K = 100``, theta 2, sigma 0.1, lambda 1. With
   harmony 1.2 installed, R symphony's ``max.iter.harmony = 20`` and ``tau`` are ignored (harmony warns), so the
   effective R run is ``max_iter = 10, tau = 0``: these are the defaults here.
 * centroids: L2-normalised rows of ``R @ Z_corr``; ``Nr = R.sum(1)``, ``C = R @ Z_corr``.
@@ -434,7 +434,7 @@ def build_reference(X, genes, obs, vars=None, *, normalize: bool = True, topn: i
         vlist = [vars] if isinstance(vars, str) else list(vars)
         th = theta if np.ndim(theta) else [theta] * len(vlist)
         h = run_harmony(Z_orig, obs, vlist, theta=th, sigma=sigma, lambda_=lambda_, nclust=K, max_iter=max_iter,
-                        tau=tau, seed=seed, return_object=True)
+                        tau=tau, seed=seed, return_object=True, version="1.2")
         Z_corr = h.Z_corr
         R = h.R.T if h.R.shape[0] == Z_orig.shape[0] else h.R
     else:

@@ -25,7 +25,7 @@ TASKS = [
     ("HVG", "scanpy highly_variable_genes (seurat / cell_ranger / seurat_v3)", "arsc.highly_variable_genes(X, genes, flavor=...)"),
     ("Reduce", "scale (Seurat ScaleData, optional regression)", "arsc.pp.scale(L[:, idx]) / arsc.scale_data(...)"),
     ("Reduce", "PCA (Seurat RunPCA conventions; 30 PCs by default)", "arsc.pp.pca(Z, n_comps=30).embedding"),
-    ("Reduce", "Harmony batch correction (R harmony 1.2 port)", "arsc.run_harmony(pcs, obs, 'batch')"),
+    ("Reduce", "Harmony batch correction (R harmony 2.0 / 2.1 / 1.2 port, version=)", "arsc.run_harmony(pcs, obs, 'batch')"),
     ("Reduce", "map a query onto a reference (Symphony: build once, map, kNN labels)", "ref = arsc.symphony.build_reference(counts, genes, obs, 'batch'); q = arsc.symphony.map_query(qcounts, qgenes, qobs, ref, 'batch')"),
     ("Reduce", "transfer reference labels to the query, with confidence", "arsc.symphony.transfer_labels(ref, q, 'cell_type', k=5)"),
     ("Graph", "kNN + SNN graph (Seurat FindNeighbors, exact kNN)", "arsc.find_neighbors(emb, k=20)['snn']"),

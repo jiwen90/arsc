@@ -322,14 +322,15 @@ def test_exact_knn_independent_of_seed():
         assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
 
 
-def test_harmony_thread_count_invariant():
-    """Fixed reduction chunks: harmony is bit-identical with 1 thread and with all threads."""
+@pytest.mark.parametrize("version", ["1.2", "2.0", "2.1"])
+def test_harmony_thread_count_invariant(version):
+    """Fixed reduction chunks: harmony is bit-identical with 1 thread and with all threads (every version)."""
     import numba as nb
     prev = nb.get_num_threads()
-    batch = np.tile(["x", "y"], len(E) // 2)
+    batch = pd.DataFrame({"b": np.tile(["x", "y"], len(E) // 2), "c": np.repeat(["p", "q", "r"], -(-len(E) // 3))[:len(E)]})
     try:
-        a = arsc.run_harmony(E, batch, None, nclust=4, max_iter=3, seed=2, n_threads=1)
-        b = arsc.run_harmony(E, batch, None, nclust=4, max_iter=3, seed=2, n_threads=prev)
+        a = arsc.run_harmony(E, batch, ["b", "c"], nclust=4, max_iter=3, seed=2, n_threads=1, version=version)
+        b = arsc.run_harmony(E, batch, ["b", "c"], nclust=4, max_iter=3, seed=2, n_threads=prev, version=version)
     finally:
         nb.set_num_threads(prev)
     assert np.array_equal(a, b)

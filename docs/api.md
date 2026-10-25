@@ -2158,10 +2158,10 @@ Examples
 
 Harmony.
 
-### `arsc.harmony.Harmony(Z, codes, B_vec, *, theta, sigma, lambda_vec, alpha=0.2, max_iter_cluster=20, epsilon_cluster=0.001, epsilon_harmony=0.01, K=100, block_size=0.05, seed=0)`
+### `arsc.harmony.Harmony(Z, codes, B_vec, *, theta, sigma, lambda_vec, alpha=0.2, max_iter_cluster=20, epsilon_cluster=0.001, epsilon_harmony=0.01, K=100, block_size=0.05, seed=0, version='1.2', batch_prop_cutoff=1e-05)`
 
 ```text
-Stateful Harmony object (port of the C++ class of R harmony 1.2). Most users want :func:`run_harmony`.
+Stateful Harmony object (port of the C++ class of R harmony 1.2 and 2.x). Most users want :func:`run_harmony`.
 
 Parameters
 ----------
@@ -2176,8 +2176,10 @@ alpha : automatic-lambda factor (default 0.2).
 max_iter_cluster : clustering iterations per round (default 20).
 epsilon_cluster, epsilon_harmony : convergence tolerances.
 K : number of clusters.
-block_size : fraction of cells per online-update block (default 0.05; must be < 1).
+block_size : fraction of cells per online-update block (default 0.05; must be < 1 for version 1.2).
 seed : integer seed for k-means init and block order.
+version : R harmony release to reproduce: ``"1.2"`` (default here), ``"2.0"`` or ``"2.1"`` (see :func:`run_harmony`).
+batch_prop_cutoff : 2.x: minimum share of a batch level in a cluster for it to enter that cluster's regression.
 
 Attributes
 ----------
@@ -2225,36 +2227,57 @@ Examples
 ((3000, 10), ['patient'])
 ```
 
-### `arsc.harmony.run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_=1.0, nclust=None, max_iter=10, early_stop=True, alpha=0.2, tau=0.0, block_size=0.05, max_iter_cluster=20, epsilon_cluster=0.001, epsilon_harmony=0.01, seed=0, init_centroids=None, kmeans_n_init=10, n_threads=None, return_object=False, verbose=False)`
+### `arsc.harmony.run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_='default', nclust=None, max_iter=10, early_stop=True, alpha=0.2, tau=0.0, block_size=0.05, max_iter_cluster=None, epsilon_cluster=0.001, epsilon_harmony=0.01, batch_prop_cutoff=1e-05, version='2.0', seed=0, init_centroids=None, kmeans_n_init=10, n_threads=None, return_object=False, verbose=False)`
 
 ```text
-Run Harmony batch correction on an embedding (cells x d), matching ``harmony::RunHarmony`` 1.2 defaults.
+Run Harmony batch correction on an embedding (cells x d), matching ``harmony::RunHarmony``.
 
-Validated against R harmony 1.2 (same objective trajectory; per-dimension r 0.989-0.998, the residual
-coming from R's random block order). Not the same algorithm port as ``harmonypy``.
+``version`` picks the R release to reproduce: ``"2.0"`` (default; R harmony 2.0.5, the current CRAN release),
+``"2.1"`` (2.0 with the multi-variable fix of GitHub tag v2.1.0, not yet on CRAN) or ``"1.2"`` (harmony
+1.2.x, used by Seurat-era pipelines and by :mod:`arsc.symphony`). The versions give different embeddings:
+
+* 2.x starts from k-means++-style seeds plus 10 Lloyd steps; 1.2 from k-means with 10 restarts.
+* 2.x keeps the centroids fixed while clustering and sets them from the regression intercept in the
+  correction step; 1.2 recomputes them from R at every clustering iteration.
+* 2.x diversity penalty ``((2E + 1) / (O + E + 1)) ** theta`` (pseudocounts) vs ``(E / (O + E)) ** theta``.
+* 2.x leaves batch levels that are (almost) absent from a cluster out of that cluster's regression
+  (``batch_prop_cutoff``); 1.2 regresses every level in every cluster.
+* Defaults: 2.x ``lambda = NULL`` (automatic, ``alpha * E``) and 4 clustering iterations per round; 1.2
+  ``lambda = 1`` and 20.
+* With several batch variables, 1.2 and 2.0 add the per-variable penalties; 2.1 multiplies them, so a
+  variable with ``theta = 0`` no longer changes the clustering.
+
+Each version is validated against the matching R release with one, two and three batch variables and
+distinct theta / lambda per variable (README, harmony rows): started from R's k-means centroids, per-dim r
+>= 0.98 on every dimension (median >= 0.999) and the same objective path; from arsc's own start the residual
+is the spread between two R seeds. Not the same algorithm port as ``harmonypy``.
 
 Parameters
 ----------
 Z : (n_cells, d) array, typically PCA cell embeddings (not rescaled).
 meta : DataFrame with the batch columns, or a 1-D array of batch labels.
 vars_use : column name or list of names (ignored if ``meta`` is an array).
-theta : diversity penalty per variable (default 2 each).
+theta : diversity penalty per variable (default 2 each), in the order of ``vars_use``.
 sigma : soft k-means width (scalar or length ``nclust``).
-lambda_ : ridge penalty, scalar or one per variable; ``None`` = automatic (``alpha * E``), as
-    ``lambda = NULL`` in R.
+lambda_ : ridge penalty, scalar or one per variable (order of ``vars_use``); ``None`` = automatic
+    (``alpha * E``), as ``lambda = NULL`` in R; ``"default"`` = the version's R default (1.2: 1; 2.x: None).
 nclust : number of clusters (default ``min(round(N / 30), 100)``).
 max_iter : harmony rounds (R ``max_iter``).
 early_stop : stop when the objective converges (default True; False runs all ``max_iter`` rounds).
 alpha : automatic-lambda factor (default 0.2).
 tau : protection against over-correcting small batches (default 0 = off).
-block_size : fraction of cells per online-update block (default 0.05).
-max_iter_cluster : clustering iterations per round (default 20).
+block_size : fraction of cells per online-update block (default 0.05; 2.x also accepts 1).
+max_iter_cluster : clustering iterations per round (default: 20 for 1.2, 4 for 2.x, as R's
+    ``harmony_options``).
 epsilon_cluster, epsilon_harmony : convergence tolerances (defaults 1e-3, 1e-2).
-seed : integer seed (default 0) for the k-means init (sklearn ``random_state``) and the per-iteration
-    random block order (local ``np.random.default_rng``). Same input + seed -> bit-identical output,
-    independent of ``n_threads`` (fixed reduction order).
+batch_prop_cutoff : 2.x only: a batch level enters cluster k's regression when its share of the cluster
+    (``O[k, b] / N_b``) exceeds this (default 1e-5, R ``harmony_options(batch.prop.cutoff)``).
+version : ``"2.0"`` (default), ``"2.1"`` or ``"1.2"`` (also accepted: ``"2.0.5"``, ``"2.1.0"``, ``"1.2.0"``).
+seed : integer seed (default 0) for the k-means start (1.2: sklearn ``random_state``; 2.x: the seeding draws)
+    and the per-iteration random block order (local ``np.random.default_rng``). Same input + seed ->
+    bit-identical output, independent of ``n_threads`` (fixed reduction order).
 init_centroids : optional (nclust x d) starting centroids (bypasses k-means; use R's to match R exactly).
-kmeans_n_init : k-means restarts (default 10).
+kmeans_n_init : 1.2 only: k-means restarts (default 10).
 n_threads : numba threads (default: all).
 return_object : return :class:`HarmonyResult` (with traces) instead of the array.
 verbose : print the objective per round.

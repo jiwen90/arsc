@@ -35,7 +35,8 @@ arsc.scores.add_module_score). Ported from Seurat 4.3.0 (R, MIT; LICENSES/Seurat
     Nat Biotechnol (2024).
   - Cell-cycle gene lists: Tirosh I, et al. Science (2016).
 
-Harmony integration (arsc.run_harmony, arsc.harmony). Translated from harmony 1.2.0 (R/C++, GPL-3).
+Harmony integration (arsc.run_harmony, arsc.harmony). Translated from harmony 1.2.0, 2.0.5 (CRAN) and 2.1.0
+(GitHub tag v2.1.0) (R/C++, GPL-3; immunogenomics/harmony).
   - Korsunsky I, et al. Fast, sensitive and accurate integration of single-cell data with Harmony.
     Nat Methods (2019).
 
