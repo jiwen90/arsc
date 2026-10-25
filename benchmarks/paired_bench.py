@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -191,8 +192,10 @@ def main():
                     r = run_tool(n, tool, step, data, warm, out, a.python, a.threads)
                     r.update(n=n, tool=tool, step=step, rep=rep, order_pos=pos, threads=a.threads, session=session,
                              **{k: v for k, v in st.items()})
-                    for k in ("traceback", "log_tail"):
-                        r.pop(k, None) if r.get("ok") else None
+                    for k in ("traceback", "log_tail"):   # keep local paths out of the committed results
+                        r.pop(k, None)
+                    if isinstance(r.get("error"), str):
+                        r["error"] = re.sub(r"[A-Za-z]:[\\/][^\"\s]*|/(?:home|Users)/[^\"\s]*", "<path>", r["error"])
                     runs.append(r)
                     with open(runs_f, "a") as f:
                         f.write(json.dumps(r) + "\n")
