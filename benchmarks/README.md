@@ -77,7 +77,7 @@ is 0; otherwise it prints the measured number.
 ### Known differences that are not bugs
 
 * scanpy's `neighbors` uses approximate pynndescent above 4,096 cells and Seurat's `FindNeighbors`
-  uses approximate Annoy; arsc's default k-NN is exact. Overlap below 100% reflects the approximation
+  uses approximate Annoy; arsc 0.2's k-NN (timed in that suite) was exact. Overlap below 100% reflects the approximation
   in the other tools (see arsc's brute-force recall).
 * Clustering: scanpy runs Leiden (igraph flavour), Seurat runs Louvain (its default), arsc runs Leiden
   on the Seurat-style SNN graph. ARI vs the simulated truth is the fairer comparison.

@@ -572,7 +572,7 @@ print(adata)
 | `wilcoxauc` (presto), `find_markers` / `find_all_markers` (Seurat), `rank_genes_groups` (scanpy) | statistics exact; p within 1e-13 to 4e-8 relative; same gene order |
 | `pp.hvg_vst`, `highly_variable_genes` | values within 1e-9; same gene set (ties at the cutoff can swap one gene) |
 | `pp.pca` | top-20 subspace cosine >= 0.9999 vs Seurat; per-PC r >= 0.992 (signs fixed) |
-| `find_neighbors` / `knn` | exact kNN. Seurat uses approximate Annoy, so SNN Jaccard vs Seurat is 0.66 and Leiden ARI 0.92 |
+| `find_neighbors` / `knn` | exact kNN up to 4,096 cells, pynndescent above (`method="exact"` at any size). Seurat uses approximate Annoy; with exact kNN, SNN Jaccard vs Seurat was 0.66 and Leiden ARI 0.92 |
 | `scanpy_extra.neighbors` / `leiden` / `umap_from_connectivities` | identical to scanpy below 4,096 cells (scanpy switches to approximate kNN above) |
 | `run_harmony` | same objective path as R harmony 2.0.5 (default), 2.1.0 and 1.2 (`version=`); per-dim r >= 0.98 from R's start with 1-3 batch variables (HARMONY_PARITY.md) |
 | `wnn` | modality weight r 0.97; neighbour overlap 0.92; cluster ARI 0.87 vs Seurat |

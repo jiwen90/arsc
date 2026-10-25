@@ -3,7 +3,7 @@
 ``cluster(graph, method="louvain"|"leiden")`` clusters an SNN/WNN graph
 (Seurat ``FindClusters``: labels are renumbered by decreasing cluster size,
 singletons are merged into their most connected cluster). ``umap()`` gives a
-layout with Seurat ``RunUMAP`` defaults on arsc's exact k-NN.
+layout with Seurat ``RunUMAP`` defaults on arsc's k-NN (:func:`arsc.knn`, ``method="auto"``).
 
 Both run arsc's own engines by default (``engine="arsc"``, since 0.3.0; validated in
 ``SEURAT_PARITY.md`` section 5). The reference engines stay available:
@@ -174,7 +174,9 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
          engine: str = "arsc") -> np.ndarray:
     """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbours, min_dist 0.3).
 
-    The k-NN graph is computed exactly by arsc (``knn`` can pass a precomputed ``(idx, dist)``).
+    The k-NN graph comes from :func:`arsc.knn` with its default (exact up to 4,096 cells, pynndescent above, as
+    umap-learn and uwot search approximately); pass ``knn=arsc.knn(emb, n_neighbors, method="exact")`` (cosine:
+    on L2-normalised rows) for exact neighbours at any size.
     ``seed`` (default 42 = Seurat ``RunUMAP(seed.use = 42)``) seeds the layout; the same input + seed
     gives bit-identical coordinates. Pass other integers to see alternative layouts. ``seed=None``
     is rejected.
@@ -195,7 +197,7 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     emb : (n x d) embedding (PCs, harmony).
     n_neighbors : neighbours (Seurat ``n.neighbors``).
     min_dist : layout ``min_dist``.
-    metric : ``"cosine"`` (Seurat default) or ``"euclidean"`` (exact arsc k-NN); others go to umap-learn.
+    metric : ``"cosine"`` (Seurat default) or ``"euclidean"`` (arsc k-NN); others go to umap-learn.
     seed : integer seed.
     n_epochs : optimisation epochs (umap-learn default when None).
     spread : layout ``spread``.

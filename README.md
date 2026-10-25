@@ -20,8 +20,8 @@ arsc is a single-cell RNA-seq, CITE-seq and TCR analysis engine.
   The agreement for every function is measured and written down in the parity tables.
 * **Fast.** Numba and threaded kernels: at 100,000 cells, PCA is 14x faster than scanpy and 113x faster than
   Seurat, and UCell is 651x faster than the R package (benchmarks below). Memory-mapped stores let any number of
-  processes open one copy of a dataset without loading it. One exception: arsc's exact k-NN search is slower
-  than scanpy's approximate one at 1M cells.
+  processes open one copy of a dataset without loading it. Every step shared with scanpy is timed against it in
+  the same session (paired table below).
 * **Statistics at the patient level.** Pseudobulk DE, composition tests, exact paired and permutation tests,
   GLMMs and minimum-detectable-effect checks are built in, so the patient (not the cell) is the unit.
 * **Made for agents.** `AGENTS.md` and `llms.txt` let an AI assistant turn a question like *"compare responders

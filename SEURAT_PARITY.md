@@ -136,7 +136,10 @@ flow-cytometry population, 80,000 events (15 PCs; 30 channels for kNN), not dist
 and `arsc.datasets.toy`. Scripts: `benchmarks/umap_parity.py`, `benchmarks/leiden_parity.py`; tests:
 `tests/test_umap_knn.py`, `tests/test_leiden.py`.
 
-### kNN (`arsc.knn`, exact, default)
+### kNN (`arsc.knn`): arsc 0.3's own exact search (since replaced)
+
+Since the scanpy-matching switch (CHANGELOG, Unreleased) `arsc.knn` searches exactly with scikit-learn brute force
+up to 4,096 cells and with pynndescent above; the table below documents the partition search it replaced.
 
 The exact search scans only the ring of each k-means cluster that can hold neighbours (points sorted by distance to
 their centre) and resolves ties at the k-th place by (distance, index), so the result no longer depends on the
@@ -151,7 +154,7 @@ distances).
 | seconds, exact, 1 thread: before / after | 18.1 / 12.4 | 57.7 / 47.7 |
 | seconds, exact, 8 threads (after) | 4.0 | about 10 |
 
-pynndescent misses 2-5% of the neighbours on flow data, below a 0.99 recall bar, so `exact` stays the default.
+pynndescent misses 2-5% of the neighbours on flow data (below a 0.99 recall bar); flow callers that need exact neighbours pass `method="exact"`.
 Tree search is no alternative on these data (scikit-learn KDTree, 15 PCs: 124 s on one thread).
 
 ### UMAP (`arsc.umap(engine="arsc")`)
