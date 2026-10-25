@@ -6,6 +6,19 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `run_harmony` reproduces R harmony 2.0.5 (the current CRAN release, "Harmony2") by default; `version="1.2"`
+  gives the previous behaviour (harmony 1.2), `version="2.1"` the GitHub tag v2.1.0 (per-variable penalties
+  multiplied). 2.x differs from 1.2 in its k-means start, fixed centroids during clustering (set from the
+  regression intercept), pseudocount penalty, per-cluster removal of absent batch levels (`batch_prop_cutoff`)
+  and defaults (`lambda` automatic, 4 clustering iterations): the embeddings differ, so pass `version="1.2"` to
+  keep results made with 1.2. `lambda_` and `max_iter_cluster` now default to the version's R defaults.
+  `symphony.build_reference` stays on 1.2 (R symphony 0.1.1 was validated with harmony 1.2).
+  Validated against each R version with one, two and three batch variables and distinct theta / lambda per
+  variable (HARMONY_PARITY.md; `benchmarks/r_reference_harmony.R`, `benchmarks/harmony_parity.py`,
+  `tests/test_vs_r.py::test_harmony_versions_track_r`, `tests/test_harmony_versions.py`). The 1.2 port needed no
+  change with several variables.
+
 ### Added
 - Subset stores as views (`arsc.views`): a store whose cells are rows of other (parent) stores keeps only what is new
   (metadata, reductions, graphs, neighbors, `uns`, dense layers, features, and every layer whose values differ) and

@@ -44,7 +44,7 @@ number of threads.
 | Function | Seed parameter (default) | What the seed drives | Determinism |
 |---|---|---|---|
 | `pp.pca` | `seed` (42) | ARPACK start vector (`method="arpack"`), Gaussian test matrix (`"randomized"`); `"gram"` ignores it | bit-identical and thread-invariant (BLAS products in fixed blocks, `arsc._detla`; 2 vs 8 threads tested). arpack and gram converge to the same subspace for any seed. randomized depends on the seed by design |
-| `run_harmony` | `seed` (0) | sklearn `KMeans(random_state=seed)` init; block order each clustering round (local `default_rng`) | bit-identical and thread-invariant (fixed numba reduction chunks, fixed-block BLAS products, k-means on one thread; 2 vs 8 threads tested, see below). `init_centroids` bypasses k-means |
+| `run_harmony` | `seed` (0) | k-means start (1.2: sklearn `KMeans(random_state=seed)`; 2.x: the k-means++-style seeding draws from a local `default_rng`); block order each clustering round (local `default_rng`) | bit-identical and thread-invariant (fixed numba reduction chunks, fixed-block BLAS products, k-means on one thread; 2 vs 8 threads tested, see below). `init_centroids` bypasses k-means |
 | `knn` | `seed` (0) | `"exact"`: k-means partition used only for pruning, so the answer is exact and the same for every seed (tested). `"pynndescent"`: `random_state` | bit-identical. pynndescent output depends on the seed and on the thread count (see below) |
 | `find_neighbors` | `seed` (0) | passed to `knn` | as `knn` |
 | `wnn` | `seed` (0) | passed to `knn` for every modality | as `knn` |

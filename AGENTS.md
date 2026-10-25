@@ -79,7 +79,7 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 | HVG | scanpy highly_variable_genes (seurat / cell_ranger / seurat_v3) | `arsc.highly_variable_genes(X, genes, flavor=...)` |
 | Reduce | scale (Seurat ScaleData, optional regression) | `arsc.pp.scale(L[:, idx]) / arsc.scale_data(...)` |
 | Reduce | PCA (Seurat RunPCA conventions; 30 PCs by default) | `arsc.pp.pca(Z, n_comps=30).embedding` |
-| Reduce | Harmony batch correction (R harmony 1.2 port) | `arsc.run_harmony(pcs, obs, 'batch')` |
+| Reduce | Harmony batch correction (R harmony 2.0 / 2.1 / 1.2 port, version=) | `arsc.run_harmony(pcs, obs, 'batch')` |
 | Reduce | map a query onto a reference (Symphony: build once, map, kNN labels) | `ref = arsc.symphony.build_reference(counts, genes, obs, 'batch'); q = arsc.symphony.map_query(qcounts, qgenes, qobs, ref, 'batch')` |
 | Reduce | transfer reference labels to the query, with confidence | `arsc.symphony.transfer_labels(ref, q, 'cell_type', k=5)` |
 | Graph | kNN + SNN graph (Seurat FindNeighbors, exact kNN) | `arsc.find_neighbors(emb, k=20)['snn']` |
@@ -574,7 +574,7 @@ print(adata)
 | `pp.pca` | top-20 subspace cosine >= 0.9999 vs Seurat; per-PC r >= 0.992 (signs fixed) |
 | `find_neighbors` / `knn` | exact kNN. Seurat uses approximate Annoy, so SNN Jaccard vs Seurat is 0.66 and Leiden ARI 0.92 |
 | `scanpy_extra.neighbors` / `leiden` / `umap_from_connectivities` | identical to scanpy below 4,096 cells (scanpy switches to approximate kNN above) |
-| `run_harmony` | same objective path as R harmony 1.2; per-dimension r 0.989-0.998 |
+| `run_harmony` | same objective path as R harmony 2.0.5 (default), 2.1.0 and 1.2 (`version=`); per-dim r >= 0.98 from R's start with 1-3 batch variables (HARMONY_PARITY.md) |
 | `wnn` | modality weight r 0.97; neighbour overlap 0.92; cluster ARI 0.87 vs Seurat |
 | `symphony.*` (Symphony mapping) | deterministic steps exact (<= 1e-12) given the same reference; own reference: query embedding r >= 0.99, kNN labels 99 % (vignette) and as close to R as R is to itself under another seed (CD8 clusters) |
 | `de.deseq2` (pydeseq2) | log2FC r 0.9998, top-100 overlap 98-100 vs R DESeq2 |

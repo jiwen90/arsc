@@ -11,7 +11,7 @@ Quick map (see README.md):
     arsc.open / read_seurat_export / write_table      I/O bridge (memory-mapped store)
     arsc.pseudobulk                                   per-sample aggregation
     arsc.pp.log_normalize / clr / hvg_vst / scale / pca
-    arsc.run_harmony                                  harmony 1.2 port
+    arsc.run_harmony                                  harmony 2.0 port (version= 2.1, 1.2)
     arsc.symphony (build_reference / map_query / transfer_labels / mapping_score)   Symphony reference mapping
     arsc.wilcoxauc                                    presto port
     arsc.score_ucell / add_module_score               UCell / Seurat AddModuleScore
