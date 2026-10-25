@@ -7,10 +7,12 @@ All notable changes to arsc are recorded here. The format follows
 ## [Unreleased]
 
 ### Tests
-- Tests run on GitHub CI on every push (any branch, not only main). Locally, `tests/testsel.py` runs only the test
-  files a change can break, by exact path (source module -> the test files that import or use it, docs change -> that
-  document's snippet test, tests/test_testsel.py checks the selection); `tests/conftest.py` refuses a whole-directory
-  run unless `ARSC_FULL=1` (set in CI).
+- Tests run on GitHub CI on every push (any branch, not only main). Locally, name the test files a change can break,
+  or a group by area (`python tests/run.py knn`; the table is in `tests/run.py`); `tests/conftest.py`
+  refuses a whole-directory run or `tests/run.py everything` unless `ARSC_FULL=1` (set in CI). The `tests/testsel.py`
+  selector was removed.
+- The tests import the checkout's own `src`, not the editable install's (a git worktree's tests had run the main
+  checkout's code); `tests/test_source_pin.py` checks it with a sentinel in a copied checkout.
 - Test references no longer live in a scratch folder (pruned after 2 days, which had silently turned most R-parity
   tests into skips). Stored R outputs go to `ARSC_REFS` (autoresearch: `.cache/arsc`); `benchmarks/regen_refs.py`
   rebuilds any set (`status` lists folders, sizes, inputs and readers). One shared input for the large-object tests:

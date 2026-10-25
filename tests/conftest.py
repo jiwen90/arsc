@@ -20,35 +20,23 @@ A test whose reference is missing skips with a message that names the missing fi
 A local, untracked ``tests/local.env`` (KEY=VALUE lines) is read first, so a workstation can keep its paths
 out of the repository. Existing environment variables win.
 
-The tests import THIS checkout's ``src``: it goes first on ``sys.path`` (and on ``PYTHONPATH`` for child processes)
-before anything imports arsc, and the run stops if ``arsc`` would still load from elsewhere. An editable install
-points at one checkout (the main one); without this, tests run in a git worktree silently exercised main's code.
+Tests import THIS checkout's ``src`` (a git worktree's own code, not the editable install's main checkout).
+
+Run only the test files your change can break, named explicitly (``python -m pytest -q tests/test_x.py[::name]``),
+or a group of them by area: ``python tests/run.py knn`` (the table is in tests/run.py). Never a whole directory:
+a directory run, and ``tests/run.py everything``, need ``ARSC_FULL=1`` (GitHub CI sets it; locally only on request).
 """
-import importlib.util
 import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-
-
-def pin_source(src=SRC, pkg="arsc"):
-    """Put `src` first on sys.path and PYTHONPATH; raise if `pkg` resolves (or was already imported) elsewhere."""
-    s = str(src)
-    sys.path[:] = [s] + [p for p in sys.path if os.path.normcase(os.path.abspath(p or ".")) != os.path.normcase(s)]
-    os.environ["PYTHONPATH"] = os.pathsep.join([s] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep)
-                                                       if p and os.path.normcase(p) != os.path.normcase(s)])
-    mod = sys.modules.get(pkg)
-    origin = getattr(mod, "__file__", None) if mod is not None else getattr(importlib.util.find_spec(pkg), "origin", None)
-    if origin is None or not Path(origin).resolve().is_relative_to(Path(src).resolve()):
-        raise RuntimeError(f"{pkg} {'was imported' if mod is not None else 'resolves'} from {origin}, not from this "
-                           f"checkout's {src}: the tests would exercise another checkout's code. Run pytest from "
-                           f"this checkout (PYTHONPATH={src}) and import {pkg} only after tests/conftest.py.")
-    return origin
-
-
-pin_source()
+sys.path.insert(0, str(SRC))  # the editable install points at the main checkout: a worktree's tests ran main's code
+os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [str(SRC), os.environ.get("PYTHONPATH")]))  # child processes
+import arsc  # noqa: E402
+if not Path(arsc.__file__).resolve().is_relative_to(SRC.resolve()):
+    raise RuntimeError(f"arsc imports from {arsc.__file__}, not from this checkout's {SRC}")
 
 _env = Path(__file__).with_name("local.env")
 if _env.exists():
@@ -60,8 +48,8 @@ if _env.exists():
 
 
 def pytest_configure(config):
-    """Refuse a whole-directory run (`pytest tests`, bare `pytest`) unless ARSC_FULL=1: on a workstation, run the
-    test files a change can break (`python tests/testsel.py`); the full suite runs on GitHub CI (ARSC_FULL=1 there)."""
+    """Refuse a whole-directory run (`pytest tests`, bare `pytest`, `tests/run.py everything`) unless ARSC_FULL=1: the
+    full suite runs on GitHub CI on push (ARSC_FULL=1 there), locally only when the operator asks."""
     if hasattr(config, "workerinput") or os.environ.get("ARSC_FULL") == "1":
         return
     import pytest
@@ -69,7 +57,7 @@ def pytest_configure(config):
     dirs = [a for a in config.args if (here / str(a).split("::")[0]).is_dir()]
     if dirs:
         raise pytest.UsageError(
-            f"refusing to run a whole directory ({', '.join(map(str, dirs))}). Name test files: "
-            "`python tests/testsel.py` selects and runs the tests your change can break (`--list` to only print), "
-            "or `python -m pytest -q tests/test_x.py[::test_name]`. The full suite runs on GitHub CI on push; "
-            "locally only when the operator asks: ARSC_FULL=1 python -m pytest -q tests")
+            f"refusing to run a whole directory ({', '.join(map(str, dirs))}). Name the test files your change can "
+            "break (`python -m pytest -q tests/test_x.py[::test_name]`) or a group by area (`python tests/run.py knn`; "
+            "`python tests/run.py` lists the groups). The full suite runs on GitHub CI on push; locally only when the "
+            "operator asks: ARSC_FULL=1 python -m pytest -q tests")

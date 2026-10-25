@@ -20,21 +20,11 @@ The tests run on **GitHub CI on every push** (any branch) and on pull requests: 
 After a change, push and check the run (in the autoresearch framework: `python tools/ci_status.py arsc --wait`);
 fix a failure before relying on the change.
 
-Locally, run nothing by default. To iterate on a change, run only the test files it can break, by name:
-
-```bash
-python tests/testsel.py --list            # what your change (vs main, plus uncommitted files) can break
-python tests/testsel.py                   # run exactly those files / tests
-python tests/testsel.py src/arsc/views.py # the tests of named paths
-python -m pytest -q tests/test_views.py   # or one file, or one test: tests/test_views.py::test_name
-```
-
-`tests/testsel.py` maps each source module to the test files that import or use it (direct links only, plus a small
-override table in the file); a docs-only change runs that document's snippet test only; a module no test uses
-directly runs a sample of at most three test files through the modules that import it. A local command always
-names test files: `tests/conftest.py` refuses a whole directory (`pytest tests`, bare `pytest`) unless
-`ARSC_FULL=1`. The full suite runs locally only when the maintainer asks for it:
-`ARSC_FULL=1 python -m pytest -q tests` (add `-m "not slow"` for CI's selection).
+Locally, run nothing by default. To iterate, run only the test files your change can break, named explicitly:
+`python -m pytest -q tests/test_x.py[::test_name]`, or a group by area: `python tests/run.py knn` (areas: knn,
+pp, de, stats, clones, harmony, io, docs, setup; `python tests/run.py` lists their files). Say which you ran. Never a whole
+directory: `tests/conftest.py` refuses `pytest tests`, bare `pytest` and `tests/run.py everything` unless `ARSC_FULL=1`
+(CI sets it; locally only when the maintainer asks: `ARSC_FULL=1 python -m pytest -q tests`).
 
 The R-parity tests compare against reference outputs produced by the R scripts in `benchmarks/`
 (`r_reference_*.R`, R 4.3 with Seurat 4.3, harmony 1.2 (and 2.0.5 / 2.1.0 in separate libraries), presto, UCell, DESeq2, limma, edgeR,
@@ -47,14 +37,8 @@ listed in `tests/conftest.py`; `benchmarks/README.md` has the table of sets). Ke
 
 ## Working in a git worktree
 
-The autoresearch framework's agents change arsc in git worktrees (`vendor/arsc-wt/<name>`). The venv's editable
-install points at the main checkout, so a plain `import arsc` inside a worktree loads **main's** code. The tests
-handle this: `tests/conftest.py` puts the worktree's own `src` first (and on `PYTHONPATH` for child processes) and
-stops the run if `arsc` would still load from elsewhere; `tests/testsel.py` sets `PYTHONPATH` for its pytest run
-(`tests/test_source_pin.py` checks both). A script or timing run outside pytest needs it by hand:
-`PYTHONPATH=<worktree>/src python benchmarks/x.py` (in the framework, `python tools/wtenv.py <worktree>` prints the
-line, and `python tools/jobs.py start` from inside a worktree sets it). Check with
-`python -c 'import arsc; print(arsc.__file__)'`: the path must be under the worktree.
+The tests import the checkout's own `src` (`tests/conftest.py`; the venv's editable install points at the main
+checkout). A script run in a worktree needs `PYTHONPATH=<worktree>/src`; check with `python -c 'import arsc; print(arsc.__file__)'`.
 
 ## Rules for code
 
