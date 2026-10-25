@@ -45,6 +45,40 @@ counts), harmony PCs for graph steps (3,000 cells, because scanpy switches from 
 ## Speed: paired runs (same session, same threads)
 
 <!-- PAIRED:START -->
+Same session, interleaved (arsc and scanpy alternate first), the same thread count for both; median (min-max) of the runs; machine state = system CPU use in the second before each run and the framework's CPU leases (other jobs on the shared machine). Synthetic data of `benchmarks/suite_sim.py`.
+
+**100,000 cells**:
+
+| Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
+|---|---:|---:|---|---:|---:|---|---|
+| Log-normalise | 0.89 s (0.83 s-1.12 s) | 2.23 s (2.23 s-2.34 s) | **2.5x**; 2.0x | 3 | 3 | 22-68% |  |
+| Highly variable genes (2,000) | 2.29 s (2.20 s-2.34 s) | 4.92 s (4.79 s-5.01 s) | **2.1x**; 2.1x | 3 | 3 | 39-59% |  |
+| Scale + PCA (30 PCs) | 6.18 s (5.83 s-6.70 s) | 68 s (58 s-72 s) | **11.0x**; 9.9x | 3 | 3 | 17-63% |  |
+| k-NN graph (k = 20) | 5.37 s (4.48 s-5.39 s) | 5.81 s (5.79 s-6.44 s) | **1.1x**; 1.1x | 3 | 3 | 33-73% | recall vs exact: arsc 0.955, scanpy 0.933; overlap arsc-scanpy 0.907 vs scanpy seed 0-seed 1 0.901 |
+| k-NN + Leiden clustering | 6.35 s (6.29 s-6.37 s) | 14 s (14 s-16 s) | **2.1x**; 2.1x | 3 | 3 | 30-54% | ARI arsc-scanpy 0.998; vs truth arsc 0.997, scanpy 0.997 |
+| Markers, scanpy-style Wilcoxon (20k genes) | 12 s (11 s-13 s) | 101 s (99 s-102 s) | **8.3x**; 7.9x | 3 | 3 | 18-38% |  |
+| Pseudobulk sums | 0.37 s (0.34 s-0.41 s) | 0.90 s (0.83 s-0.90 s) | **2.4x**; 2.2x | 3 | 3 | 41-48% |  |
+| Pseudobulk DESeq2 (paired, 16 samples) | 15 s (14 s-15 s) | 15 s (15 s-15 s) | **1.0x**; 1.0x | 3 | 3 | 36-52% |  |
+| scanpy gene-set score (5 sets) | 5.17 s (4.54 s-5.23 s) | 9.44 s (9.23 s-9.62 s) | **1.8x**; 1.8x | 3 | 3 | 34-52% |  |
+
+Measured 2026-10-25 07:40:05 to 2026-10-25 08:13:19; leases seen: leased 16/16 by 4 process(es); machine load 14%; leased 16/16 by 4 process(es); machine load 17%; leased 16/16 by 4 process(es); machine load 18%.
+
+**1,000,000 cells**:
+
+| Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
+|---|---:|---:|---|---:|---:|---|---|
+| Log-normalise | 9.81 s (9.81 s-12 s) | 21 s (21 s-21 s) | **2.1x**; 1.7x | 3 | 3 | 20-30% |  |
+| Highly variable genes (2,000) | 18 s (17 s-18 s) | 44 s (44 s-45 s) | **2.5x**; 2.4x | 3 | 3 | 12-30% |  |
+| Scale + PCA (30 PCs) | 48 s (48 s-49 s) | 12.0 min (11.3 min-13.8 min) | **15.0x**; 14.1x | 3 | 3 | 19-41% |  |
+| k-NN graph (k = 20) | 78 s (75 s-79 s) | 90 s (84 s-92 s) | **1.2x**; 1.1x | 3 | 3 | 37-50% | recall vs exact: arsc 0.914, scanpy 0.910; overlap arsc-scanpy 0.868 vs scanpy seed 0-seed 1 0.861 |
+| k-NN + Leiden clustering | 101 s (95 s-109 s) | 214 s (194 s-222 s) | **2.1x**; 2.0x | 3 | 3 | 23-51% | ARI arsc-scanpy 0.997; vs truth arsc 0.995, scanpy 0.997 |
+| Markers, scanpy-style Wilcoxon (20k genes) | 155 s (155 s-155 s) | 72.3 min (72.3 min-72.3 min) | **27.9x**; 27.9x | 1 | 3 | 24-34% |  |
+| Pseudobulk sums | 3.14 s (3.09 s-3.31 s) | 7.10 s (7.04 s-7.24 s) | **2.3x**; 2.1x | 3 | 3 | 17-34% |  |
+| Pseudobulk DESeq2 (paired, 16 samples) | 17 s (17 s-18 s) | 20 s (20 s-20 s) | **1.2x**; 1.1x | 3 | 3 | 13-33% |  |
+| scanpy gene-set score (5 sets) | 42 s (41 s-42 s) | 83 s (80 s-86 s) | **2.0x**; 2.0x | 3 | 3 | 14-20% |  |
+
+Measured 2026-10-25 08:13:44 to 2026-10-25 10:04:12; leases seen: leased 10/16 by 4 process(es); machine load 16%; leased 10/16 by 4 process(es); machine load 17%; leased 10/16 by 4 process(es); machine load 18%.
+
 <!-- PAIRED:END -->
 
 k-NN: `arsc.knn` (and `find_neighbors`, `scanpy_extra.neighbors`) searches exactly up to 4,096 cells and with
@@ -54,7 +88,11 @@ queries against brute force; one run each, machine shared): pynndescent 105 s, r
 (nlist 2,000 / nprobe 64) 251 s, 0.961; FAISS HNSW (M 16, efSearch 48) 128 s, 0.776; hnswlib (M 16, ef 48) 181 s,
 0.854; scanpy `pp.neighbors` 121 s, 0.913. pynndescent was the fastest established library at scanpy's quality, so
 it is the only backend (no GPU path: pynndescent has none, and FAISS GPU wheels exist only for Linux).
-Reproducibility: the same seed and thread count give the same graph; another thread count changes about 2% of the
+First call in a fresh process (numba compilation included; `benchmarks/cold_start.py`, 3 threads, 3 interleaved
+runs, 2026-10-25): k-NN graph at 10,000 cells arsc 30.6 s vs scanpy 54.2 s, at 100,000 cells 33.2 s vs 42.6 s. Most of
+it is pynndescent's one-off compilation, which both pay; arsc 0.3's exact search was compiled once and cached on disk,
+so a first call on 4,097-100,000 cells is now about 30 s slower than in arsc 0.3 (pass `method="exact"` in short
+scripts on small data). Reproducibility: the same seed and thread count give the same graph; another thread count changes about 2% of the
 neighbour entries (pynndescent's parallel updates).
 
 ## Speed, earlier single measurements (32-thread workstation, not paired)

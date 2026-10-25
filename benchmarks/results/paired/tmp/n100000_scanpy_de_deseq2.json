@@ -1,1 +1,1 @@
-{"tool": "scanpy", "step": "de_deseq2", "ok": true, "warmup_seconds": 14.862714052200317, "t_start": 1792917567.9357274, "t_end": 1792917592.2377625, "seconds": 24.302035093307495}
+{"tool": "scanpy", "step": "de_deseq2", "ok": true, "warmup_seconds": 10.936086177825928, "t_start": 1792930297.1079497, "t_end": 1792930312.1718674, "seconds": 15.063917636871338}

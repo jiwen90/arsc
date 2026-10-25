@@ -1,1 +1,1 @@
-{"tool": "scanpy", "step": "cluster", "ok": true, "warmup_seconds": 59.373544216156006, "t_start": 1792916269.8459177, "t_end": 1792916283.8226845, "seconds": 13.97676682472229}
+{"tool": "scanpy", "step": "cluster", "ok": true, "warmup_seconds": 55.922072410583496, "t_start": 1792929636.2826128, "t_end": 1792929649.9303305, "seconds": 13.647717714309692}

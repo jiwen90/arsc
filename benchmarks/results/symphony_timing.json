@@ -1,64 +1,88 @@
 {
  "summary": {
   "arsc": {
-   "median_s": 3.460133194923401,
-   "min_s": 3.3926901817321777,
-   "max_s": 3.527576208114624
+   "median_s": 3.398530960083008,
+   "min_s": 3.2179877758026123,
+   "max_s": 3.6240711212158203
   },
   "R": {
-   "median_s": 4.23555,
-   "min_s": 3.9882,
-   "max_s": 4.4829
+   "median_s": 4.0032,
+   "min_s": 3.8438,
+   "max_s": 4.0087
   }
  },
  "runs": [
   {
    "ok": true,
-   "seconds": 3.527576208114624,
-   "warmup_seconds": 57.571209192276,
+   "seconds": 3.2179877758026123,
+   "warmup_seconds": 30.883827447891235,
    "tool": "arsc",
    "rep": 0,
-   "threads": 2,
-   "cpu_percent_1s": 83.9,
-   "mem_available_gb": 75.1,
-   "time": "2026-10-25 01:41:37",
-   "lease": "leased 16/16 by 9 process(es); machine load 92%"
+   "threads": 3,
+   "cpu_percent_1s": 10.9,
+   "mem_available_gb": 334.4,
+   "time": "2026-10-25 09:58:31",
+   "lease": "leased 8/16 by 3 process(es); machine load 7%"
   },
   {
    "ok": true,
-   "seconds": 4.4829,
-   "warmup_seconds": 4.7085,
+   "seconds": 3.8438,
+   "warmup_seconds": 4.7261,
    "tool": "R",
    "rep": 0,
-   "threads": 2,
-   "cpu_percent_1s": 65.3,
-   "mem_available_gb": 71.9,
-   "time": "2026-10-25 01:42:46",
-   "lease": "leased 16/16 by 9 process(es); machine load 92%"
+   "threads": 3,
+   "cpu_percent_1s": 22.2,
+   "mem_available_gb": 352.6,
+   "time": "2026-10-25 09:59:11",
+   "lease": "leased 8/16 by 3 process(es); machine load 21%"
   },
   {
    "ok": true,
-   "seconds": 3.9882,
-   "warmup_seconds": 4.8501,
+   "seconds": 4.0087,
+   "warmup_seconds": 4.3467,
    "tool": "R",
    "rep": 1,
-   "threads": 2,
-   "cpu_percent_1s": 68.1,
-   "mem_available_gb": 68.7,
-   "time": "2026-10-25 01:43:01",
-   "lease": "leased 16/16 by 9 process(es); machine load 76%"
+   "threads": 3,
+   "cpu_percent_1s": 21.8,
+   "mem_available_gb": 351.0,
+   "time": "2026-10-25 09:59:24",
+   "lease": "leased 8/16 by 3 process(es); machine load 23%"
   },
   {
    "ok": true,
-   "seconds": 3.3926901817321777,
-   "warmup_seconds": 32.99468684196472,
+   "seconds": 3.6240711212158203,
+   "warmup_seconds": 32.15947508811951,
    "tool": "arsc",
    "rep": 1,
-   "threads": 2,
-   "cpu_percent_1s": 82.3,
-   "mem_available_gb": 65.6,
-   "time": "2026-10-25 01:43:14",
-   "lease": "leased 16/16 by 9 process(es); machine load 67%"
+   "threads": 3,
+   "cpu_percent_1s": 22.1,
+   "mem_available_gb": 347.9,
+   "time": "2026-10-25 09:59:37",
+   "lease": "leased 8/16 by 3 process(es); machine load 21%"
+  },
+  {
+   "ok": true,
+   "seconds": 3.398530960083008,
+   "warmup_seconds": 30.867141485214233,
+   "tool": "arsc",
+   "rep": 2,
+   "threads": 3,
+   "cpu_percent_1s": 21.2,
+   "mem_available_gb": 344.4,
+   "time": "2026-10-25 10:00:19",
+   "lease": "leased 8/16 by 3 process(es); machine load 22%"
+  },
+  {
+   "ok": true,
+   "seconds": 4.0032,
+   "warmup_seconds": 4.3379,
+   "tool": "R",
+   "rep": 2,
+   "threads": 3,
+   "cpu_percent_1s": 22.3,
+   "mem_available_gb": 343.4,
+   "time": "2026-10-25 10:00:58",
+   "lease": "leased 8/16 by 3 process(es); machine load 22%"
   }
  ],
  "date": "2026-10-25"

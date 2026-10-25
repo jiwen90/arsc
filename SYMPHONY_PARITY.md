@@ -55,6 +55,14 @@ The stochastic steps are Harmony's k-means start and block order (R's RNG vs num
 | mapping score Spearman arsc vs R | 0.992 | - |
 | UMAP placement: label of the 10 nearest reference cells on each package's own UMAP, agreement / accuracy arsc, R | 0.967 / 0.942, 0.937 | - |
 | time, build + map (arsc incl. first-call compilation; R) | 31.5 s; 5.3 s | 7.7 s; 12.4 s |
+| time, build + map + kNN labels, paired (vignette; `benchmarks/symphony_timing.py`, 2026-10-25, 3 threads, 3 interleaved runs each, after one untimed run in the same process) | arsc 3.40 s (3.22-3.62), R 4.00 s (3.84-4.01) | - |
+| first call in a fresh process (same runs) | arsc 31-32 s, R 4.3-4.7 s | - |
+
+The earlier 31.5 s for arsc on the vignette was its first call: about 28 s of it is the one-off numba compilation of
+umap-learn (the reference UMAP model and the query placement use umap-learn, whose functions are not cached on disk),
+which R's uwot does not pay. Warm, arsc is 1.2x faster than R on the vignette and 1.6x on the clinical case. Plan for
+the first call: build the reference UMAP with arsc's own engine (compiled once and cached on disk), which needs a port
+of umap-learn's `transform` for the query cells.
 
 Clinical case (a longitudinal CD8 T-cell dataset): a 6,000-cell pan-T-sort reference (Harmony on patient x timepoint, d = 30, K = 100) and a 2,000-cell
 CD8-sort query (`vars` = patient x timepoint x sort, sigma 0.1), labels = the reference's 9 CD8 clusters, genes

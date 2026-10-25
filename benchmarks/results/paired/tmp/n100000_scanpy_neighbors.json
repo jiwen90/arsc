@@ -1,1 +1,1 @@
-{"tool": "scanpy", "step": "neighbors", "ok": true, "warmup_seconds": 60.95504832267761, "t_start": 1792915790.9074862, "t_end": 1792915798.8365731, "seconds": 7.929086923599243}
+{"tool": "scanpy", "step": "neighbors", "ok": true, "warmup_seconds": 57.86845922470093, "t_start": 1792929190.6677845, "t_end": 1792929196.4824653, "seconds": 5.814680814743042}

@@ -1,0 +1,74 @@
+{
+ "median_s": {
+  "arsc": 30.565661668777466,
+  "scanpy": 54.196958780288696
+ },
+ "runs": [
+  {
+   "seconds": 29.462937593460083,
+   "tool": "arsc",
+   "rep": 0,
+   "n": 10000,
+   "threads": 3,
+   "cpu_percent_1s": 32.2,
+   "mem_available_gb": 383.8,
+   "time": "2026-10-25 11:22:22",
+   "lease": "leased 16/16 by 3 process(es); machine load 25%"
+  },
+  {
+   "seconds": 54.196958780288696,
+   "tool": "scanpy",
+   "rep": 0,
+   "n": 10000,
+   "threads": 3,
+   "cpu_percent_1s": 31.5,
+   "mem_available_gb": 378.0,
+   "time": "2026-10-25 11:22:57",
+   "lease": "leased 16/16 by 3 process(es); machine load 31%"
+  },
+  {
+   "seconds": 55.69831442832947,
+   "tool": "scanpy",
+   "rep": 1,
+   "n": 10000,
+   "threads": 3,
+   "cpu_percent_1s": 34.3,
+   "mem_available_gb": 385.4,
+   "time": "2026-10-25 11:23:58",
+   "lease": "leased 16/16 by 3 process(es); machine load 34%"
+  },
+  {
+   "seconds": 34.332671880722046,
+   "tool": "arsc",
+   "rep": 1,
+   "n": 10000,
+   "threads": 3,
+   "cpu_percent_1s": 9.1,
+   "mem_available_gb": 384.3,
+   "time": "2026-10-25 11:25:00",
+   "lease": "leased 16/16 by 3 process(es); machine load 8%"
+  },
+  {
+   "seconds": 30.565661668777466,
+   "tool": "arsc",
+   "rep": 2,
+   "n": 10000,
+   "threads": 3,
+   "cpu_percent_1s": 30.8,
+   "mem_available_gb": 381.6,
+   "time": "2026-10-25 11:25:40",
+   "lease": "leased 16/16 by 3 process(es); machine load 31%"
+  },
+  {
+   "seconds": 49.270719051361084,
+   "tool": "scanpy",
+   "rep": 2,
+   "n": 10000,
+   "threads": 3,
+   "cpu_percent_1s": 12.4,
+   "mem_available_gb": 383.2,
+   "time": "2026-10-25 11:26:16",
+   "lease": "leased 16/16 by 3 process(es); machine load 10%"
+  }
+ ]
+}

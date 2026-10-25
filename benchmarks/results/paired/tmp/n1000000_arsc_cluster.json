@@ -1,1 +1,1 @@
-{"tool": "arsc", "step": "cluster", "ok": true, "warmup_seconds": 27.562129735946655, "t_start": 1792919949.839426, "t_end": 1792920077.1518848, "seconds": 127.31245875358582}
+{"tool": "arsc", "step": "cluster", "ok": true, "warmup_seconds": 30.580453395843506, "t_start": 1792932448.231664, "t_end": 1792932543.71485, "seconds": 95.48318600654602}

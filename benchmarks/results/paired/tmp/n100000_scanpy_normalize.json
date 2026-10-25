@@ -1,1 +1,1 @@
-{"tool": "scanpy", "step": "normalize", "ok": true, "warmup_seconds": 4.538065195083618, "t_start": 1792915059.8745606, "t_end": 1792915062.0067952, "seconds": 2.132234573364258}
+{"tool": "scanpy", "step": "normalize", "ok": true, "warmup_seconds": 3.9305551052093506, "t_start": 1792928467.2700663, "t_end": 1792928469.6086807, "seconds": 2.3386144638061523}

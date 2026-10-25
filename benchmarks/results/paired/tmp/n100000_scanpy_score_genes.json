@@ -1,1 +1,1 @@
-{"tool": "scanpy", "step": "score_genes", "ok": true, "warmup_seconds": 4.77078914642334, "t_start": 1792917694.991343, "t_end": 1792917703.7264032, "seconds": 8.735060214996338}
+{"tool": "scanpy", "step": "score_genes", "ok": true, "warmup_seconds": 4.579545497894287, "t_start": 1792930410.662343, "t_end": 1792930419.8927104, "seconds": 9.230367422103882}

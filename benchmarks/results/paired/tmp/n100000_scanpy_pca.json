@@ -1,1 +1,1 @@
-{"tool": "scanpy", "step": "pca", "ok": true, "warmup_seconds": 10.948612451553345, "t_start": 1792915328.106734, "t_end": 1792915403.2965684, "seconds": 75.18983435630798}
+{"tool": "scanpy", "step": "pca", "ok": true, "warmup_seconds": 7.567540884017944, "t_start": 1792928790.2971017, "t_end": 1792928847.8388455, "seconds": 57.541743755340576}

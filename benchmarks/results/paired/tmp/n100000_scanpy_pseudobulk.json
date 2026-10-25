@@ -1,1 +1,1 @@
-{"tool": "scanpy", "step": "pseudobulk", "ok": true, "warmup_seconds": 3.6795902252197266, "t_start": 1792917272.8099597, "t_end": 1792917273.5887082, "seconds": 0.7787485122680664}
+{"tool": "scanpy", "step": "pseudobulk", "ok": true, "warmup_seconds": 3.3828113079071045, "t_start": 1792930127.8312898, "t_end": 1792930128.663842, "seconds": 0.8325521945953369}
