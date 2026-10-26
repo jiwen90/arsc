@@ -99,14 +99,16 @@ PANEL = 256  # columns of one output panel of ``gram``; fixed, like BLOCK
 
 
 def gram(Z, block: int = BLOCK, panel: int = PANEL) -> np.ndarray:
-    """``Z.T @ Z`` (symmetric), bit-identical for any thread count and equal to ``matmul(Z.T, Z)``.
+    """``Z.T @ Z`` (symmetric), bit-identical for any thread count; ``matmul(Z.T, Z)`` to rounding.
 
     ``matmul`` cuts only the rows of ``Z.T`` and the inner (cell) dimension, so a Gram matrix of a few thousand
     features over ~10,000 cells is 1 x 3 blocks and runs on 3 threads. Here the output is also cut into fixed
     ``panel``-wide column panels: each upper-triangle panel pair sums its partial products over the same
     ``block``-row inner blocks, in the same order, as ``matmul`` (diagonal panels use the symmetric BLAS product,
-    off-diagonal ones the general product, then mirrored), so every entry is summed exactly as before
-    (measured equal on 10,000 and 100,000 real cells x 2,000 genes) and the panel pairs run in parallel.
+    off-diagonal ones the general product, then mirrored), and the panel pairs run in parallel. The panels are
+    fixed, so the result does not depend on the thread count. Whether it equals ``matmul(Z.T, Z)`` bit for bit
+    depends on the CPU's BLAS kernel (equal with OpenBLAS's Haswell, Zen and SapphireRapids kernels, measured on
+    10,000 and 100,000 real cells x 2,000 genes; up to ~1e-16 relative with its Sandybridge kernel).
 
     Parameters
     ----------

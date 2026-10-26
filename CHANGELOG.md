@@ -23,8 +23,9 @@ All notable changes to arsc are recorded here. The format follows
 - Faster `pp.pca` (`method="gram"`, the default for up to 6,000 features) and `pseudobulk` on small data, with the
   same results. At 10,000 real PBMCs x 2,000 HVGs, the full `eigh` of the Gram matrix took 0.87 s of 1.26 s on one
   BLAS thread: only the top `n_comps` eigenpairs are computed now (LAPACK `syevr`, 0.32 s); the Gram product is cut
-  into fixed 256-column panels that run in parallel (`_detla.gram`, equal to `matmul(Z.T, Z)` bit for bit and still
-  thread-count invariant; 0.30 s -> 0.12 s, it ran on 3 threads before); the total variance no longer makes two
+  into fixed 256-column panels that run in parallel (`_detla.gram`, still thread-count invariant; equal to `matmul(Z.T, Z)`
+  bit for bit with OpenBLAS's Haswell/Zen kernels, to ~1e-16 relative with others; 0.30 s -> 0.12 s, it ran on
+  3 threads before); the total variance no longer makes two
   cells x features temporaries (bit for bit the same). Singular values agree to 3e-15 relative, loadings to 6e-15,
   no sign change, the total variance is identical. `pseudobulk` with no group below `min_cells` no longer copies its
   groups x features sums and detection counts (2 x 400 MB for 1,367 groups x 36,601 genes); sums and counts

@@ -195,22 +195,26 @@ def test_detla_matmul_matches_numpy():
     assert np.allclose(matmul(A, B[:, 0]), A @ B[:, 0])
 
 
-def test_detla_gram_equals_matmul_bit_for_bit():
-    """gram() cuts the output into fixed panels on top of matmul's fixed inner blocks: every entry is summed in the
-    same order, so it equals matmul(Z.T, Z) exactly, for any thread count (several inner blocks, a ragged panel)."""
+def test_detla_gram_thread_invariant_and_matches_matmul():
+    """gram() cuts the output into fixed panels on top of matmul's fixed inner blocks: bit-identical for any thread
+    count and exactly symmetric (several inner blocks, a ragged panel). Against matmul(Z.T, Z) it is equal to
+    rounding only: whether a panel product rounds like one whole symmetric product depends on the CPU's BLAS kernel
+    (equal on Haswell/Zen kernels, ~1e-16 relative on Sandybridge's)."""
     from arsc import set_threads, get_threads
     from arsc._detla import gram, matmul
     Z = np.random.default_rng(3).standard_normal((9000, 600))
     ref = matmul(Z.T, Z)
     old = get_threads()
     try:
-        for t in (1, 3):
-            set_threads(t)
-            G = gram(Z)
-            assert np.array_equal(G, ref)
-            assert np.array_equal(G, G.T)
+        set_threads(1)
+        G1 = gram(Z)
+        set_threads(2)
+        G2 = gram(Z)
     finally:
         set_threads(old)
+    assert np.array_equal(G1, G2)
+    assert np.array_equal(G1, G1.T)
+    assert np.allclose(G1, ref, rtol=1e-13, atol=1e-10)
 
 
 def test_pca_total_variance_bit_for_bit():
