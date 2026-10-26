@@ -422,7 +422,7 @@ def highly_variable_genes(X, features=None, *, flavor: str = "seurat", n_top_gen
     flavor : ``"seurat"`` (default), ``"cell_ranger"``, ``"seurat_v3"`` (or ``"seurat_v3_paper"``).
     n_top_genes : number of genes to flag (required for seurat_v3).
     min_mean, max_mean, min_disp, max_disp : cutoffs for seurat/cell_ranger when ``n_top_genes`` is None.
-    n_bins : number of mean bins for dispersion normalisation (default 20).
+    n_bins : number of mean bins for dispersion normalization (default 20).
     span : loess span for seurat_v3 (default 0.3).
     log1p_base : base used for log1p, if not natural.
     batch_key : array of batch labels (seurat_v3 only): per-batch ranking combined by median rank, as scanpy.
@@ -706,12 +706,12 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
 
     Uses :func:`arsc.knn` with scanpy's switch (``method="auto"``: exact up to 4,096 cells, arsc's approximate
     search above; ``"exact"`` forces exact search). As
-    scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbours).
+    scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbors).
 
     Parameters
     ----------
     emb : cells x d embedding (e.g. PCA or Harmony).
-    n_neighbors : neighbourhood size including the cell itself (default 15).
+    n_neighbors : neighborhood size including the cell itself (default 15).
     metric : ``"euclidean"`` or ``"cosine"``.
     method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`arsc.knn`).
     random_state : integer seed (default 0) of the approximate search's partition (unused by exact search).
@@ -831,7 +831,7 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
 def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: float = 1.0, n_components: int = 2,
                              maxiter: int | None = None, alpha: float = 1.0, gamma: float = 1.0,
                              negative_sample_rate: int = 5, init_pos: str = "spectral", random_state: int = 0) -> np.ndarray:
-    """``sc.tl.umap``: UMAP layout optimisation on the scanpy connectivities graph (not on raw X).
+    """``sc.tl.umap``: UMAP layout optimization on the scanpy connectivities graph (not on raw X).
 
     Same call path as scanpy (``umap.umap_.simplicial_set_embedding`` with ``a, b = find_ab_params``).
     ``random_state`` seeds the spectral-init noise and the SGD layout through a local ``RandomState``;
@@ -982,8 +982,8 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
                             method: str = "auto") -> dict:
     """``palantir.utils.run_diffusion_maps`` (adaptive anisotropic kernel, Setty 2019).
 
-    kNN (self excluded, ``knn - 1`` neighbours as scanpy's distance matrix), adaptive bandwidth = distance to
-    the ``floor(knn / 3)``-th neighbour, kernel ``exp(-d / sigma_i)`` symmetrized as ``W + W^T``, row-normalized
+    kNN (self excluded, ``knn - 1`` neighbors as scanpy's distance matrix), adaptive bandwidth = distance to
+    the ``floor(knn / 3)``-th neighbor, kernel ``exp(-d / sigma_i)`` symmetrized as ``W + W^T``, row-normalized
     transition ``T``, ``eigs`` with palantir's tolerance and start vector (``default_rng(seed).random``). Exact
     kNN here vs scanpy's approximate kNN for > 4,096 cells in palantir: identical below that size.
 
@@ -991,7 +991,7 @@ def palantir_diffusion_maps(emb, n_components: int = 10, knn: int = 30, alpha: f
     ----------
     emb : cells x d embedding (e.g. PCA / Harmony).
     n_components : number of eigenvectors (default 10).
-    knn : neighbourhood size (default 30).
+    knn : neighborhood size (default 30).
     alpha : anisotropy (default 0).
     seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN partition.
     method : kNN method, ``"auto"`` (default: exact up to 4,096 cells), ``"exact"`` or ``"approximate"``.
@@ -1089,8 +1089,8 @@ def magic_impute(X, T, n_steps: int = 3, clip_threshold: float = 1e-2, dtype=np.
     """``palantir.utils.run_magic_imputation``: ``T^n_steps @ X``, values below ``clip_threshold`` set to 0.
 
     Applies ``T`` ``n_steps`` times to dense gene chunks instead of forming the denser ``T^n_steps`` (same
-    result up to float32 rounding, ~1e-6 relative). Imputed values are smoothed over neighbours: use them for
-    visualisation, not as independent observations in tests.
+    result up to float32 rounding, ~1e-6 relative). Imputed values are smoothed over neighbors: use them for
+    visualization, not as independent observations in tests.
 
     Parameters
     ----------

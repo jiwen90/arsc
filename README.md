@@ -43,7 +43,7 @@ Same session, interleaved (arsc and scanpy alternate first), the same thread cou
 
 | Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
 |---|---:|---:|---|---:|---:|---|---|
-| Log-normalise | 0.89 s (0.83 s-1.12 s) | 2.23 s (2.23 s-2.34 s) | **2.5x**; 2.0x | 3 | 3 | 22-68% |  |
+| Log-normalize | 0.89 s (0.83 s-1.12 s) | 2.23 s (2.23 s-2.34 s) | **2.5x**; 2.0x | 3 | 3 | 22-68% |  |
 | Highly variable genes (2,000) | 2.29 s (2.20 s-2.34 s) | 4.92 s (4.79 s-5.01 s) | **2.1x**; 2.1x | 3 | 3 | 39-59% |  |
 | Scale + PCA (30 PCs) | 6.18 s (5.83 s-6.70 s) | 68 s (58 s-72 s) | **11.0x**; 9.9x | 3 | 3 | 17-63% |  |
 | k-NN graph (k = 20) | 5.37 s (4.48 s-5.39 s) | 5.81 s (5.79 s-6.44 s) | **1.1x**; 1.1x | 3 | 3 | 33-73% | recall vs exact: arsc 0.955, scanpy 0.933; overlap arsc-scanpy 0.907 vs scanpy seed 0-seed 1 0.901 |
@@ -59,7 +59,7 @@ Measured 2026-10-25 07:40:05 to 2026-10-25 08:13:19; leases seen: leased 16/16 b
 
 | Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
 |---|---:|---:|---|---:|---:|---|---|
-| Log-normalise | 9.81 s (9.81 s-12 s) | 21 s (21 s-21 s) | **2.1x**; 1.7x | 3 | 3 | 20-30% |  |
+| Log-normalize | 9.81 s (9.81 s-12 s) | 21 s (21 s-21 s) | **2.1x**; 1.7x | 3 | 3 | 20-30% |  |
 | Highly variable genes (2,000) | 18 s (17 s-18 s) | 44 s (44 s-45 s) | **2.5x**; 2.4x | 3 | 3 | 12-30% |  |
 | Scale + PCA (30 PCs) | 48 s (48 s-49 s) | 12.0 min (11.3 min-13.8 min) | **15.0x**; 14.1x | 3 | 3 | 19-41% |  |
 | k-NN graph (k = 20) | 78 s (75 s-79 s) | 90 s (84 s-92 s) | **1.2x**; 1.1x | 3 | 3 | 37-50% | recall vs exact: arsc 0.914, scanpy 0.910; overlap arsc-scanpy 0.868 vs scanpy seed 0-seed 1 0.861 |
@@ -85,10 +85,10 @@ Synthetic data generated in code (`benchmarks/suite_sim.py`: 20,000 genes, negat
 
 | Step | arsc | scanpy | Seurat / R | speed-up vs scanpy | speed-up vs Seurat | memory arsc / scanpy / Seurat | agreement with scanpy | agreement with Seurat / R |
 |---|---:|---:|---:|---:|---:|---|---|---|
-| Log-normalise | 0.58 s | 1.26 s | 7.70 s | **2.2x** | **13x** | 3.2 / 2.3 / 9.2 | max diff 3.4e-07 | exact (max diff 9e-16) |
+| Log-normalize | 0.58 s | 1.26 s | 7.70 s | **2.2x** | **13x** | 3.2 / 2.3 / 9.2 | max diff 3.4e-07 | exact (max diff 9e-16) |
 | Highly variable genes (2,000) | 1.50 s | 3.78 s | 6.19 s | **2.5x** | **4.1x** | 2.6 / 2.6 / 8.7 | 2,000/2,000 genes shared; r = 1.000000 | 2,000/2,000 genes shared; r = 1.000000 |
 | Scale + PCA (30 PCs) | 2.62 s | 37 s | 298 s | **14x** | **113x** | 4.7 / 4.6 / 8.6 | per-PC abs r >= 1.0000 (PC1-10), >= 0.998 (all 30) | per-PC abs r >= 1.0000 (PC1-10), >= 1.000 (all 30) |
-| k-NN graph (k = 20) | 4.82 s | 6.68 s | 28 s | **1.4x** | **5.8x** | 1.1 / 0.8 / 2.3 | 98.2% of neighbours shared | 78.8% of neighbours shared |
+| k-NN graph (k = 20) | 4.82 s | 6.68 s | 28 s | **1.4x** | **5.8x** | 1.1 / 0.8 / 2.3 | 98.2% of neighbors shared | 78.8% of neighbors shared |
 | k-NN + clustering | 11 s | 12 s | 38 s | 1.04x | **3.4x** | 0.9 / 1.3 / 2.3 | ARI 0.998 | ARI 0.998 |
 | Markers, presto-style Wilcoxon + AUC (20k genes) | 3.57 s | - | 24 s | - | **6.6x** | 7.9 / - / 8.6 | - | AUC exact (max diff 6e-16); p max rel. diff 1e-10 |
 | Markers, scanpy-style Wilcoxon (20k genes) | 4.71 s | 55 s | - | **12x** | - | 8.5 / 2.7 / - | z-score max diff 1.1e-04; p max rel. diff 7e-04; top-50 overlap 100% | - |
@@ -104,10 +104,10 @@ Synthetic data generated in code (`benchmarks/suite_sim.py`: 20,000 genes, negat
 
 | Step | arsc | scanpy | Seurat / R | speed-up vs scanpy | speed-up vs Seurat | memory arsc / scanpy / Seurat | agreement with scanpy | agreement with Seurat / R |
 |---|---:|---:|---:|---:|---:|---|---|---|
-| Log-normalise | 5.50 s | 12 s | 78 s | **2.3x** | **14x** | 29.7 / 23.8 / 88.7 | max diff 3.0e-07 | exact (max diff 9e-16) |
+| Log-normalize | 5.50 s | 12 s | 78 s | **2.3x** | **14x** | 29.7 / 23.8 / 88.7 | max diff 3.0e-07 | exact (max diff 9e-16) |
 | Highly variable genes (2,000) | 13 s | 33 s | 61 s | **2.6x** | **4.7x** | 23.8 / 24.0 / 82.9 | 2,000/2,000 genes shared; r = 1.000000 | 2,000/2,000 genes shared; r = 1.000000 |
 | Scale + PCA (30 PCs) | 21 s | 554 s | timed out (> 3600 s) | **27x** | **> 173x** | 46.2 / 43.6 / - | per-PC abs r >= 0.9999 (PC1-10), >= 0.993 (all 30) | - |
-| k-NN graph (k = 20) | 13 min | 118 s | 373 s | 0.15x | 0.48x | 3.5 / 2.7 / 20.5 | 95.6% of neighbours shared | 56.3% of neighbours shared |
+| k-NN graph (k = 20) | 13 min | 118 s | 373 s | 0.15x | 0.48x | 3.5 / 2.7 / 20.5 | 95.6% of neighbors shared | 56.3% of neighbors shared |
 | k-NN + clustering | 14 min | 191 s | did not finish | 0.22x | - | 3.7 / 7.6 / - | ARI 0.992 | - |
 | Markers, presto-style Wilcoxon + AUC (20k genes) | 45 s | - | 181 s | - | **4.0x** | 76.8 / - / 66.7 | - | AUC max diff 1.6e-07; p max rel. diff 5e-03 |
 | Markers, scanpy-style Wilcoxon (20k genes) | 55 s | 48 min | - | **52x** | - | 82.7 / 23.9 / - | z-score max diff 7.6e-05; p max rel. diff 6e-04; top-50 overlap 100% | - |
@@ -123,7 +123,7 @@ Scaling (seconds; `-` = no equivalent, `n/r` = not run (time budget), `t/o` = ti
 
 | Step | 10k arsc / scanpy / Seurat | 100k arsc / scanpy / Seurat | 1,000k arsc / scanpy / Seurat |
 |---|---|---|---|
-| Log-normalise | 0.08 / 0.16 / 0.94 | 0.58 / 1.26 / 7.70 | 5.50 / 12 / 78 |
+| Log-normalize | 0.08 / 0.16 / 0.94 | 0.58 / 1.26 / 7.70 | 5.50 / 12 / 78 |
 | Highly variable genes (2,000) | 0.29 / 0.42 / 1.21 | 1.50 / 3.78 / 6.19 | 13 / 33 / 61 |
 | Scale + PCA (30 PCs) | 0.84 / 3.03 / 15 | 2.62 / 37 / 298 | 21 / 554 / t/o |
 | k-NN graph (k = 20) | 0.28 / 1.77 / 2.08 | 4.82 / 6.68 / 28 | 13 min / 118 / 373 |
@@ -251,5 +251,5 @@ If you use arsc, please cite it ([CITATION.cff](CITATION.cff)) and the methods i
 GPL-3.0-or-later ([LICENSE](LICENSE)). Several modules translate or closely follow GPL code (harmony, limma/edgeR,
 presto, UCell), so arsc as a whole is GPL. You may use it freely, including privately and in a lab; if you
 distribute arsc or a program that includes it, the GPL applies to that distribution (source available, same
-licence). [NOTICE](NOTICE) credits each ported original with its licence; the MIT/BSD originals' licence
+license). [NOTICE](NOTICE) credits each ported original with its license; the MIT/BSD originals' license
 texts (Seurat, fgsea, Clonotrace, scanpy) are kept in [LICENSES/](LICENSES).

@@ -3,7 +3,7 @@
 This tutorial walks through a complete analysis on `arsc.datasets.toy()`: a small synthetic study of 6 patients
 sampled before and after treatment. Three patients respond (`R`), three do not (`NR`). The data are simulated, so
 we know the answer: in responders, CD8 T cells become more frequent after treatment, switch on a cytotoxic
-programme (`GZMK GZMB IFNG PRF1 CXCL13`), and a few T-cell clones expand. Every block below runs as written
+program (`GZMK GZMB IFNG PRF1 CXCL13`), and a few T-cell clones expand. Every block below runs as written
 (the test suite executes it), and each one continues from the previous block.
 
 ## 1. Data: Dataset and Store
@@ -45,7 +45,7 @@ ds = ds.subset(keep)
 counts, obs = ds.X("RNA", "counts"), ds.obs
 ```
 
-## 3. Normalise, reduce, cluster
+## 3. Normalize, reduce, cluster
 
 These steps reproduce Seurat's `NormalizeData`, `FindVariableFeatures`, `ScaleData`, `RunPCA`, `RunHarmony`,
 `FindNeighbors`, `FindClusters` and `RunUMAP` (the parity tables give the agreement for each step).

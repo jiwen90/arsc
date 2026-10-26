@@ -109,7 +109,7 @@ def test_group_singletons_matches_seurat_rule():
     G = sp.csr_matrix(np.array([[0, 1, 0, 0], [1, 0, 2, 0], [0, 2, 0, 3], [0, 0, 3, 0.]]))
     # labels 0 = {0, 1}, 1 = {2, 3}: no singleton -> unchanged
     assert L.group_singletons(np.array([0, 0, 1, 1]), G).tolist() == [0, 0, 1, 1]
-    # node 3 alone joins the cluster of its only neighbour (node 2, cluster 0)
+    # node 3 alone joins the cluster of its only neighbor (node 2, cluster 0)
     out = L.group_singletons(np.array([0, 0, 0, 1]), G)
     assert out.tolist() == [0, 0, 0, 0]
 

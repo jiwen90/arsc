@@ -18,9 +18,9 @@ TASKS = [
     ("Load", "hand off to scanpy / write h5ad", "st.to_anndata(cells, genes); st.write_h5ad(path, cells)"),
     ("Load", "toy data for trying things", "arsc.datasets.toy()"),
     ("QC", "per-cell QC metrics (scanpy calculate_qc_metrics)", "arsc.qc_metrics(counts, genes, qc_vars={'mt': mask})"),
-    ("Normalise", "LogNormalize (Seurat NormalizeData)", "arsc.pp.log_normalize(counts)"),
-    ("Normalise", "normalize_total + log1p (scanpy, bitwise)", "arsc.normalize_total_log1p(counts)"),
-    ("Normalise", "CLR for ADT (Seurat)", "arsc.pp.clr(adt_counts)"),
+    ("Normalize", "LogNormalize (Seurat NormalizeData)", "arsc.pp.log_normalize(counts)"),
+    ("Normalize", "normalize_total + log1p (scanpy, bitwise)", "arsc.normalize_total_log1p(counts)"),
+    ("Normalize", "CLR for ADT (Seurat)", "arsc.pp.clr(adt_counts)"),
     ("HVG", "Seurat vst highly variable genes", "arsc.pp.hvg_vst(counts, nfeatures=2000, features=genes)"),
     ("HVG", "scanpy highly_variable_genes (seurat / cell_ranger / seurat_v3)", "arsc.highly_variable_genes(X, genes, flavor=...)"),
     ("Reduce", "scale (Seurat ScaleData, optional regression)", "arsc.pp.scale(L[:, idx]) / arsc.scale_data(...)"),
@@ -118,7 +118,7 @@ print(f"kept {keep.sum()} of {len(keep)} cells")
     ),
     dict(
         id="cluster",
-        title="Normalise, HVG, PCA, Harmony, neighbours, clusters, UMAP",
+        title="Normalize, HVG, PCA, Harmony, neighbors, clusters, UMAP",
         asks=["cluster the cells", "make a UMAP", "standard Seurat workflow", "integrate patients"],
         code='''\
 import pandas as pd
@@ -160,8 +160,8 @@ print("low-confidence cells (prob < 0.6):", int((lab["prob"] < 0.6).sum()))
     ),
     dict(
         id="wnn",
-        title="Cluster on RNA + protein (CITE-seq) with weighted nearest neighbours",
-        asks=["cluster on RNA and ADT together", "weighted nearest neighbour clustering", "CITE-seq WNN"],
+        title="Cluster on RNA + protein (CITE-seq) with weighted nearest neighbors",
+        asks=["cluster on RNA and ADT together", "weighted nearest neighbor clustering", "CITE-seq WNN"],
         code='''\
 import pandas as pd
 import arsc

@@ -19,7 +19,7 @@ Benchmark inputs are never written to disk and never committed, at any size (no 
   `ARSC_BENCH_STORE_COLUMNS`, see `benchdata.py`); without it, the toy data of `suite_sim.py`, generated in
   memory from a fixed seed at 20,000 cells (larger sizes only when asked with `--sizes`, still in memory).
   The shared 30-PC embedding is computed once by the parent and passed to the child processes through
-  shared memory (RAM); children return their results, including the neighbour lists and cluster labels
+  shared memory (RAM); children return their results, including the neighbor lists and cluster labels
   used for the agreement check, on stdout. Only the small result tables go to `--out`.
   `tests/test_speed_gate.py::test_paired_bench_writes_nothing_under_benchmarks` checks that a run writes
   nothing under `benchmarks/`.
@@ -62,7 +62,7 @@ arsc store, an `.h5ad` (for scanpy) and raw dgCMatrix binaries (for R).
 * Every (size, tool, step) runs in a **fresh process**. The parent samples the child's resident set
   size (process + children, every 50 ms).
 * **Time** = wall time of the analysis call only. Loading data and computing inputs the step does not
-  own (e.g. log-normalised data for `markers`) happen before the timed region.
+  own (e.g. log-normalized data for `markers`) happen before the timed region.
 * **Memory** = peak RSS of the process *during* the timed call (so it includes the loaded data).
   For arsc, the counts are memory-mapped; touched pages count towards RSS.
 * **JIT warm-up**: each Python step is first run untimed on a separate 12,000-cell dataset in the same

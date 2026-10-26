@@ -1,5 +1,5 @@
-"""UMAP (McInnes, Healy & Melville 2018) implemented in arsc: fuzzy simplicial set, spectral initialisation and a
-parallel layout optimiser whose result does not depend on the number of threads.
+"""UMAP (McInnes, Healy & Melville 2018) implemented in arsc: fuzzy simplicial set, spectral initialization and a
+parallel layout optimizer whose result does not depend on the number of threads.
 
 The graph construction follows umap-learn 0.5 arithmetic step for step (``smooth_knn_dist``,
 ``compute_membership_strengths``, the fuzzy union, the epoch pruning and ``make_epochs_per_sample``), so the fuzzy
@@ -12,7 +12,7 @@ graph agrees with umap-learn's on the same kNN (``SEURAT_PARITY.md``, UMAP secti
   added after the epoch, per point, in edge order. A point's update therefore depends only on the snapshot and on
   its own edges, never on which thread ran it or when: the coordinates are identical at any thread count.
 * **Per-edge random streams.** The negative samples of edge ``i`` at epoch ``n`` come from a counter-based
-  generator (SplitMix64 finaliser of ``seed, i, n, p``, mapped to a point by a multiply-shift), not from a shared or per-thread state.
+  generator (SplitMix64 finalizer of ``seed, i, n, p``, mapped to a point by a multiply-shift), not from a shared or per-thread state.
 
 umap-learn's own parallel mode (``n_jobs > 1``, no ``random_state``) instead lets threads update the shared
 coordinates in place without locks ("Hogwild"): the result depends on thread timing and differs run to run.
@@ -134,20 +134,20 @@ def _membership(knn_indices, knn_dists, sigmas, rhos, rows, cols, vals):
 
 def fuzzy_simplicial_set(knn_indices, knn_dists, n_neighbors: int | None = None, *, set_op_mix_ratio: float = 1.0,
                          local_connectivity: float = 1.0, return_sigmas: bool = False):
-    """UMAP's fuzzy simplicial set (the weighted kNN graph the layout optimises), from a kNN.
+    """UMAP's fuzzy simplicial set (the weighted kNN graph the layout optimizes), from a kNN.
 
-    Same arithmetic as umap-learn 0.5 ``fuzzy_simplicial_set`` with precomputed neighbours: distances in float32,
-    per-point ``rho`` (distance to the nearest non-identical neighbour) and ``sigma`` (binary search so that the
+    Same arithmetic as umap-learn 0.5 ``fuzzy_simplicial_set`` with precomputed neighbors: distances in float32,
+    per-point ``rho`` (distance to the nearest non-identical neighbor) and ``sigma`` (binary search so that the
     memberships sum to log2(k)), memberships ``exp(-(d - rho) / sigma)``, then the fuzzy union
     ``A + A^T - A * A^T``.
 
     Parameters
     ----------
-    knn_indices : (n x k) neighbour indices, each point first (as :func:`arsc.knn` returns them).
+    knn_indices : (n x k) neighbor indices, each point first (as :func:`arsc.knn` returns them).
     knn_dists : (n x k) distances.
     n_neighbors : k used for the target log2(k) (default ``knn_indices.shape[1]``).
     set_op_mix_ratio : 1 = fuzzy union (default), 0 = fuzzy intersection.
-    local_connectivity : neighbours assumed connected (default 1).
+    local_connectivity : neighbors assumed connected (default 1).
     return_sigmas : also return ``(sigmas, rhos)``.
 
     Returns
@@ -219,7 +219,7 @@ def find_ab_params(spread: float = 1.0, min_dist: float = 0.1):
     return float(params[0]), float(params[1])
 
 
-# --------------------------------------------------------------------------- initialisation
+# --------------------------------------------------------------------------- initialization
 def _sign_fix(V):
     """Deterministic eigenvector signs: each column's largest-|value| entry positive."""
     s = np.sign(V[np.abs(V).argmax(0), np.arange(V.shape[1])])
@@ -228,7 +228,7 @@ def _sign_fix(V):
 
 
 def _spectral_one(G, dim, seed):
-    """Eigenvectors 2..dim+1 of the normalised Laplacian I - D^-1/2 G D^-1/2 of one connected graph.
+    """Eigenvectors 2..dim+1 of the normalized Laplacian I - D^-1/2 G D^-1/2 of one connected graph.
 
     Computed as the largest eigenvectors of D^-1/2 G D^-1/2 (the same vectors; Lanczos converges in far fewer
     steps at the top of the spectrum than umap-learn's ``which="SM"`` at the bottom). Small graphs: dense."""
@@ -252,7 +252,7 @@ def _spectral_one(G, dim, seed):
 
 def _dense_spectral(A, dim):
     """Spectral embedding of a small dense affinity matrix (scikit-learn ``SpectralEmbedding`` with a precomputed
-    affinity: normalised Laplacian, eigenvectors divided by sqrt(degree), first dropped, signs fixed)."""
+    affinity: normalized Laplacian, eigenvectors divided by sqrt(degree), first dropped, signs fixed)."""
     deg = A.sum(1)
     dd = np.sqrt(deg)
     L = np.eye(A.shape[0]) - A / np.outer(dd, dd)
@@ -293,7 +293,7 @@ def _multi_component(X, G, n_comp, labels, dim, rng, seed):
 
 
 def spectral_init(G, dim: int = 2, X=None, seed: int = 0) -> np.ndarray:
-    """Spectral initialisation of a UMAP layout (umap-learn ``spectral_layout``, components handled as
+    """Spectral initialization of a UMAP layout (umap-learn ``spectral_layout``, components handled as
     ``multi_component_layout``), before scaling and noise.
 
     Parameters
@@ -436,7 +436,7 @@ def _apply_tail(Y, rptr, redge, stamp, delta, n, n_blocks):
 def optimize_layout(Y, graph, n_epochs: int, a: float, b: float, seed: int, gamma: float = 1.0,
                     initial_alpha: float = 1.0, negative_sample_rate: float = 5.0, epochs_per_sample=None,
                     callback=None) -> np.ndarray:
-    """Optimise a UMAP layout in place (deterministic parallel epochs; see the module docstring).
+    """Optimize a UMAP layout in place (deterministic parallel epochs; see the module docstring).
 
     Parameters
     ----------
@@ -533,10 +533,10 @@ def make_epochs_per_sample(weights, n_epochs: int) -> np.ndarray:
 def embed(graph, n_components: int = 2, *, min_dist: float = 0.3, spread: float = 1.0, n_epochs: int | None = None,
           init="spectral", seed: int = 0, X=None, gamma: float = 1.0, initial_alpha: float = 1.0,
           negative_sample_rate: int = 5, a: float | None = None, b: float | None = None) -> np.ndarray:
-    """UMAP layout of a fuzzy graph (umap-learn ``simplicial_set_embedding`` steps, arsc's layout optimiser).
+    """UMAP layout of a fuzzy graph (umap-learn ``simplicial_set_embedding`` steps, arsc's layout optimizer).
 
     Steps: default epochs (500 up to 10,000 points, else 200); edges below ``max / n_epochs`` dropped; spectral
-    (or random, or a given array) initialisation scaled so the largest |coordinate| is 10, plus N(0, 1e-4) noise;
+    (or random, or a given array) initialization scaled so the largest |coordinate| is 10, plus N(0, 1e-4) noise;
     rescaled to [0, 10] per axis; :func:`optimize_layout`.
 
     Parameters

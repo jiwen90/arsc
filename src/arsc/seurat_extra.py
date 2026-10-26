@@ -320,7 +320,7 @@ def _lr_p(Xs, mask1, latent):
     C = as_csr(Xs).tocsc()
     C.sort_indices()
     n = C.shape[0]
-    y = (~mask1).astype(np.float64)  # factor(Group1, Group2): modelled response is Group2
+    y = (~mask1).astype(np.float64)  # factor(Group1, Group2): modeled response is Group2
     L = _design(latent, n)
     dev0 = _glm_binom_dev(L, y)
     dev1 = _lr_devs(C.indptr.astype(np.int64), C.indices.astype(np.int64), C.data.astype(np.float64), L, y)

@@ -5,9 +5,9 @@
     python suite_py.py --tool arsc --step pca --data <bench_dir>/n10000 --out <file.json>
 
 Only the analysis call is inside the timed region; loading the data and computing inputs the step does
-not own (e.g. log-normalised data for ``markers``) happen before it. The result JSON carries the epoch
+not own (e.g. log-normalized data for ``markers``) happen before it. The result JSON carries the epoch
 timestamps of the timed region so the parent can take peak RSS inside it. In memory mode nothing is written:
-the neighbour lists of 1,000 cells and cluster labels of up to 20,000 cells come back in the result
+the neighbor lists of 1,000 cells and cluster labels of up to 20,000 cells come back in the result
 (``payload``) for the agreement check. With ``--data`` outputs go to ``<data>/out/<tool>/<step>.*``.
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ N_HVG, N_PC, K_NN, RES = 2000, 30, 20, 0.8
 # AR_THREADS / NUMBA_NUM_THREADS / OMP / BLAS variables; here it also sets scanpy's n_jobs and pydeseq2's n_cpus.
 BENCH_THREADS = int(os.environ.get("ARSC_BENCH_THREADS", "8"))
 SCANPY_NN_SEED = int(os.environ.get("ARSC_BENCH_SCANPY_SEED", "0"))  # pynndescent random_state (run-to-run variation)
-N_KEEP = 500  # cells whose normalised values are saved for the agreement check
+N_KEEP = 500  # cells whose normalized values are saved for the agreement check
 
 
 class Timer:
@@ -271,7 +271,7 @@ N_EVAL, N_LABEL = 1000, 20_000
 
 
 def eval_cells(n):
-    """The cells whose neighbour lists are returned for the recall / overlap check (fixed seed)."""
+    """The cells whose neighbor lists are returned for the recall / overlap check (fixed seed)."""
     return np.sort(np.random.default_rng(0).choice(n, min(n, N_EVAL), replace=False))
 
 

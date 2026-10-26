@@ -1,4 +1,4 @@
-"""CloneTrace: clonal fate modelling on single-cell embeddings (numpy/numba port).
+"""CloneTrace: clonal fate modeling on single-cell embeddings (numpy/numba port).
 
 Port of the Clonotrace R package (Fu, Mathew, Wang, Chen, Lin, Schaff, Shaffer, Pardoll, Jackson,
 Zhang. *Deciphering Cell Fate and Clonal Dynamics via Integrative Single-Cell Lineage Modeling*.
@@ -12,8 +12,8 @@ optionally crossed with timepoint. The steps:
    (``label_spreading_bootstrap``, blocked backend). :func:`filter_and_sparsify` applies the
    vignette's deviance cut plus :func:`sparsify` (``mat_sparsify``). The result is ``Q``: cells x
    expanded clones, rows summing to 1.
-3. :func:`clone_distance` -- clone x clone distance on a shared-nearest-neighbour cost graph
-   (``exp(-shared)``): the fast nearest-neighbour approximation (``graph_clone_nn``) or exact optimal
+3. :func:`clone_distance` -- clone x clone distance on a shared-nearest-neighbor cost graph
+   (``exp(-shared)``): the fast nearest-neighbor approximation (``graph_clone_nn``) or exact optimal
    transport (``clone_2_ot``). :func:`revise_distance` blends in a centroid distance
    (``revise_clone_distance``).
 4. :func:`cluster_clones` (``leiden_dis``), :func:`cmdscale` / :func:`isomds` (clone embedding),
@@ -93,7 +93,7 @@ def encode_clones(clones, levels: Sequence[str] | None = None) -> tuple[np.ndarr
 
 
 def _knn_excl_self(X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
-    """k nearest neighbours excluding the point itself (like ``dbscan::kNN``); exact Euclidean."""
+    """k nearest neighbors excluding the point itself (like ``dbscan::kNN``); exact Euclidean."""
     from .neighbors import knn
     idx, _ = knn(X, k + 1, method="exact")
     n = X.shape[0]
@@ -115,7 +115,7 @@ def _pair_dist(X, rows, out):
 
 
 def _flat_knn(idx: np.ndarray, d: np.ndarray):
-    """R ``knn_flat`` order: column-major over the neighbour rank (all 1st neighbours, then 2nd, ...)."""
+    """R ``knn_flat`` order: column-major over the neighbor rank (all 1st neighbors, then 2nd, ...)."""
     n, k = idx.shape
     node1 = np.tile(np.arange(n), k)
     node2 = idx.T.ravel()
@@ -155,7 +155,7 @@ def knn_connectivity(embedding, k: int = 30, *, self_loops: bool = False, mode: 
     Parameters
     ----------
     embedding : cells x dims array.
-    k : neighbours per cell (default 30).
+    k : neighbors per cell (default 30).
     self_loops : add ``(i, i, 0)`` edges after symmetrization (R ``if_self``).
     mode : ``"connectivity"`` (kernel weights, default) or ``"dist"`` (the distances).
 
@@ -202,7 +202,7 @@ def cell_transition(embedding, k: int = 30) -> sp.csr_matrix:
     Parameters
     ----------
     embedding : cells x dims array (e.g. 15 PCs).
-    k : neighbours per cell for :func:`knn_connectivity` (default 30).
+    k : neighbors per cell for :func:`knn_connectivity` (default 30).
 
     Returns
     -------
@@ -561,7 +561,7 @@ def filter_and_sparsify(cp: CloneProb, max_deviance: float = 0.3, row_mass: floa
 
 # =========================================================================== 3. clone distances
 def snn_cost_graph(embedding, k: int = 10) -> sp.csr_matrix:
-    """Shared-nearest-neighbour cost graph (``bluster::makeSNNGraph(type="number")`` + ``exp(-w)``).
+    """Shared-nearest-neighbor cost graph (``bluster::makeSNNGraph(type="number")`` + ``exp(-w)``).
 
     ``w_ij = |({i} + kNN_i) & ({j} + kNN_j)|``, i.e. the off-diagonal of ``(I + A)(I + A)^T``. There is an edge
     for every pair with ``w >= 1``, and its cost is ``exp(-w_ij)``.
@@ -569,7 +569,7 @@ def snn_cost_graph(embedding, k: int = 10) -> sp.csr_matrix:
     Parameters
     ----------
     embedding : cells x dims array.
-    k : neighbours per cell (default 10).
+    k : neighbors per cell (default 10).
 
     Returns
     -------
@@ -764,7 +764,7 @@ def clone_distance(embedding, Q, *, method: str = "nn", graph_k: int = 10, prob_
     embedding : cells x dims, rows aligned to ``Q``.
     Q : cells x clones (DataFrame keeps the clone names), e.g. :func:`filter_and_sparsify`.
     method : ``"nn"`` (default) or ``"exact"``.
-    graph_k : neighbours of the SNN cost graph (default 10).
+    graph_k : neighbors of the SNN cost graph (default 10).
     prob_thresh : membership threshold (default 0.1 for ``"nn"``, 0.05 for ``"exact"``).
     k : number of smallest path lengths averaged (``"nn"``; default 2).
     graph : a precomputed cost graph (skips :func:`snn_cost_graph`).
@@ -917,9 +917,9 @@ def revise_distance(D, embedding, Q, *, clusters: pd.DataFrame | np.ndarray | No
         UMAP kNN graph at ``resolutions``, like R (partitions are not identical to R's).
     sample : optional group per clone; only same-group pairs set the medians.
     local_rescale : rescale distances by local density (R ``local_rescale``).
-    local_k : neighbours for the local rescaling (default 7).
+    local_k : neighbors for the local rescaling (default 7).
     resolutions : Leiden resolutions of the default ladder.
-    cluster_k : neighbours of the default ladder's kNN graph (default 15).
+    cluster_k : neighbors of the default ladder's kNN graph (default 15).
     mean_weight : fix the blend weight instead of selecting it.
     s_grid : grid of candidate blend weights.
     seed : leidenalg seed of the default ladder (default 0; unused with ``clusters`` or ``mean_weight``).
@@ -1298,7 +1298,7 @@ def clone_dpt(clone_embedding, root, *, k: int = 10, dpt_k: int = 30) -> pd.Seri
     ----------
     clone_embedding : clones x dims DataFrame (e.g. :func:`cmdscale` / :func:`isomds`).
     root : clone name or row position of the root.
-    k : neighbours of the clone kNN graph (default 10).
+    k : neighbors of the clone kNN graph (default 10).
     dpt_k : number of eigenpairs (default 30; capped by the number of clones).
 
     Returns
@@ -1748,8 +1748,8 @@ def coembed_graph(cell_embedding, clone_embedding, Q, *, cell_k: int = 30, clone
     cell_embedding : cells x dims, rows aligned to ``Q``.
     clone_embedding : clones x dims, rows aligned to ``Q``'s columns.
     Q : cells x clones probabilities.
-    cell_k : cell neighbours (default 30).
-    clone_k : clone neighbours (default 15).
+    cell_k : cell neighbors (default 30).
+    clone_k : clone neighbors (default 15).
     min_weight : minimum clone weight of a kept pair (default 0.1).
     n_keep : distances kept per cell (default 20).
 
@@ -1912,20 +1912,20 @@ def run(embedding, clones, *, cells=None, cell_clusters=None, start_cluster=None
     cell_clusters : cell cluster per cell; with ``start_cluster`` it picks the pseudotime root (default: the
         first clone).
     start_cluster : the cluster where trajectories start.
-    k : neighbours of :func:`cell_transition` (default 30).
+    k : neighbors of :func:`cell_transition` (default 30).
     min_size : minimum cells per propagated clone (default 10).
     alpha : propagation weight (default 0.6).
     n_boot : bootstraps for the deviance (default 48).
     max_deviance : deviance filter (default 0.3).
     distance : ``"nn"`` (default) or ``"exact"`` (:func:`clone_distance`).
-    graph_k : neighbours of the SNN cost graph (default 10).
+    graph_k : neighbors of the SNN cost graph (default 10).
     revised : apply :func:`revise_distance` (default False).
     revise_clusters : cells x resolutions labels for :func:`revise_distance`.
     n_mds : dimensions of the clone MDS (default 30; capped by the number of clones).
-    cluster_k : neighbours for :func:`cluster_clones` (default 20).
+    cluster_k : neighbors for :func:`cluster_clones` (default 20).
     resolution : Leiden resolution for :func:`cluster_clones` (default 0.5).
     dpt_k : eigenpairs for :func:`clone_dpt` (default 30).
-    dpt_nn : neighbours for :func:`clone_dpt` (default 10).
+    dpt_nn : neighbors for :func:`clone_dpt` (default 10).
     seed : integer seed of the whole pipeline (default 0).
 
     Returns

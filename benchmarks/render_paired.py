@@ -18,7 +18,7 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 P = HERE / "results" / "paired"
-LABEL = {"normalize": "Log-normalise", "hvg": "Highly variable genes (2,000)", "pca": "Scale + PCA (30 PCs)",
+LABEL = {"normalize": "Log-normalize", "hvg": "Highly variable genes (2,000)", "pca": "Scale + PCA (30 PCs)",
          "neighbors": "k-NN graph (k = 20)", "cluster": "k-NN + Leiden clustering", "rank_genes":
          "Markers, scanpy-style Wilcoxon (20k genes)", "pseudobulk": "Pseudobulk sums", "de_deseq2":
          "Pseudobulk DESeq2 (paired, 16 samples)", "score_genes": "scanpy gene-set score (5 sets)"}

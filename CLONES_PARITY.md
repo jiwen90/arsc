@@ -15,7 +15,7 @@ Timing: `benchmarks/bench_clones.py`.
 | `clone_table` | `ar_clone_table` | exact (39,103 rows) |
 | `clone_dynamics` | `ar_clone_dynamics` | exact (1,466 clones: p 1e-11, fdr 6e-12, lfc 4e-14, class identical) |
 | `clone_diversity` | `ar_clone_diversity` | Monte-Carlo (20 draws, exact multivariate-hypergeometric rarefaction vs R `sample`); same depth 203 and samples (70/72); Pearson > 0.998 for all 5 metrics, median relative diff 0.06-2.9%. |
-| `clone_tissue_matrix`, `clone_tissue_entropy` | new (no R twin) | unit-tested on toy data (bits entropy, normalised entropy, breadth, dominant tissue) |
+| `clone_tissue_matrix`, `clone_tissue_entropy` | new (no R twin) | unit-tested on toy data (bits entropy, normalized entropy, breadth, dominant tissue) |
 | `genesets.read_genesets / load_v3 / cycling_fraction` | `ar_read_genesets`, `ar_cycling_fraction` | in-house gene-set files read identically (collections of 4, 19 and 19 sets; module files of 832/882/754/234 genes), CellPhoneDB 4,589 (174 curated); cycling_fraction logit_cc 5e-15 vs R (519 rows) |
 
 ## Method notes / deviations

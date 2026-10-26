@@ -1,11 +1,11 @@
 """Symphony reference mapping -- a port of R ``symphony`` 0.1.1 (Kang et al. 2021, Nat Commun 12:5890; GPL-3).
 
-Build a compressed reference once (log-normalised expression -> variable genes -> scaling with the reference's
+Build a compressed reference once (log-normalized expression -> variable genes -> scaling with the reference's
 own means and s.d.s -> PCA -> Harmony on the reference's batch variables), then map any query onto it without
 touching the reference cells again: the query is scaled with the reference's means/s.d.s, projected onto the
 reference loadings, soft-assigned to the reference's Harmony centroids and batch-corrected by the mixture-of-experts
 ridge regression anchored on the reference's per-cluster terms (``Nr``, ``C``). Labels move across by k nearest
-neighbours in the corrected space, with a vote-share confidence; query cells can also be placed on the
+neighbors in the corrected space, with a vote-share confidence; query cells can also be placed on the
 reference UMAP.
 
   ref = arsc.symphony.build_reference(counts_ref, genes, obs_ref, vars="donor")      # buildReference
@@ -17,14 +17,14 @@ Orientation: arsc arrays are cells first (``Z_corr`` is cells x d, ``loadings`` 
 R symphony stores the transposes (``Z_corr`` d x cells, ``centroids`` d x K); ``R`` is K x cells in both.
 
 Reproduced from the R source (internals agree to < 1e-13, SYMPHONY_PARITY.md):
-* variable genes: symphony's ``vargenes_vst`` runs the vst statistic on the *log-normalised* matrix (not counts,
+* variable genes: symphony's ``vargenes_vst`` runs the vst statistic on the *log-normalized* matrix (not counts,
   unlike Seurat); per-group top genes are united (``vargenes_groups``).
 * scaling: (x - mean) / sd with the s.d. on n - 1, clipped to [-10, 10] (both tails, unlike Seurat's ScaleData).
 * PCA: exact SVD of the scaled reference (irlba in R); signs may differ from R, which changes nothing downstream.
 * Harmony: ``arsc.run_harmony(version="1.2")`` (harmony 1.2 port) with ``nclust = K = 100``, theta 2, sigma 0.1, lambda 1. With
   harmony 1.2 installed, R symphony's ``max.iter.harmony = 20`` and ``tau`` are ignored (harmony warns), so the
   effective R run is ``max_iter = 10, tau = 0``: these are the defaults here.
-* centroids: L2-normalised rows of ``R @ Z_corr``; ``Nr = R.sum(1)``, ``C = R @ Z_corr``.
+* centroids: L2-normalized rows of ``R @ Z_corr``; ``Nr = R.sum(1)``, ``C = R @ Z_corr``.
 * query soft clustering: ``R = softmax(-2 (1 - Y Zq_cos) / sigma)`` over clusters (sigma as float32, as in C++).
 * correction: per cluster k, ``beta = (Xq R_k Xq' + Nr_k e1 e1' + lambda I_-0)^-1 (Xq R_k Zq + e1 C_k)``,
   intercept row zeroed, ``Zq -= beta' Xq R_k`` (lambda 1 on the batch terms, not on the intercept).
@@ -32,8 +32,8 @@ Reproduced from the R source (internals agree to < 1e-13, SYMPHONY_PARITY.md):
   Vote ties are broken by an integer-seeded generator, not R's RNG, and ties at the k-th distance are not
   widened (R includes them); both are rare with continuous embeddings.
 Not ported: ``vargenes_method = "mvp"``, ``calcPerClusterMappingMetric``, the k-NN correlation metrics.
-UMAP: umap-learn with uwot's settings (30 neighbours, cosine, min_dist 0.1, learning rate 0.5, spectral init);
-layouts differ from uwot's, so compare neighbourhoods, not coordinates.
+UMAP: umap-learn with uwot's settings (30 neighbors, cosine, min_dist 0.1, learning rate 0.5, spectral init);
+layouts differ from uwot's, so compare neighborhoods, not coordinates.
 """
 from __future__ import annotations
 
@@ -63,12 +63,12 @@ class Reference:
     Attributes
     ----------
     genes : Index of the reference variable genes (order of ``mean``, ``sd`` and the ``loadings`` rows).
-    mean, sd : per-gene mean and s.d. (n - 1) of the log-normalised reference expression.
+    mean, sd : per-gene mean and s.d. (n - 1) of the log-normalized reference expression.
     loadings : (genes x d) PCA gene loadings (R ``loadings``).
     Z_orig : (cells x d) reference PCs before Harmony.
     Z_corr : (cells x d) Harmony-corrected reference embedding.
     R : (K x cells) soft cluster assignments.
-    centroids : (K x d) L2-normalised Harmony centroids (R ``centroids``, transposed).
+    centroids : (K x d) L2-normalized Harmony centroids (R ``centroids``, transposed).
     Nr : (K,) cluster sizes ``R.sum(1)`` (R ``cache[[1]]``).
     C : (K x d) ``R @ Z_corr`` (R ``cache[[2]]``).
     obs : reference cell metadata (index = cell barcodes, row-aligned with ``Z_corr``).
@@ -222,7 +222,7 @@ def _l2_rows(X):
 
 
 def _lognorm_columns(X, cols, normalize: bool, scale_factor: float = 1e4) -> np.ndarray:
-    """Dense cells x len(cols) log-normalised values; library sizes from ALL genes (only ``cols`` are densified)."""
+    """Dense cells x len(cols) log-normalized values; library sizes from ALL genes (only ``cols`` are densified)."""
     X = as_csr(X)
     sub = X[:, cols].tocsr().astype(np.float64)
     if normalize:
@@ -253,8 +253,8 @@ def _soft_cluster(centroids, Zcos, sigma) -> np.ndarray:
 
 
 def _soft_kmeans(Z, K, seed, max_iter=20, sigma=0.1):
-    """symphony ``soft_kmeans`` (reference without batch variables): k-means init on the cosine-normalised PCs,
-    then ``max_iter`` rounds of {normalise Y, soft-assign, Y = R Z}."""
+    """symphony ``soft_kmeans`` (reference without batch variables): k-means init on the cosine-normalized PCs,
+    then ``max_iter`` rounds of {normalize Y, soft-assign, Y = R Z}."""
     from sklearn.cluster import KMeans
     Zc = _l2_rows(Z)
     Y = KMeans(n_clusters=K, n_init=10, max_iter=25, random_state=seed, algorithm="lloyd").fit(Zc).cluster_centers_
@@ -358,11 +358,11 @@ def build_reference(X, genes, obs, vars=None, *, normalize: bool = True, topn: i
     Parameters
     ----------
     X : reference cells x genes matrix: raw counts (``normalize=True``, the default, as R ``do_normalize``) or
-        log-normalised values (``normalize=False``). A memory-mapped store matrix works (``st.X("RNA", "counts")``).
+        log-normalized values (``normalize=False``). A memory-mapped store matrix works (``st.X("RNA", "counts")``).
     genes : gene names aligned to the columns of ``X``.
     obs : reference metadata, row-aligned with ``X`` (index = barcodes); kept for label transfer.
     vars : batch column(s) for Harmony (R ``vars``); None = no Harmony (soft k-means clusters instead).
-    normalize : log-normalise counts first (LogNormalize, scale factor 1e4).
+    normalize : log-normalize counts first (LogNormalize, scale factor 1e4).
     topn : variable genes (per group when ``vargenes_groups`` is given; groups' top genes are united).
     vargenes_groups : obs column whose groups each contribute ``topn`` genes (R ``vargenes_groups``).
     hvg : optional explicit gene list instead of the vst selection (e.g. the HVGs of an existing Seurat object).
@@ -451,7 +451,7 @@ def reference_from_harmony(Z_orig, Z_corr, R, genes, mean, sd, loadings, obs, *,
 
     Use it to wrap a reference made elsewhere, e.g. the matrices of a saved R symphony reference or a Seurat
     object (``Z_orig`` = PCs, ``Z_corr`` = Harmony embedding, ``R`` = Harmony's soft clusters, ``loadings`` =
-    feature loadings, ``mean``/``sd`` = the variable genes' log-normalised mean and s.d.).
+    feature loadings, ``mean``/``sd`` = the variable genes' log-normalized mean and s.d.).
 
     Parameters
     ----------
@@ -494,14 +494,14 @@ def map_query(X, genes, obs, ref: Reference, vars=None, *, normalize: bool = Tru
 
     Parameters
     ----------
-    X : query cells x genes, raw counts (``normalize=True``) or log-normalised. Only the reference's variable
+    X : query cells x genes, raw counts (``normalize=True``) or log-normalized. Only the reference's variable
         genes are densified; library sizes use all genes. A memory-mapped store matrix works.
     genes : gene names of ``X``'s columns.
     obs : query metadata, row-aligned with ``X``.
     ref : the :class:`Reference`.
     vars : query batch column(s) to correct (R ``vars``). The correction removes what these columns explain, so
         never include the biology you want to compare (e.g. timepoint or response).
-    normalize : log-normalise counts first.
+    normalize : log-normalize counts first.
     sigma : soft-clustering width (R ``sigma = 0.1``).
     lambda_ : ridge penalty on the batch terms (symphony fixes 1).
     umap : place query cells on the reference UMAP (needs ``ref.umap_model``).
@@ -557,14 +557,14 @@ def transfer_labels(ref: Reference, query: QueryMap, labels, k: int = 5, seed: i
     ref : the :class:`Reference`.
     query : the :class:`QueryMap`.
     labels : a column of ``ref.obs`` or an array of reference labels (row-aligned with ``ref.Z_corr``).
-    k : neighbours (R ``k = 5``).
+    k : neighbors (R ``k = 5``).
     seed : integer seed for breaking vote ties.
 
     Returns
     -------
     DataFrame indexed by query cell: ``label`` (majority among the k nearest reference cells, Euclidean on the
     corrected embeddings) and ``prob`` (share of the k votes for it; R ``_prob``). Low ``prob`` marks cells whose
-    neighbourhood is mixed, e.g. a state absent from the reference.
+    neighborhood is mixed, e.g. a state absent from the reference.
 
     Examples
     --------

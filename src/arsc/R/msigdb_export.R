@@ -1,7 +1,7 @@
 # Export one MSigDB collection (msigdbr) to csv.gz: gs_name, gene_symbol  (+ gs_collection, gs_subcollection when present)
 # usage: Rscript msigdb_export.R <out.csv.gz> <species> <collection> [<subcollection>]
 a <- commandArgs(TRUE)
-# Extra R libraries: $ARSC_RLIB and $AR_ROOT/.Rlib, when set (R_LIBS / R_LIBS_USER are honoured by R itself).
+# Extra R libraries: $ARSC_RLIB and $AR_ROOT/.Rlib, when set (R_LIBS / R_LIBS_USER are honored by R itself).
 .arsc_libs <- c(Sys.getenv("ARSC_RLIB"), if (nzchar(Sys.getenv("AR_ROOT"))) file.path(Sys.getenv("AR_ROOT"), ".Rlib") else "")
 .arsc_libs <- .arsc_libs[nzchar(.arsc_libs) & dir.exists(.arsc_libs)]
 if (length(.arsc_libs)) .libPaths(unique(c(.arsc_libs, .libPaths())))

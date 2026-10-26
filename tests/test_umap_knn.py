@@ -1,5 +1,5 @@
 """arsc's own UMAP engine (``arsc._umap``) and the exact kNN: agreement with umap-learn where the arithmetic is
-the same (fuzzy graph, a/b curve, spectral initialisation), layout determinism across thread counts, and
+the same (fuzzy graph, a/b curve, spectral initialization), layout determinism across thread counts, and
 scan-order-independent kNN ties."""
 import numpy as np
 import pytest

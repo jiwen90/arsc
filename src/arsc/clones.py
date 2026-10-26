@@ -45,7 +45,7 @@ def _fmt_tp(v) -> str:
 
 
 def _as_str(s: pd.Series) -> pd.Series:
-    """Vectorised string labels (NaN preserved), integral floats printed without ".0"."""
+    """Vectorized string labels (NaN preserved), integral floats printed without ".0"."""
     codes, uniq = pd.factorize(s, sort=False)
     lab = np.array([_fmt_tp(u) for u in uniq], dtype=object)
     out = np.where(codes >= 0, lab[np.maximum(codes, 0)], None)
@@ -946,7 +946,7 @@ def startrac(meta, clone_col="clone_id", state_col="metaclusters_exh", group_col
 
     expa(state) = 1 - H(clone sizes in state) / log2(n cells in state); tran(state) = sum_c w_c H_c(states);
     migr(state) = the same with ``loc_col``; pairwise tran(A, B) over pairs of states. Entropies in bits,
-    unnormalised.
+    unnormalized.
 
     Parameters
     ----------
@@ -1213,7 +1213,7 @@ def clone_tissue_matrix(meta, clone_col="clone_id", tissue_col="tissue", min_cel
 
 
 def clone_tissue_entropy(mat: pd.DataFrame) -> pd.DataFrame:
-    """Per-clone tissue distribution: entropy, normalised entropy, breadth and dominant tissue.
+    """Per-clone tissue distribution: entropy, normalized entropy, breadth and dominant tissue.
 
     Low entropy = tissue-restricted clone, high = disseminated.
 

@@ -4,10 +4,10 @@ Synthetic data generated in code (`benchmarks/suite_sim.py`: 20,000 genes, negat
 
 | Step | arsc | scanpy | Seurat / R | speed-up vs scanpy | speed-up vs Seurat | memory arsc / scanpy / Seurat | agreement with scanpy | agreement with Seurat / R |
 |---|---:|---:|---:|---:|---:|---|---|---|
-| Log-normalise | 0.58 s | 1.26 s | 7.70 s | **2.2x** | **13x** | 3.2 / 2.3 / 9.2 | max diff 3.4e-07 | exact (max diff 9e-16) |
+| Log-normalize | 0.58 s | 1.26 s | 7.70 s | **2.2x** | **13x** | 3.2 / 2.3 / 9.2 | max diff 3.4e-07 | exact (max diff 9e-16) |
 | Highly variable genes (2,000) | 1.50 s | 3.78 s | 6.19 s | **2.5x** | **4.1x** | 2.6 / 2.6 / 8.7 | 2,000/2,000 genes shared; r = 1.000000 | 2,000/2,000 genes shared; r = 1.000000 |
 | Scale + PCA (30 PCs) | 2.62 s | 37 s | 298 s | **14x** | **113x** | 4.7 / 4.6 / 8.6 | per-PC abs r >= 1.0000 (PC1-10), >= 0.998 (all 30) | per-PC abs r >= 1.0000 (PC1-10), >= 1.000 (all 30) |
-| k-NN graph (k = 20) | 4.82 s | 6.68 s | 28 s | **1.4x** | **5.8x** | 1.1 / 0.8 / 2.3 | 98.2% of neighbours shared | 78.8% of neighbours shared |
+| k-NN graph (k = 20) | 4.82 s | 6.68 s | 28 s | **1.4x** | **5.8x** | 1.1 / 0.8 / 2.3 | 98.2% of neighbors shared | 78.8% of neighbors shared |
 | k-NN + clustering | 11 s | 12 s | 38 s | 1.04x | **3.4x** | 0.9 / 1.3 / 2.3 | ARI 0.998 | ARI 0.998 |
 | Markers, presto-style Wilcoxon + AUC (20k genes) | 3.57 s | - | 24 s | - | **6.6x** | 7.9 / - / 8.6 | - | AUC exact (max diff 6e-16); p max rel. diff 1e-10 |
 | Markers, scanpy-style Wilcoxon (20k genes) | 4.71 s | 55 s | - | **12x** | - | 8.5 / 2.7 / - | z-score max diff 1.1e-04; p max rel. diff 7e-04; top-50 overlap 100% | - |
@@ -23,10 +23,10 @@ Synthetic data generated in code (`benchmarks/suite_sim.py`: 20,000 genes, negat
 
 | Step | arsc | scanpy | Seurat / R | speed-up vs scanpy | speed-up vs Seurat | memory arsc / scanpy / Seurat | agreement with scanpy | agreement with Seurat / R |
 |---|---:|---:|---:|---:|---:|---|---|---|
-| Log-normalise | 5.50 s | 12 s | 78 s | **2.3x** | **14x** | 29.7 / 23.8 / 88.7 | max diff 3.0e-07 | exact (max diff 9e-16) |
+| Log-normalize | 5.50 s | 12 s | 78 s | **2.3x** | **14x** | 29.7 / 23.8 / 88.7 | max diff 3.0e-07 | exact (max diff 9e-16) |
 | Highly variable genes (2,000) | 13 s | 33 s | 61 s | **2.6x** | **4.7x** | 23.8 / 24.0 / 82.9 | 2,000/2,000 genes shared; r = 1.000000 | 2,000/2,000 genes shared; r = 1.000000 |
 | Scale + PCA (30 PCs) | 21 s | 554 s | timed out (> 3600 s) | **27x** | **> 173x** | 46.2 / 43.6 / - | per-PC abs r >= 0.9999 (PC1-10), >= 0.993 (all 30) | - |
-| k-NN graph (k = 20) | 13 min | 118 s | 373 s | 0.15x | 0.48x | 3.5 / 2.7 / 20.5 | 95.6% of neighbours shared | 56.3% of neighbours shared |
+| k-NN graph (k = 20) | 13 min | 118 s | 373 s | 0.15x | 0.48x | 3.5 / 2.7 / 20.5 | 95.6% of neighbors shared | 56.3% of neighbors shared |
 | k-NN + clustering | 14 min | 191 s | did not finish | 0.22x | - | 3.7 / 7.6 / - | ARI 0.992 | - |
 | Markers, presto-style Wilcoxon + AUC (20k genes) | 45 s | - | 181 s | - | **4.0x** | 76.8 / - / 66.7 | - | AUC max diff 1.6e-07; p max rel. diff 5e-03 |
 | Markers, scanpy-style Wilcoxon (20k genes) | 55 s | 48 min | - | **52x** | - | 82.7 / 23.9 / - | z-score max diff 7.6e-05; p max rel. diff 6e-04; top-50 overlap 100% | - |
@@ -42,7 +42,7 @@ Scaling (seconds; `-` = no equivalent, `n/r` = not run (time budget), `t/o` = ti
 
 | Step | 10k arsc / scanpy / Seurat | 100k arsc / scanpy / Seurat | 1,000k arsc / scanpy / Seurat |
 |---|---|---|---|
-| Log-normalise | 0.08 / 0.16 / 0.94 | 0.58 / 1.26 / 7.70 | 5.50 / 12 / 78 |
+| Log-normalize | 0.08 / 0.16 / 0.94 | 0.58 / 1.26 / 7.70 | 5.50 / 12 / 78 |
 | Highly variable genes (2,000) | 0.29 / 0.42 / 1.21 | 1.50 / 3.78 / 6.19 | 13 / 33 / 61 |
 | Scale + PCA (30 PCs) | 0.84 / 3.03 / 15 | 2.62 / 37 / 298 | 21 / 554 / t/o |
 | k-NN graph (k = 20) | 0.28 / 1.77 / 2.08 | 4.82 / 6.68 / 28 | 13 min / 118 / 373 |
@@ -57,6 +57,6 @@ Scaling (seconds; `-` = no equivalent, `n/r` = not run (time budget), `t/o` = ti
 | UCell score (5 sets) | 0.06 / - / 23 | 0.50 / - / 326 | 4.97 / - / n/r |
 | Clone table + dynamics + STARTRAC | 0.07 / - / - | 0.14 / - / - | 1.02 / - / - |
 
-Notes: arsc's k-NN is exact (recall vs brute force on 1,000 random cells: 1.000 at 10,000, 1.000 at 100,000, 1.000 at 1,000,000); scanpy (pynndescent) and Seurat (Annoy) are approximate, so their overlap with arsc is their recall. Exact search is the slowest arsc step at 1M cells; `arsc.knn(method="pynndescent")` exists but is not benchmarked here. Python steps are timed after an untimed warm-up run in the same process (JIT compilation excluded; scanpy's first `neighbors` call in a fresh process spends 25-40 s compiling).
+Notes: arsc's k-NN is exact (recall vs brute force on 1,000 random cells: 1.000 at 10,000, 1.000 at 100,000, 1.000 at 1,000,000); scanpy (pynndescent) and Seurat (Annoy) are approximate, so their overlap with arsc is their recall. (This table predates arsc's approximate kernel; see SCANPY_PARITY.md, "k-NN backend".) Python steps are timed after an untimed warm-up run in the same process (JIT compilation excluded; scanpy's first `neighbors` call in a fresh process spends 25-40 s compiling).
 
 Machine: AMD Ryzen Threadripper PRO 5955WX 16-Cores, 32 threads, 511.9 GB RAM, Windows 11 (10.0.26200). arsc 0.2.0, scanpy 1.11.5, anndata 0.12.19, pydeseq2 0.5.2, numpy 2.4.6; R version 4.3.1 (2023-06-16 ucrt), Seurat 4.3.0, presto 1.0.0, DESeq2 1.42.1, limma 3.58.1, UCell 2.6.2. Default threading for every tool (arsc and scanpy use all cores; most Seurat steps are single-threaded). Measured 2026-10-14 to 2026-10-15; reproduce with `python benchmarks/run_suite.py` (details in `benchmarks/README.md`).

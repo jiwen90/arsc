@@ -92,7 +92,7 @@ def _block_remove_add(R, order, s, e, ET, OT, Pr_b, codes, sign, nchunk):
 
 @nb.njit(parallel=True, cache=True, error_model="numpy")
 def _block_recompute(R, sd, order, s, e, PT, codes, multiply):
-    """R[i] = sd[i] * penalty, L1-normalised. The per-variable penalties are summed over the batch variables
+    """R[i] = sd[i] * penalty, L1-normalized. The per-variable penalties are summed over the batch variables
     (harmony 1.2 and 2.0: ``penalty %*% Phi``) or multiplied (harmony 2.1, ``multiply=True``)."""
     K = R.shape[1]
     V = codes.shape[1]
@@ -280,7 +280,7 @@ class HarmonyResult:
     ----------
     Z_corr : (n_cells, d) corrected embedding (what :func:`run_harmony` returns by default).
     R : (n_cells, nclust) soft cluster assignments (cells first; R harmony stores the transpose).
-    Y : (nclust, d) cluster centroids (L2-normalised rows).
+    Y : (nclust, d) cluster centroids (L2-normalized rows).
     objective_harmony : objective after each harmony round.
     objective_kmeans : objective after each clustering iteration.
     kmeans_rounds : clustering iterations per harmony round.
@@ -436,7 +436,7 @@ class Harmony:
     def _kmeans_v2(self, X):
         """harmony 2.x ``kmeans_centers``: its k-means++-style seeding, then 10 single Lloyd iterations
         (``arma::kmeans`` with ``keep_existing``). Seed i is redrawn with probability proportional to the cosine
-        distance from the i-th uniformly drawn starting point (as in the C++, not from the nearest centre)."""
+        distance from the i-th uniformly drawn starting point (as in the C++, not from the nearest center)."""
         N, K = X.shape[0], self.K
         idx = np.floor(self.rng.random(K) * (N - 1)).astype(np.int64)
         Y = X[idx].copy()
@@ -460,7 +460,7 @@ class Harmony:
             S = np.zeros_like(Y)
             np.add.at(S, lab, X)
             ok = cnt > 0
-            Y[ok] = S[ok] / cnt[ok, None]  # an empty cluster keeps its centre
+            Y[ok] = S[ok] / cnt[ok, None]  # an empty cluster keeps its center
         return Y
 
     def init_cluster(self, init_centroids=None, n_init: int = 10, kmeans_iter: int = 25):
@@ -783,7 +783,7 @@ def run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_="default", 
     h.init_cluster(init_centroids=init_centroids, n_init=kmeans_n_init)
     converged = h.harmonize(max_iter, verbose=verbose) if max_iter >= 1 else False
     if max_iter < 1 and h.v2:
-        h.Z_corr = h.Z_cos.copy()  # harmony 2.x returns its L2-normalised input when no round runs
+        h.Z_corr = h.Z_cos.copy()  # harmony 2.x returns its L2-normalized input when no round runs
     if not return_object:
         return h.Z_corr
     return HarmonyResult(h.Z_corr, h.R, h.Y, [float(x) for x in h.objective_harmony],

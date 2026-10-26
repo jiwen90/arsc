@@ -75,7 +75,7 @@ Same session, interleaved (arsc and scanpy alternate first), the same thread cou
 
 | Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
 |---|---:|---:|---|---:|---:|---|---|
-| Log-normalise | 0.89 s (0.83 s-1.12 s) | 2.23 s (2.23 s-2.34 s) | **2.5x**; 2.0x | 3 | 3 | 22-68% |  |
+| Log-normalize | 0.89 s (0.83 s-1.12 s) | 2.23 s (2.23 s-2.34 s) | **2.5x**; 2.0x | 3 | 3 | 22-68% |  |
 | Highly variable genes (2,000) | 2.29 s (2.20 s-2.34 s) | 4.92 s (4.79 s-5.01 s) | **2.1x**; 2.1x | 3 | 3 | 39-59% |  |
 | Scale + PCA (30 PCs) | 6.18 s (5.83 s-6.70 s) | 68 s (58 s-72 s) | **11.0x**; 9.9x | 3 | 3 | 17-63% |  |
 | k-NN graph (k = 20) | 5.37 s (4.48 s-5.39 s) | 5.81 s (5.79 s-6.44 s) | **1.1x**; 1.1x | 3 | 3 | 33-73% | recall vs exact: arsc 0.955, scanpy 0.933; overlap arsc-scanpy 0.907 vs scanpy seed 0-seed 1 0.901 |
@@ -91,7 +91,7 @@ Measured 2026-10-25 07:40:05 to 2026-10-25 08:13:19; leases seen: leased 16/16 b
 
 | Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
 |---|---:|---:|---|---:|---:|---|---|
-| Log-normalise | 9.81 s (9.81 s-12 s) | 21 s (21 s-21 s) | **2.1x**; 1.7x | 3 | 3 | 20-30% |  |
+| Log-normalize | 9.81 s (9.81 s-12 s) | 21 s (21 s-21 s) | **2.1x**; 1.7x | 3 | 3 | 20-30% |  |
 | Highly variable genes (2,000) | 18 s (17 s-18 s) | 44 s (44 s-45 s) | **2.5x**; 2.4x | 3 | 3 | 12-30% |  |
 | Scale + PCA (30 PCs) | 48 s (48 s-49 s) | 12.0 min (11.3 min-13.8 min) | **15.0x**; 14.1x | 3 | 3 | 19-41% |  |
 | k-NN graph (k = 20) | 78 s (75 s-79 s) | 90 s (84 s-92 s) | **1.2x**; 1.1x | 3 | 3 | 37-50% | recall vs exact: arsc 0.914, scanpy 0.910; overlap arsc-scanpy 0.868 vs scanpy seed 0-seed 1 0.861 |
@@ -114,7 +114,7 @@ up to 4,096 cells and approximately above, as scanpy.
 
 * **Approximate** (`method="approximate"`, the default above 4,096 cells): a seeded k-means splits the cells into
   2 sqrt(n) clusters; every cell scans all cells of its 24 nearest clusters. The distances are float32 matrix
-  products (BLAS) of the cells that probe a cluster and the cluster's cells, centred on its centre; the k + 8 best
+  products (BLAS) of the cells that probe a cluster and the cluster's cells, centered on its center; the k + 8 best
   candidates are re-scored exactly in float64 and ordered by (distance, index). Deterministic for a seed and
   independent of the thread count.
 * **Exact** (`method="exact"`): the same partition, every cluster a candidate, skipped or narrowed by the triangle
@@ -123,7 +123,7 @@ up to 4,096 cells and approximately above, as scanpy.
 Time to build the full graph (build + every cell queries) at the cheapest setting of each library that reaches the
 recall, from a parameter sweep of each library (FAISS IVF-Flat nlist/nprobe, IVF-PQ, HNSW M/efConstruction/efSearch;
 hnswlib and Voyager M/ef; Annoy trees/search_k; pynndescent max_candidates/n_neighbors; arsc clusters/probes).
-Recall@k is scored against exact float64 neighbours of 2,000 random cells (self included; ties counted). Data: real
+Recall@k is scored against exact float64 neighbors of 2,000 random cells (self included; ties counted). Data: real
 PCs held in memory, never written: "PBMC CITE-seq" = the stored 30-PC PCA of a 260k-cell PBMC CITE-seq store,
 100k random cells; "PBMC 1.37M" = 50 PCs (vst top 2,000 genes, log1p CP10k, z clip 10) of a 1.37M-cell PBMC store,
 100k or 1M random cells. Pinned to the same 16 logical CPUs; most sweep points at 6 threads, arsc's and the later
@@ -183,7 +183,7 @@ Full-size graph check (132,989 cells): arsc exact-kNN connectivities share 99.05
   all genes) in most places and on scaled `X` in a few; both paths work (negative values go through a dense rank path).
   Scanpy's Wilcoxon default is NOT tie-corrected and has no continuity correction, unlike `arsc.wilcoxauc` / Seurat.
 - `neighbors`: arsc switches like scanpy (exact below 4,096 cells, pynndescent with scanpy's settings above). Above 4,096
-  cells the graphs are compared by recall against exact neighbours, overlap with scanpy (against scanpy's own seed-to-seed
+  cells the graphs are compared by recall against exact neighbors, overlap with scanpy (against scanpy's own seed-to-seed
   overlap) and cluster ARI (paired table above). `n_neighbors` counts the cell
   itself as in scanpy.
 - `highly_variable_genes`: `batch_key` is supported only for `seurat_v3`. Genes with exactly tied statistics at the top-n cutoff

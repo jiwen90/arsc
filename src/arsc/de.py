@@ -78,12 +78,12 @@ def _align_coldata(counts: pd.DataFrame, coldata: pd.DataFrame) -> pd.DataFrame:
 
 
 def _check_raw_counts(counts: pd.DataFrame, fn: str, strict: bool) -> None:
-    """Raw pseudobulk counts are non-negative integers; log-normalised input is a common silent mistake."""
+    """Raw pseudobulk counts are non-negative integers; log-normalized input is a common silent mistake."""
     v = counts.to_numpy(dtype=float, na_value=np.nan)
     bad = bool(np.isnan(v).any() or (v < 0).any() or (v != np.round(v)).any())
     if bad:
         msg = (f"{fn}: counts are not non-negative integers; pass raw counts summed per sample "
-               "(arsc.pseudobulk on the counts layer, then .to_frame()), not log-normalised or scaled values")
+               "(arsc.pseudobulk on the counts layer, then .to_frame()), not log-normalized or scaled values")
         if strict:
             raise ValueError(msg)
         import warnings
@@ -284,7 +284,7 @@ def tmm_factors(counts: np.ndarray, logratio_trim: float = 0.3, sum_trim: float 
 
     Returns
     -------
-    numpy.ndarray of normalisation factors, one per sample (geometric mean 1).
+    numpy.ndarray of normalization factors, one per sample (geometric mean 1).
 
     Examples
     --------
@@ -402,7 +402,7 @@ def _voom_weights(counts, X, lib_size, span=0.5, block=None, correlation=None):
 
 def duplicate_correlation(y, weights, design, block, trim: float = 0.15) -> float:
     """limma::duplicateCorrelation(..., block) consensus correlation via per-gene REML (statmod mixedModel2Fit model:
-    whitened var = s_e^2 I + s_a^2 ZZ').  The REML objective is profiled over rho = s_a^2/(s_e^2+s_a^2) and maximised
+    whitened var = s_e^2 I + s_a^2 ZZ').  The REML objective is profiled over rho = s_a^2/(s_e^2+s_a^2) and maximized
     over (1/(1-maxblock), 0.999); per-gene values are then clipped to [1/(1-maxblock)+0.01, 0.99] as in limma.
 
     Used inside :func:`voom` (``block=``); call it directly only to inspect the correlation.

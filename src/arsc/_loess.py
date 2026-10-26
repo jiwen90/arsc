@@ -4,7 +4,7 @@ R's defaults are ``degree = 2, family = "gaussian", surface = "interpolate",
 cell = 0.2``. "interpolate" does not evaluate the local regression at every
 point: it builds a k-d tree over x (cells hold <= floor(n*span*cell) points),
 fits local quadratics only at the cell vertices (value + slope), and evaluates
-everything else by cubic Hermite interpolation between neighbouring vertices.
+everything else by cubic Hermite interpolation between neighboring vertices.
 Seurat's vst HVG selection uses this fit, so we reproduce it (kd split rule
 incl. the 2006 tie fix in ehg129/ehg124, 0.5% bounding-box margin, tricube
 weights on the floor(n*span + 1e-5) nearest points).
@@ -19,7 +19,7 @@ import numpy as np
 def _local_fit(xs, ys, v, nf, degree):
     """Local polynomial fit at ``v``: returns (value, slope)."""
     n = xs.size
-    # nf nearest neighbours of v in sorted xs: contiguous window
+    # nf nearest neighbors of v in sorted xs: contiguous window
     pos = np.searchsorted(xs, v)
     lo, hi = pos, pos  # window [lo, hi)
     while hi - lo < nf:

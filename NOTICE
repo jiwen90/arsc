@@ -10,12 +10,12 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License in LICENSE for more
 arsc reimplements published single-cell methods in Python so that their numerical output can be
 checked against the reference software (see the *_PARITY.md files). Several modules are translations
 of, or follow closely, the source code of the reference packages; each is listed below with the
-original's licence. All of those licences allow inclusion in a GPL-3.0-or-later work. The methods
+original's license. All of those licenses allow inclusion in a GPL-3.0-or-later work. The methods
 belong to their authors. If you use a method through arsc, please cite the original paper as well as
 arsc.
 
-Licence texts of the permissively licensed (MIT, BSD) originals are kept in LICENSES/, as their
-licences require:
+License texts of the permissively licensed (MIT, BSD) originals are kept in LICENSES/, as their
+licenses require:
   - LICENSES/Seurat-MIT.txt            Seurat (MIT, Copyright (c) 2021 Seurat authors)
   - LICENSES/fgsea-MIT.txt             fgsea (MIT, Copyright (c) 2016-2019 Alexey Sergushichev)
   - LICENSES/Clonotrace-MIT.txt        Clonotrace (MIT, Copyright (c) 2026 Yuntian Fu)
@@ -25,7 +25,7 @@ licences require:
 
 Method credits
 --------------
-Normalisation, variable features, scaling, PCA, kNN/SNN graphs, WNN, FindMarkers/FindAllMarkers,
+Normalization, variable features, scaling, PCA, kNN/SNN graphs, WNN, FindMarkers/FindAllMarkers,
 AverageExpression, CellCycleScoring, AddModuleScore (arsc.pp, arsc.neighbors, arsc.seurat_extra,
 arsc.scores.add_module_score). Ported from Seurat 4.3.0 (R, MIT; LICENSES/Seurat-MIT.txt).
   - Satija R, et al. Spatial reconstruction of single-cell gene expression data. Nat Biotechnol (2015).
@@ -62,7 +62,7 @@ Pseudobulk differential expression (arsc.de).
     arsc.de.voom, duplicate_correlation, fitFDist/eBayes and gls are translated from limma 3.58.1
     (R, GPL (>= 2)); the duplicateCorrelation REML model follows statmod 1.5.0 mixedModel2Fit
     (R, GPL-2 | GPL-3).
-  - edgeR: Robinson MD, McCarthy DJ, Smyth GK. Bioinformatics (2010). TMM normalisation:
+  - edgeR: Robinson MD, McCarthy DJ, Smyth GK. Bioinformatics (2010). TMM normalization:
     Robinson MD, Oshlack A. Genome Biol (2010). arsc.de.tmm_factors and filter_by_expr are
     translated from edgeR 4.0.16 (R, GPL (>= 2)).
   - fgsea: Korotkevich G, et al. Fast gene set enrichment analysis. bioRxiv (2021). arsc.de.fgsea
@@ -70,7 +70,7 @@ Pseudobulk differential expression (arsc.de).
 
 Rank and stratified tests (arsc.stats.hodges_lehmann, mantel_haenszel). hodges_lehmann translates the
 conf.int branches of wilcox.test.default, psignrank / pwilcox / qsignrank / qwilcox and the zeroin root finder
-(R_zeroin2) of R 4.3.1 stats (GPL-2 | GPL-3); mantel_haenszel follows mantelhaen.test (same licence).
+(R_zeroin2) of R 4.3.1 stats (GPL-2 | GPL-3); mantel_haenszel follows mantelhaen.test (same license).
   - Hodges JL, Lehmann EL. Estimates of location based on rank tests. Ann Math Stat (1963).
   - Bauer DF. Constructing confidence sets using rank statistics. J Am Stat Assoc (1972).
   - Mantel N, Haenszel W. J Natl Cancer Inst (1959). Robins J, Breslow N, Greenland S. Biometrics (1986).
@@ -97,15 +97,15 @@ Clonal analysis (arsc.clones, arsc.clonotrace).
     colorectal cancer. Nature (2018).
   - Cyclone clone-trajectory clustering: ports cyclone_find_trajectories() from the analysis
     script clone_trajectory_util.R of the Cancer Cell 2024 publication, written by the arsc
-    author (jiwen90), who licenses this port under arsc's licence; see the clones.cyclone docstring and CLONES_PARITY.md.
+    author (jiwen90), who licenses this port under arsc's license; see the clones.cyclone docstring and CLONES_PARITY.md.
   - STARTRAC: reimplemented from the paper's formulas (the Startrac R package is not a source).
   - CloneTrace: Fu Y, et al. Deciphering Cell Fate and Clonal Dynamics via Integrative Single-Cell
     Lineage Modeling. bioRxiv 2025.09.01.673503. arsc.clonotrace ports the Clonotrace R package
     v1.2.1 (MIT; LICENSES/Clonotrace-MIT.txt).
 
 UMAP engine (arsc._umap, arsc.umap(engine="arsc"), arsc.fuzzy_simplicial_set). The fuzzy simplicial set,
-the a/b curve fit, the epoch sampling and the initialisation follow umap-learn 0.5 (BSD-3-Clause;
-LICENSES/umap-learn-BSD-3-Clause.txt); the parallel, thread-count-independent layout optimiser is arsc's own.
+the a/b curve fit, the epoch sampling and the initialization follow umap-learn 0.5 (BSD-3-Clause;
+LICENSES/umap-learn-BSD-3-Clause.txt); the parallel, thread-count-independent layout optimizer is arsc's own.
   - McInnes L, Healy J, Melville J. UMAP: Uniform Manifold Approximation and Projection for Dimension
     Reduction. arXiv:1802.03426 (2018).
 
@@ -121,7 +121,7 @@ R-compatible components.
 Third-party optional dependencies
 ---------------------------------
 arsc does not bundle third-party packages. Some optional extras install packages under other
-licences:
+licenses:
   - leidenalg (GPL-3.0-or-later) and python-igraph (GPL-2.0-or-later), in the "graph" extra,
     used by arsc.cluster and arsc.scanpy_extra.leiden.
   - pydeseq2 (MIT), statsmodels (BSD-3-Clause), patsy (BSD-2-Clause), in the "stats" extra.
@@ -129,7 +129,7 @@ licences:
 The optional R bridge (arsc/R/export_seurat.R) runs under the user's own R installation with
 SeuratObject (MIT) and, optionally, qs.
 
-Licence compatibility of the originals with GPL-3.0-or-later
+License compatibility of the originals with GPL-3.0-or-later
 -------------------------------------------------------------
   - GPL-3 (harmony, presto, UCell), GPL (>= 2) (limma, edgeR, lme4, R's RNG.c), GPL-2 | GPL-3 (R
     stats, statmod) and LGPL (>= 3) (DESeq2): compatible.

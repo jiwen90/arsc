@@ -1,6 +1,6 @@
 ---
 name: arsc
-description: Single-cell RNA-seq / CITE-seq / TCR analysis with the arsc Python package - loading h5ad/10x/Seurat data into memory-mapped stores, QC, normalisation, clustering, markers, signature scores, pseudobulk DE (DESeq2, voom) with the patient as unit, GSEA, cell-type composition, clone expansion (Cyclone, STARTRAC) and patient-level statistics. Use when a request asks a biology question of single-cell data or mentions arsc.
+description: Single-cell RNA-seq / CITE-seq / TCR analysis with the arsc Python package - loading h5ad/10x/Seurat data into memory-mapped stores, QC, normalization, clustering, markers, signature scores, pseudobulk DE (DESeq2, voom) with the patient as unit, GSEA, cell-type composition, clone expansion (Cyclone, STARTRAC) and patient-level statistics. Use when a request asks a biology question of single-cell data or mentions arsc.
 ---
 
 # arsc skill

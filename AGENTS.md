@@ -16,8 +16,8 @@ pip install "arsc[all] @ git+https://github.com/jiwen90/arsc.git"   # PyPI name 
 # extras: h5ad (anndata, h5py), graph (leiden, umap), stats (pydeseq2, statsmodels, patsy), all = everything
 ```
 
-Licence: GPL-3.0-or-later (several modules translate GPL code: harmony, limma/edgeR voom, presto, UCell). Code that
-imports arsc and is distributed with it falls under the GPL; NOTICE lists each ported original and its licence.
+License: GPL-3.0-or-later (several modules translate GPL code: harmony, limma/edgeR voom, presto, UCell). Code that
+imports arsc and is distributed with it falls under the GPL; NOTICE lists each ported original and its license.
 
 ## Mental model (read this first)
 
@@ -35,7 +35,7 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
   aligned to the columns of `X`), `.subset(cells)`, `.to_anndata()` and `.write_h5ad()`. Assays are modalities
   (`RNA`, `ADT`); layers are matrices within an assay (`counts`, `data`, ...). A Store also has `.get_features(genes)`.
 * **Functions take arrays, not objects**: `f(X, labels_or_obs, features=genes, ...)`. Rows of `X` are cells in
-  the same order as `obs`. You pass the layer you mean (raw counts or log-normalised), and the column names you mean.
+  the same order as `obs`. You pass the layer you mean (raw counts or log-normalized), and the column names you mean.
 * **Labels from elsewhere** (an annotation CSV): join by barcode, `obs["label"] = labels.reindex(obs.index)`; then
   work on `st.subset(obs["label"] == "CD8 T")`.
 * **The toy data** (`arsc.datasets.toy()`) has 3,000 cells x 300 genes, 6 patients (`P1`-`P3` responders `R`,
@@ -72,9 +72,9 @@ imports arsc and is distributed with it falls under the GPL; NOTICE lists each p
 | Load | hand off to scanpy / write h5ad | `st.to_anndata(cells, genes); st.write_h5ad(path, cells)` |
 | Load | toy data for trying things | `arsc.datasets.toy()` |
 | QC | per-cell QC metrics (scanpy calculate_qc_metrics) | `arsc.qc_metrics(counts, genes, qc_vars={'mt': mask})` |
-| Normalise | LogNormalize (Seurat NormalizeData) | `arsc.pp.log_normalize(counts)` |
-| Normalise | normalize_total + log1p (scanpy, bitwise) | `arsc.normalize_total_log1p(counts)` |
-| Normalise | CLR for ADT (Seurat) | `arsc.pp.clr(adt_counts)` |
+| Normalize | LogNormalize (Seurat NormalizeData) | `arsc.pp.log_normalize(counts)` |
+| Normalize | normalize_total + log1p (scanpy, bitwise) | `arsc.normalize_total_log1p(counts)` |
+| Normalize | CLR for ADT (Seurat) | `arsc.pp.clr(adt_counts)` |
 | HVG | Seurat vst highly variable genes | `arsc.pp.hvg_vst(counts, nfeatures=2000, features=genes)` |
 | HVG | scanpy highly_variable_genes (seurat / cell_ranger / seurat_v3) | `arsc.highly_variable_genes(X, genes, flavor=...)` |
 | Reduce | scale (Seurat ScaleData, optional regression) | `arsc.pp.scale(L[:, idx]) / arsc.scale_data(...)` |
@@ -194,7 +194,7 @@ ds = ds.subset(keep)
 print(f"kept {keep.sum()} of {len(keep)} cells")
 ```
 
-### `cluster`: Normalise, HVG, PCA, Harmony, neighbours, clusters, UMAP
+### `cluster`: Normalize, HVG, PCA, Harmony, neighbors, clusters, UMAP
 
 Asks like: "cluster the cells"; "make a UMAP"; "standard Seurat workflow"; "integrate patients"
 
@@ -236,9 +236,9 @@ print(pd.crosstab(lab["label"], obs.loc[~isref, "cell_type"]))
 print("low-confidence cells (prob < 0.6):", int((lab["prob"] < 0.6).sum()))
 ```
 
-### `wnn`: Cluster on RNA + protein (CITE-seq) with weighted nearest neighbours
+### `wnn`: Cluster on RNA + protein (CITE-seq) with weighted nearest neighbors
 
-Asks like: "cluster on RNA and ADT together"; "weighted nearest neighbour clustering"; "CITE-seq WNN"
+Asks like: "cluster on RNA and ADT together"; "weighted nearest neighbor clustering"; "CITE-seq WNN"
 
 ```python
 import pandas as pd
@@ -531,8 +531,8 @@ print(adata)
   before `de.voom`. `de.deseq2` takes an explicit `(variable, level, reference)` contrast.
 * **Which layer**: `log_normalize`, `hvg_vst`, `qc_metrics`, `pseudobulk`, `score_ucell` and `de.*` take **raw
   counts**. `wilcoxauc`, `find_markers`, `find_all_markers`, `add_module_score`, `cell_cycle_scoring` and
-  `average_expression` take **log-normalised** data. `rank_genes_groups` and `highly_variable_genes(flavor="seurat")`
-  take `normalize_total_log1p` output. `pp.pca` takes the **scaled** HVG matrix, so it does not re-centre.
+  `average_expression` take **log-normalized** data. `rank_genes_groups` and `highly_variable_genes(flavor="seurat")`
+  take `normalize_total_log1p` output. `pp.pca` takes the **scaled** HVG matrix, so it does not re-center.
 * **Positional outputs**: `qc_metrics`, `cell_cycle_scoring`, `add_module_score` and `score_ucell` return one row
   per cell in input order; assign with `.to_numpy()` (`obs["x"] = res["x"].to_numpy()`), not by index alignment.
   `cluster` and `umap` return numpy arrays.
@@ -548,7 +548,7 @@ print(adata)
 * Seeds are integers with fixed defaults (`seed`, or `random_state` in the scanpy-parity functions); `None` is
   rejected and the global RNG is never touched. Same input + seed gives an identical result (`SEEDS.md`).
 * **Reference mapping** (`arsc.symphony`): `build_reference` and `map_query` take raw counts by default
-  (`normalize=True`; pass `normalize=False` for log-normalised input). `map_query(vars=...)` removes what those
+  (`normalize=True`; pass `normalize=False` for log-normalized input). `map_query(vars=...)` removes what those
   columns explain, so never list the biology you compare (timepoint, response). Choose a reference that is clean
   and spans every state in the query; read low `transfer_labels(...)["prob"]` or a high `mapping_score` as
   "possibly absent from the reference", not as a confident label. Arrays are cells first (R's are transposed).
@@ -575,7 +575,7 @@ print(adata)
 | `find_neighbors` / `knn` | exact kNN up to 4,096 cells, pynndescent above (`method="exact"` at any size). Seurat uses approximate Annoy; with exact kNN, SNN Jaccard vs Seurat was 0.66 and Leiden ARI 0.92 |
 | `scanpy_extra.neighbors` / `leiden` / `umap_from_connectivities` | identical to scanpy below 4,096 cells (scanpy switches to approximate kNN above) |
 | `run_harmony` | same objective path as R harmony 2.0.5 (default), 2.1.0 and 1.2 (`version=`); per-dim r >= 0.98 from R's start with 1-3 batch variables (HARMONY_PARITY.md) |
-| `wnn` | modality weight r 0.97; neighbour overlap 0.92; cluster ARI 0.87 vs Seurat |
+| `wnn` | modality weight r 0.97; neighbor overlap 0.92; cluster ARI 0.87 vs Seurat |
 | `symphony.*` (Symphony mapping) | deterministic steps exact (<= 1e-12) given the same reference; own reference: query embedding r >= 0.99, kNN labels 99 % (vignette) and as close to R as R is to itself under another seed (CD8 clusters) |
 | `de.deseq2` (pydeseq2) | log2FC r 0.9998, top-100 overlap 98-100 vs R DESeq2 |
 | `de.voom` (+ duplicateCorrelation) | logFC/t r 1.00000; max abs diff 1e-4 vs limma |
@@ -600,7 +600,7 @@ print(adata)
 ## Do not
 
 * Do not treat cells as replicates or quote cell-level p-values for condition effects.
-* Do not run DE on log-normalised data or on cells: pseudobulk raw counts, then `de.deseq2` / `de.voom`.
+* Do not run DE on log-normalized data or on cells: pseudobulk raw counts, then `de.deseq2` / `de.voom`.
 * Do not cluster and then test markers of those clusters as if independent (circular); markers describe clusters.
 * Do not call `.toarray()` on a full store matrix, or load a whole Seurat object when a store exists.
 * Do not change the input files; write results to a new directory.

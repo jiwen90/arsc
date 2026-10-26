@@ -1,4 +1,4 @@
-"""Synthetic inputs for the R parity of arsc.stats resampling / rank helpers (STATS_PARITY.md, 'Rank, randomisation
+"""Synthetic inputs for the R parity of arsc.stats resampling / rank helpers (STATS_PARITY.md, 'Rank, randomization
 and stratified helpers'). ``build()`` returns the seeded input tables in memory (tests/test_stats_resampling.py uses
 it); ``python benchmarks/stats_resampling_cases.py <dir>`` writes them as CSVs for
 ``Rscript benchmarks/r_reference_stats_resampling.R <dir>`` (benchmarks/regen_refs.py stats_resampling does both, keeps

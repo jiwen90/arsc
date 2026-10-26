@@ -1,4 +1,4 @@
-"""Nearest neighbours, SNN graphs and weighted nearest neighbours (WNN).
+"""Nearest neighbors, SNN graphs and weighted nearest neighbors (WNN).
 
 =======================  =====================================================
 arsc                     Seurat equivalent
@@ -80,8 +80,8 @@ _SLACK = 1e-9      # relative slack on float64 pruning bounds (rounding of reass
 
 @nb.njit(fastmath=True)
 def _dot_min(qc, X32, a, e, acc, xs):
-    """float32 dot products of one centred query with the centred reference rows a..e (rows padded to a multiple
-    of 8 so the reduction vectorises), and the min over rows of xs[p] - 2 * dot. ``acc`` gets the dots."""
+    """float32 dot products of one centered query with the centered reference rows a..e (rows padded to a multiple
+    of 8 so the reduction vectorizes), and the min over rows of xs[p] - 2 * dot. ``acc`` gets the dots."""
     d = qc.size
     mn = np.inf
     for j in range(e - a):
@@ -95,9 +95,9 @@ def _dot_min(qc, X32, a, e, acc, xs):
 
 
 @nb.njit(fastmath=True)
-def _centre_dists(Qb, centersT, out):
-    """|q - c| for a block of queries vs all centres: sums of squared differences (no cancellation), vectorised
-    over centres; used only for pruning, with slack."""
+def _center_dists(Qb, centersT, out):
+    """|q - c| for a block of queries vs all centers: sums of squared differences (no cancellation), vectorized
+    over centers; used only for pruning, with slack."""
     m, d = Qb.shape
     C = centersT.shape[1]
     for i in range(m):
@@ -134,14 +134,14 @@ def _kth_smallest(v, C, p, buf):
 @nb.njit(parallel=True, cache=True)
 def _knn_blocks(Q, wq0, wq1, wc, Xp, X32, xs, ids, starts, centers, centersT, radius, rpt, hd, hi, maxsz, qb,
                 n_chunks, n_probe, shrink):
-    """Exact k-NN over a clustered reference set (triangle-inequality pruning, vectorised filter).
+    """Exact k-NN over a clustered reference set (triangle-inequality pruning, vectorized filter).
 
-    Queries are sorted by their nearest centre and cut into work items Q[wq0[w]:wq1[w]] of at most ``qb`` queries
-    that share that centre (wc[w]); ``n_chunks`` contiguous runs of items go to the threads. For each candidate
-    cluster c, in order of its centre's distance to the item's centre (so the first ones fill the heaps): skip it
+    Queries are sorted by their nearest center and cut into work items Q[wq0[w]:wq1[w]] of at most ``qb`` queries
+    that share that center (wc[w]); ``n_chunks`` contiguous runs of items go to the threads. For each candidate
+    cluster c, in order of its center's distance to the item's center (so the first ones fill the heaps): skip it
     when every query's bound max(0, |q - c| - radius_c) exceeds its k-th distance; else, per query, keep only the
     ring | |x - c| - |q - c| | <= k-th distance (points are sorted by |x - c|), compute float32 dot products of
-    (q - c) with the ring's (x - c), vectorised over points, and give every point whose float32 squared distance
+    (q - c) with the ring's (x - c), vectorized over points, and give every point whose float32 squared distance
     lies within a proven rounding bound of the k-th distance the exact float64 check: the same sum of squared
     differences, in the same order, as a plain scan, so distances are bit-identical to brute force. A point enters
     on (distance, index) order, so the result does not depend on the scan order. Buffers are allocated once per
@@ -176,7 +176,7 @@ def _knn_blocks(Q, wq0, wq1, wc, Xp, X32, xs, ids, starts, centers, centersT, ra
                     cc[c] = s
                 corder = np.argsort(cc)
                 prev = ca
-            _centre_dists(Q[s0:s1], centersT, dc)
+            _center_dists(Q[s0:s1], centersT, dc)
             if n_probe < C:
                 for i in range(m):
                     pth[i] = _kth_smallest(dc[i], C, n_probe, rowbuf)
@@ -253,7 +253,7 @@ def _knn_blocks(Q, wq0, wq1, wc, Xp, X32, xs, ids, starts, centers, centersT, ra
 
 
 def _work_items(qstarts, qb):
-    """Cut each centre's query range into items of at most qb queries: (start, end, centre) arrays."""
+    """Cut each center's query range into items of at most qb queries: (start, end, center) arrays."""
     sz = np.diff(qstarts)
     nper = (sz + qb - 1) // qb
     wc = np.repeat(np.arange(sz.size, dtype=np.int64), nper)
@@ -265,7 +265,7 @@ def _work_items(qstarts, qb):
 
 
 def _assign(X, centers, chunk=65536):
-    """Nearest centre of every row (float32 BLAS; only the partition geometry depends on it, never the answer)."""
+    """Nearest center of every row (float32 BLAS; only the partition geometry depends on it, never the answer)."""
     C32 = np.ascontiguousarray(centers, dtype=np.float32)
     cn = (C32.astype(np.float64) ** 2).sum(1).astype(np.float32)
     out = np.empty(X.shape[0], dtype=np.int64)
@@ -279,7 +279,7 @@ def _assign(X, centers, chunk=65536):
 
 
 @nb.njit(cache=True)
-def _centre_sums(S, lab, C):
+def _center_sums(S, lab, C):
     sums = np.zeros((C, S.shape[1]))
     cnt = np.zeros(C, dtype=np.int64)
     for i in range(S.shape[0]):
@@ -290,8 +290,8 @@ def _centre_sums(S, lab, C):
     return sums, cnt
 
 
-def _kmeans_centres(X, n_clusters, seed, iters=3, chunk=65536):
-    """Cheap k-means: Lloyd iterations on a seeded sample of at most 64 points per centre (float32 BLAS
+def _kmeans_centers(X, n_clusters, seed, iters=3, chunk=65536):
+    """Cheap k-means: Lloyd iterations on a seeded sample of at most 64 points per center (float32 BLAS
     assignment); only the partition geometry depends on it, never an exact answer."""
     n = X.shape[0]
     rng = np.random.default_rng(seed)
@@ -300,23 +300,23 @@ def _kmeans_centres(X, n_clusters, seed, iters=3, chunk=65536):
     S = X if n <= 64 * C else X[np.sort(rng.choice(n, 64 * C, replace=False))]
     for it in range(iters):
         sa = _assign(S, centers, chunk)
-        sums, counts = _centre_sums(S, sa, C)
+        sums, counts = _center_sums(S, sa, C)
         nz = counts > 0
         centers[nz] = sums[nz] / counts[nz, None]
     return centers
 
 
 def _partition(X, n_clusters, seed, iters=3, chunk=65536):
-    """k-means partition for the exact search: every point assigned to its nearest centre, points ordered by
-    cluster and then by distance to the centre (ring search); returns permuted data and the geometry (float64)."""
+    """k-means partition for the exact search: every point assigned to its nearest center, points ordered by
+    cluster and then by distance to the center (ring search); returns permuted data and the geometry (float64)."""
     n = X.shape[0]
-    centers = _kmeans_centres(X, n_clusters, seed, iters, chunk)
+    centers = _kmeans_centers(X, n_clusters, seed, iters, chunk)
     C = centers.shape[0]
     assign = _assign(X, centers, chunk)
     counts = np.bincount(assign, minlength=C)
     starts = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
     rpt_all = np.sqrt(((X - centers[assign]) ** 2).sum(1))
-    order = np.lexsort((np.arange(n), rpt_all, assign))  # by cluster, then distance to its centre (ring search)
+    order = np.lexsort((np.arange(n), rpt_all, assign))  # by cluster, then distance to its center (ring search)
     Xp = np.ascontiguousarray(X[order])
     rpt = rpt_all[order]
     radius = np.zeros(C)
@@ -336,8 +336,8 @@ _EXTRA = 8               # approximate: candidates kept beyond k for the exact f
 
 @nb.njit(parallel=True, cache=True)
 def _top_p(G, cn, p, out):
-    """out[i] = the p centres nearest to row i, nearest first (ties by index), from G = rows . centres:
-    |x - c|^2 - |x|^2 = cn[c] - 2 G[i, c]. Insertion into a sorted buffer of p values, which almost every centre
+    """out[i] = the p centers nearest to row i, nearest first (ties by index), from G = rows . centers:
+    |x - c|^2 - |x|^2 = cn[c] - 2 G[i, c]. Insertion into a sorted buffer of p values, which almost every center
     fails at the first comparison."""
     m, C = G.shape
     nb_ = min(m, 256)
@@ -366,9 +366,9 @@ def _top_p(G, cn, p, out):
 
 @nb.njit(parallel=True, cache=True)
 def _ivf_items(Q, wq0, wq1, probes, R32, xn, starts, centers, ids, hd, hi, maxsz, qb, n_chunks):
-    """Approximate search over work items (up to qb queries sharing a nearest centre). For every cluster that some
-    query of the item probes: one float32 matrix product of those queries and the cluster's points, both centred on
-    the cluster's centre (BLAS, single-threaded inside the parallel loop); |q - x|^2 ~ |q - c|^2 + |x - c|^2 -
+    """Approximate search over work items (up to qb queries sharing a nearest center). For every cluster that some
+    query of the item probes: one float32 matrix product of those queries and the cluster's points, both centered on
+    the cluster's center (BLAS, single-threaded inside the parallel loop); |q - x|^2 ~ |q - c|^2 + |x - c|^2 -
     2 (q - c).(x - c) is offered to each query's heap. An item owns its queries' heaps (no write races)."""
     nw = wq0.size
     d = Q.shape[1]
@@ -478,7 +478,7 @@ def _ivf_search(X, Q, k, seed, n_clusters, n_probe, extra=_EXTRA):
     float32 matrix products per (group of queries, cluster); the k + ``extra`` best candidates are re-scored exactly
     in float64 and ordered by (distance, index)."""
     n, d = X.shape
-    centers = _kmeans_centres(X, n_clusters, seed)
+    centers = _kmeans_centers(X, n_clusters, seed)
     C = centers.shape[0]
     p = int(min(C, n_probe))
     kk = int(min(n, k + extra))
@@ -580,20 +580,20 @@ def _exact_search(X, Q, k, seed, n_clusters):
 
 @records_seed("seed")
 def knn(X, k: int, query=None, *, method: str = "auto", seed: int = 0, n_clusters: int | None = None):
-    """k nearest neighbours (Euclidean): exact up to 4,096 points, approximate above (``"auto"``).
+    """k nearest neighbors (Euclidean): exact up to 4,096 points, approximate above (``"auto"``).
 
     Both methods start from a seeded k-means partition of the points (numba and BLAS, no other dependency) and
     report exact float64 distances (the plain sum of squared differences, as brute force), ordered by (distance,
     index).
 
-    ``method="exact"``: each query scans clusters in order of their centre's distance, skipping a cluster or a
+    ``method="exact"``: each query scans clusters in order of their center's distance, skipping a cluster or a
     ring of it when the triangle inequality proves it cannot hold a closer point; candidates pass a float32 filter
     with a proven rounding margin before the float64 check. The answer is the exact k-NN at any size; ``seed`` and
     ``n_clusters`` change only the speed. Deterministic; the query point itself comes first when ``query`` is None.
 
     ``method="approximate"`` (alias ``"approx"``): about 2 sqrt(n) clusters; each query scans every point of its
     24 nearest clusters. Distances to a cluster's points are float32 matrix products of the queries that probe it
-    (grouped by nearest centre) and the cluster's points, both centred on the cluster's centre; the k + 8 best
+    (grouped by nearest center) and the cluster's points, both centered on the cluster's center; the k + 8 best
     candidates are re-scored exactly in float64. Recall@k on real PCs: 0.96-0.996 (100k and 1M cells, k = 15 and
     30). Deterministic for a given ``seed`` and independent of the thread count. Speed against FAISS, hnswlib,
     Voyager, Annoy, pynndescent and scanpy: ``SCANPY_PARITY.md`` ("k-NN backend").
@@ -604,7 +604,7 @@ def knn(X, k: int, query=None, *, method: str = "auto", seed: int = 0, n_cluster
     Parameters
     ----------
     X : (n x d) dense embedding (e.g. PCs).
-    k : neighbours per query (self included when ``query`` is None); capped at n.
+    k : neighbors per query (self included when ``query`` is None); capped at n.
     query : optional (m x d) query points; default ``X`` itself.
     method : ``"auto"``, ``"exact"`` or ``"approximate"`` (``"approx"``).
     seed : integer seed of the k-means partition.
@@ -702,7 +702,7 @@ def l2_normalize(X: np.ndarray) -> np.ndarray:
 # --------------------------------------------------------------------------- SNN
 @nb.njit(cache=True)
 def _reverse_lists(idx, n):
-    """For each cell m, the cells i (increasing) that have m among their neighbours (CSR; a neighbour listed twice
+    """For each cell m, the cells i (increasing) that have m among their neighbors (CSR; a neighbor listed twice
     in a row enters m's list once, as with scipy's sum_duplicates in earlier versions)."""
     m, k = idx.shape
     ptr = np.zeros(n + 1, dtype=np.int64)
@@ -733,8 +733,8 @@ def _seen_before(idx, i, a):
 
 @nb.njit(parallel=True, cache=True)
 def _snn_blocks(idx, rev_ptr, rev_idx, n, smin, B, cap, buf_j, buf_s, rowcnt, blk_used, nt):
-    """One pass over the shared-neighbour counts: block b (rows b*B..) writes its rows' pairs with at least smin
-    shared neighbours, each row sorted by column, into its own region of buf_j / buf_s (cap entries per row of
+    """One pass over the shared-neighbor counts: block b (rows b*B..) writes its rows' pairs with at least smin
+    shared neighbors, each row sorted by column, into its own region of buf_j / buf_s (cap entries per row of
     the block); blk_used[b] = entries written, or -1 when the region overflowed (the caller then counts first)."""
     nblk = (n + B - 1) // B
     for t in nb.prange(nt):
@@ -782,7 +782,7 @@ def snn_graph(idx: np.ndarray, prune: float = 1 / 15) -> sp.csr_matrix:
 
     Parameters
     ----------
-    idx : (n x k) neighbour index matrix, e.g. from :func:`knn` (include self for
+    idx : (n x k) neighbor index matrix, e.g. from :func:`knn` (include self for
         ``FindNeighbors`` semantics).
     prune : Jaccard cutoff (Seurat ``prune.SNN``, default 1/15).
 
@@ -804,7 +804,7 @@ def snn_graph(idx: np.ndarray, prune: float = 1 / 15) -> sp.csr_matrix:
     idx = np.ascontiguousarray(idx, dtype=np.int64)
     n, k = idx.shape
     rev_ptr, rev_idx = _reverse_lists(idx, n)
-    # s shared neighbours pass when s / (2k - s) >= prune, i.e. s >= 2k * prune / (1 + prune)
+    # s shared neighbors pass when s / (2k - s) >= prune, i.e. s >= 2k * prune / (1 + prune)
     smin = 1
     while smin <= k and not (smin / (k + (k - smin)) >= prune):
         smin += 1
@@ -881,7 +881,7 @@ def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm:
     Parameters
     ----------
     emb : (n x d) embedding (PCs, harmony).
-    k : neighbours including self (Seurat ``k.param``).
+    k : neighbors including self (Seurat ``k.param``).
     prune : SNN Jaccard cutoff (Seurat ``prune.SNN``).
     l2_norm : L2-normalize rows first (Seurat ``l2.norm``).
     method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`knn`).
@@ -914,7 +914,7 @@ def find_neighbors(emb: np.ndarray, k: int = 20, prune: float = 1 / 15, l2_norm:
 # --------------------------------------------------------------------------- WNN
 @nb.njit(parallel=True, cache=True)
 def _snn_width(ptr, ind, val, emb, n_far, nearest):
-    """Seurat ``SNN_SmallestNonzero_Dist``: mean distance to the n least-shared SNN neighbours."""
+    """Seurat ``SNN_SmallestNonzero_Dist``: mean distance to the n least-shared SNN neighbors."""
     N = ptr.size - 1
     out = np.empty(N)
     for i in nb.prange(N):
@@ -998,7 +998,7 @@ def _wnn_select(cands, n_cand, embs, offsets, dims, nearest, sigma, weight, k_nn
 
 
 def _union_candidates(nn_lists):
-    """Per cell: union of neighbour lists in modality order (R ``Reduce(union, ...)``)."""
+    """Per cell: union of neighbor lists in modality order (R ``Reduce(union, ...)``)."""
     n = nn_lists[0].shape[0]
     width = sum(l.shape[1] for l in nn_lists)
     cands = np.full((n, width), -1, dtype=np.int64)
@@ -1032,11 +1032,11 @@ class WNNResult:
     Attributes
     ----------
     weights : n x M modality weights (rows sum to 1; Seurat ``RNA.weight`` etc.).
-    idx, dist : n x k weighted neighbours, self excluded (Seurat ``weighted.nn``).
+    idx, dist : n x k weighted neighbors, self excluded (Seurat ``weighted.nn``).
     wknn : binary, symmetrized k-NN graph, diagonal 1.
     wsnn : pruned Jaccard SNN graph (cluster this).
     sigma : per-cell kernel bandwidths, per modality.
-    nearest_dist : distance to the nearest neighbour, per modality.
+    nearest_dist : distance to the nearest neighbor, per modality.
 
     Examples
     --------
@@ -1062,7 +1062,7 @@ class WNNResult:
 def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float = 1 / 15,
         sd_scale: float = 1.0, cross_constant=1e-4, l2_norm: bool = True, smooth: bool = False,
         knn_method: str = "auto", seed: int = 0) -> WNNResult:
-    """Weighted nearest neighbours (Seurat ``FindMultiModalNeighbors`` / ``FindModalityWeights``).
+    """Weighted nearest neighbors (Seurat ``FindMultiModalNeighbors`` / ``FindModalityWeights``).
 
     Parameters
     ----------
@@ -1098,7 +1098,7 @@ def wnn(embeddings: list, k_nn: int = 20, knn_range: int = 200, prune_snn: float
     big = [knn(e, max(knn_range, k_nn), method=knn_method, seed=seed) for e in E]  # self first
     nn = [(i[:, :k_nn], d[:, :k_nn]) for i, d in big]  # exact k-NN are prefixes of each other
     nearest = np.stack([d[:, 1] for _, d in nn], axis=1)  # Distances[, 2]
-    # PredictAssay drops the self column when the query cell is its own first neighbour
+    # PredictAssay drops the self column when the query cell is its own first neighbor
     within = [_neighbor_mean(E[m], nn[m][0], 1) for m in range(M)]
     cross = {(m, m2): _neighbor_mean(E[m], nn[m2][0], 1) for m in range(M) for m2 in range(M) if m2 != m}
 

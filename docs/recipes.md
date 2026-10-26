@@ -40,7 +40,7 @@ ds = ds.subset(keep)
 print(f"kept {keep.sum()} of {len(keep)} cells")
 ```
 
-## `cluster`: Normalise, HVG, PCA, Harmony, neighbours, clusters, UMAP
+## `cluster`: Normalize, HVG, PCA, Harmony, neighbors, clusters, UMAP
 
 Asks like: "cluster the cells"; "make a UMAP"; "standard Seurat workflow"; "integrate patients"
 
@@ -82,9 +82,9 @@ print(pd.crosstab(lab["label"], obs.loc[~isref, "cell_type"]))
 print("low-confidence cells (prob < 0.6):", int((lab["prob"] < 0.6).sum()))
 ```
 
-## `wnn`: Cluster on RNA + protein (CITE-seq) with weighted nearest neighbours
+## `wnn`: Cluster on RNA + protein (CITE-seq) with weighted nearest neighbors
 
-Asks like: "cluster on RNA and ADT together"; "weighted nearest neighbour clustering"; "CITE-seq WNN"
+Asks like: "cluster on RNA and ADT together"; "weighted nearest neighbor clustering"; "CITE-seq WNN"
 
 ```python
 import pandas as pd

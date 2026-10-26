@@ -25,7 +25,7 @@ from matplotlib.patches import Circle  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 
-# cluster colours: teal, indigo, coral, amber (distinct in both themes)
+# cluster colors: teal, indigo, coral, amber (distinct in both themes)
 PALETTE = ["#14B8A6", "#6366F1", "#F43F5E", "#F59E0B"]
 INK_LIGHT = "#0F172A"      # wordmark on light backgrounds
 INK_DARK = "#F1F5F9"       # wordmark on dark backgrounds
@@ -47,10 +47,10 @@ def _font() -> str:
 def _cloud(seed: int = 7):
     """Point cloud: 4 anisotropic Gaussian clusters inside the unit disc, plus a few bridging cells."""
     rng = np.random.default_rng(seed)
-    centres = np.array([[-0.30, 0.30], [0.33, 0.28], [0.26, -0.34], [-0.34, -0.26]])
+    centers = np.array([[-0.30, 0.30], [0.33, 0.28], [0.26, -0.34], [-0.34, -0.26]])
     sizes = [70, 60, 64, 56]
     pts, cols, rad = [], [], []
-    for k, (c, n) in enumerate(zip(centres, sizes)):
+    for k, (c, n) in enumerate(zip(centers, sizes)):
         ang = rng.uniform(0, np.pi)
         R = np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])
         z = rng.normal(size=(n, 2)) * np.array([0.13, 0.075])
@@ -70,7 +70,7 @@ def _draw_mark(ax, ring: str, cx: float = 0.0, cy: float = 0.0, scale: float = 1
     ax.add_patch(Circle((cx, cy), 0.90 * scale, fill=False, ec=ring, lw=4.0 * scale, alpha=0.95))
     for (x, y), c, rr in zip(P, cols, r):
         ax.add_patch(Circle((cx + x * scale, cy + y * scale), rr * scale, color=c, lw=0, alpha=0.92))
-    # nucleus-like highlight: one larger dot per cluster centre (subtle)
+    # nucleus-like highlight: one larger dot per cluster center (subtle)
     return ax
 
 

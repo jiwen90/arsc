@@ -67,7 +67,7 @@ def test_moe_correct_ref_matches_dense_loop():
     assert np.abs(got - ref.T).max() < 1e-10
 
 
-def test_scaling_clips_both_tails_and_soft_cluster_normalises():
+def test_scaling_clips_both_tails_and_soft_cluster_normalizes():
     E = np.array([[0.0, 5.0], [0.0, 5.0], [0.0, 5.0], [10.0, 0.0]])
     S = sy._scale_with_stats(E, E.mean(0), E.std(0, ddof=1), thresh=1.0)
     assert S.max() == 1.0 and S.min() == -1.0

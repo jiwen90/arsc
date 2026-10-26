@@ -69,7 +69,7 @@ def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int =
     algorithm = 1)``, the setting of the CD8 T-cell workflow arsc was validated on) on arsc's own engine.
 
     Two engines run the same algorithms. ``engine="arsc"`` (default) runs arsc's own numba ports
-    (:mod:`arsc._leiden`: libleidenalg's optimiser and igraph's multilevel, step for step) with no
+    (:mod:`arsc._leiden`: libleidenalg's optimizer and igraph's multilevel, step for step) with no
     igraph / leidenalg import; it is several times faster, its labels do not depend on the thread count,
     and its quality matches the references within their own seed-to-seed range (``SEURAT_PARITY.md``),
     but a seed gives a different (equally good) partition than the same seed in leidenalg.
@@ -118,7 +118,7 @@ def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int =
     if objective not in ("modularity", "cpm"):
         raise ValueError(f"unknown objective {objective!r}; use 'modularity' or 'cpm'")
     if method == "louvain" and objective != "modularity":
-        raise ValueError("louvain optimises modularity only; pass method=\"leiden\" for objective=\"cpm\"")
+        raise ValueError("louvain optimizes modularity only; pass method=\"leiden\" for objective=\"cpm\"")
     G = _check_graph(graph)
     if engine == "arsc":
         from . import _leiden
@@ -172,18 +172,18 @@ def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int =
 def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosine", seed: int = 42,
          n_epochs: int | None = None, spread: float = 1.0, init: str = "spectral", knn=None,
          engine: str = "arsc") -> np.ndarray:
-    """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbours, min_dist 0.3).
+    """UMAP with Seurat ``RunUMAP`` defaults (cosine, 30 neighbors, min_dist 0.3).
 
     The k-NN graph comes from :func:`arsc.knn` with its default (exact up to 4,096 cells, arsc's approximate search
     above, as umap-learn and uwot search approximately); pass ``knn=arsc.knn(emb, n_neighbors, method="exact")`` (cosine:
-    on L2-normalised rows) for exact neighbours at any size.
+    on L2-normalized rows) for exact neighbors at any size.
     ``seed`` (default 42 = Seurat ``RunUMAP(seed.use = 42)``) seeds the layout; the same input + seed
     gives bit-identical coordinates. Pass other integers to see alternative layouts. ``seed=None``
     is rejected.
 
     ``engine="arsc"`` (default since 0.3.0) runs arsc's own UMAP (``arsc._umap``): the same fuzzy
-    graph as umap-learn (identical weights on the same kNN), a spectral initialisation, and a layout
-    optimiser that runs on all threads yet gives identical coordinates at any thread count (each epoch
+    graph as umap-learn (identical weights on the same kNN), a spectral initialization, and a layout
+    optimizer that runs on all threads yet gives identical coordinates at any thread count (each epoch
     reads a snapshot; edges are partitioned by head point; negative samples come from per-edge
     counter-based random streams). It is several times faster; layouts differ from umap-learn's by
     about as much as two umap-learn seeds differ from each other (``SEURAT_PARITY.md``, UMAP engines).
@@ -195,11 +195,11 @@ def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosin
     Parameters
     ----------
     emb : (n x d) embedding (PCs, harmony).
-    n_neighbors : neighbours (Seurat ``n.neighbors``).
+    n_neighbors : neighbors (Seurat ``n.neighbors``).
     min_dist : layout ``min_dist``.
     metric : ``"cosine"`` (Seurat default) or ``"euclidean"`` (arsc k-NN); others go to umap-learn.
     seed : integer seed.
-    n_epochs : optimisation epochs (umap-learn default when None).
+    n_epochs : optimization epochs (umap-learn default when None).
     spread : layout ``spread``.
     init : ``"spectral"`` or ``"random"``.
     knn : optional precomputed ``(idx, dist)``.

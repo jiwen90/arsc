@@ -29,7 +29,7 @@ API_MODULES = [
     ("arsc.markers", "Markers (presto)"),
     ("arsc.pseudobulk", "Pseudobulk"),
     ("arsc.scores", "Signature scores"),
-    ("arsc.neighbors", "Neighbours and WNN"),
+    ("arsc.neighbors", "Neighbors and WNN"),
     ("arsc.cluster", "Clustering and UMAP"),
     ("arsc.harmony", "Harmony"),
     ("arsc.symphony", "Symphony reference mapping"),

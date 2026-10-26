@@ -315,7 +315,7 @@ def test_profile_enrichment_and_fate_genes_seeded(cp):
 
 
 def test_exact_knn_independent_of_seed():
-    """The seed of the exact kNN only steers pruning; the neighbours are exact for every seed."""
+    """The seed of the exact kNN only steers pruning; the neighbors are exact for every seed."""
     a = arsc.knn(E, 12, seed=0)
     for s in (1, 99):
         b = arsc.knn(E, 12, seed=s)

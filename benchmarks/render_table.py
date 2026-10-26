@@ -25,7 +25,7 @@ from run_suite import IMPL  # noqa: E402
 START, END = "<!-- BENCH:START -->", "<!-- BENCH:END -->"
 
 LABEL = {
-    "normalize": ("Log-normalise", "`pp.log_normalize`", "`normalize_total`+`log1p`", "`NormalizeData`"),
+    "normalize": ("Log-normalize", "`pp.log_normalize`", "`normalize_total`+`log1p`", "`NormalizeData`"),
     "hvg": ("Highly variable genes (2,000)", "`pp.hvg_vst`", "`highly_variable_genes(seurat_v3)`", "`FindVariableFeatures(vst)`"),
     "pca": ("Scale + PCA (30 PCs)", "`pp.scale`+`pp.pca`", "`scale`+`pca(arpack)`", "`ScaleData`+`RunPCA`"),
     "neighbors": ("k-NN graph (k = 20)", "`find_neighbors` (exact)", "`neighbors` (pynndescent)", "`FindNeighbors` (Annoy)"),
@@ -79,7 +79,7 @@ def _agree(ag: pd.DataFrame, n: int, step: str, vs: str) -> str:
     if step == "pca":
         return f"per-PC abs r >= {m['pc_abs_r_min_top10']:.4f} (PC1-10), >= {m['pc_abs_r_min_all30']:.3f} (all 30)"
     if step == "neighbors":
-        return f"{100 * m['knn_overlap_mean']:.1f}% of neighbours shared"
+        return f"{100 * m['knn_overlap_mean']:.1f}% of neighbors shared"
     if step == "cluster":
         return f"ARI {m['ari']:.3f}"
     if step == "rank_genes":
@@ -180,8 +180,8 @@ def render(res: Path) -> str:
         L.append("\nNotes: arsc's k-NN is exact (recall vs brute force on 1,000 random cells: "
                  + ", ".join(f"{v:.3f} at {int(n):,}" for n, v in sorted(rec.items()))
                  + "); scanpy (pynndescent) and Seurat (Annoy) are approximate, so their overlap with arsc is "
-                   "their recall. Exact search is the slowest arsc step at 1M cells; "
-                   "`arsc.knn(method=\"pynndescent\")` exists but is not benchmarked here. "
+                   "their recall. (This table predates arsc's approximate kernel; see SCANPY_PARITY.md, "
+                   "\"k-NN backend\".) "
                    "Python steps are timed after an untimed warm-up run in the same process (JIT compilation "
                    "excluded; scanpy's first `neighbors` call in a fresh process spends 25-40 s compiling).")
     ts = pd.to_numeric(allr.get("t_start"), errors="coerce").dropna() if "t_start" in allr else pd.Series([], dtype=float)

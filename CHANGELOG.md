@@ -52,10 +52,10 @@ All notable changes to arsc are recorded here. The format follows
   `knn(n_clusters=)` is accepted and ignored. Methods: `"auto"`, `"exact"`, `"approximate"` (aliases `"approx"`,
   `"pynndescent"`). The 1M-cell k-NN step went from 13 min (exact) to scanpy's speed (benchmark table in
   SCANPY_PARITY.md). `clonotrace` keeps exact search (dbscan::kNN semantics).
-- `snn_graph`: only the shared-neighbour pairs that pass `prune` are sorted (3x faster at 100,000 cells; output
+- `snn_graph`: only the shared-neighbor pairs that pass `prune` are sorted (3x faster at 100,000 cells; output
   identical).
 - `run_harmony` reproduces R harmony 2.0.5 (the current CRAN release, "Harmony2") by default; `version="1.2"`
-  gives the previous behaviour (harmony 1.2), `version="2.1"` the GitHub tag v2.1.0 (per-variable penalties
+  gives the previous behavior (harmony 1.2), `version="2.1"` the GitHub tag v2.1.0 (per-variable penalties
   multiplied). 2.x differs from 1.2 in its k-means start, fixed centroids during clustering (set from the
   regression intercept), pseudocount penalty, per-cluster removal of absent batch levels (`batch_prop_cutoff`)
   and defaults (`lambda` automatic, 4 clustering iterations): the embeddings differ, so pass `version="1.2"` to
@@ -130,10 +130,10 @@ All notable changes to arsc are recorded here. The format follows
 - `pp.pca` computes 30 components by default (was 50).
 - These defaults are the settings of the CD8 T-cell workflow (Seurat 4) that arsc was validated on: LogNormalize
   (scale factor 1e4), vst variable genes (2,000), 30 PCs, Louvain (`algorithm = 1`) at resolution 0.6, RunUMAP with
-  30 neighbours, min_dist 0.3, cosine metric, spread 1, seed 42. `log_normalize`, `hvg_vst`, `find_neighbors`
+  30 neighbors, min_dist 0.3, cosine metric, spread 1, seed 42. `log_normalize`, `hvg_vst`, `find_neighbors`
   (k = 20) and `umap`'s layout parameters already had these values and are unchanged.
 - `clonotrace.revise_distance`'s default Leiden ladder pins `method="leiden"`, `engine="leidenalg"` (its documented
-  scanpy-style behaviour), so its output does not change.
+  scanpy-style behavior), so its output does not change.
 - To reproduce 0.2.x results: `arsc.cluster(snn, method="leiden", resolution=0.8, engine="leidenalg")`,
   `arsc.umap(emb, engine="umap-learn")`, `arsc.pp.pca(Z, n_comps=50)` (or the values the call passed).
 
@@ -143,7 +143,7 @@ All notable changes to arsc are recorded here. The format follows
   count (snapshot epochs, edges partitioned by head point, per-edge counter-based negative sampling); about 10x
   faster than umap-learn's seeded single-threaded layout at 8 threads, same trustworthiness (SEURAT_PARITY.md
   section 5).
-- `arsc.cluster(engine="arsc")`: arsc's own Leiden (a port of libleidenalg's default optimiser) and Louvain (a port of
+- `arsc.cluster(engine="arsc")`: arsc's own Leiden (a port of libleidenalg's default optimizer) and Louvain (a port of
   igraph community_multilevel) in numba, for modularity and `objective="cpm"`. Quality within the references'
   seed-to-seed range, Leiden 4-6x and Louvain 3-15x faster, labels identical at any thread count (the default
   engine since 0.3.0, see above).
@@ -154,7 +154,7 @@ All notable changes to arsc are recorded here. The format follows
   enumeration or Monte Carlo) and `boot_ci_diff` (percentile bootstrap CI of `f(x) - f(y)`, groups or pairs
   resampled). Validated by brute force (STATS_PARITY.md). They replace hand-written versions found in experiment
   code (a p without the +1, NaN counted as not extreme, permutation across strata that should have been within).
-- `arsc.stats` rank, randomisation, stratified and depth helpers (STATS_PARITY.md): `signflip_test` (exact to n = 20,
+- `arsc.stats` rank, randomization, stratified and depth helpers (STATS_PARITY.md): `signflip_test` (exact to n = 20,
   never-zero Monte Carlo p, NaN dropped), `signflip_maxt` (Westfall-Young single-step / step-down over K readouts),
   `hodges_lehmann` (estimate + CI + p, port of R `wilcox.test(conf.int = TRUE)`, exact and normal branches),
   `mantel_haenszel` (R `mantelhaen.test`), `icc_oneway` (ICC(1) with strata, F test, CI), `freedman_lane`
@@ -173,7 +173,7 @@ All notable changes to arsc are recorded here. The format follows
 
 ### Changed
 - `arsc.knn` (exact): ring search inside each cluster (1.2-1.5x faster on one thread) and ties at the k-th place
-  resolved by (distance, index), so the neighbour set no longer depends on the partition seed or scan order; the
+  resolved by (distance, index), so the neighbor set no longer depends on the partition seed or scan order; the
   per-row sort no longer allocates inside the parallel loop. `snn_graph` sorts in place; the igraph conversion no
   longer goes through Python lists; `group_singletons` runs in numba (same rule).
 - `stats.perm_test`: the sampled (Monte Carlo) p is now `(1 + #extreme) / (B + 1)` and can no longer be 0 (it was
@@ -193,9 +193,9 @@ All notable changes to arsc are recorded here. The format follows
   the levels as an array (`I()`), and the reader also accepts the old string form (stores already on disk).
 
 ### Changed
-- Licence: arsc is now GPL-3.0-or-later (was labelled MIT). Several modules translate or closely
+- License: arsc is now GPL-3.0-or-later (was labeled MIT). Several modules translate or closely
   follow GPL code (harmony 1.2, limma/edgeR voom chain, presto, UCell). `NOTICE` lists each ported original
-  with its licence; the licence texts of the MIT/BSD originals (Seurat, fgsea, Clonotrace, scanpy) are in
+  with its license; the license texts of the MIT/BSD originals (Seurat, fgsea, Clonotrace, scanpy) are in
   `LICENSES/`.
 
 ### Added
@@ -252,7 +252,7 @@ All notable changes to arsc are recorded here. The format follows
 - Harmony 1.2 port; presto-equivalent `wilcoxauc`; UCell and AddModuleScore (R-compatible RNG);
   exact kNN, SNN, WNN, Leiden/Louvain and UMAP wrappers; pseudobulk.
 - `seurat_extra` (FindMarkers, FindAllMarkers, AverageExpression, CellCycleScoring, ScaleData with
-  regression and split.by), `scanpy_extra` (rank_genes_groups, score_genes, HVG flavours,
+  regression and split.by), `scanpy_extra` (rank_genes_groups, score_genes, HVG flavors,
   neighbors, leiden, umap, regress_out, QC metrics, diffmap, dpt, palantir diffusion maps, MAGIC).
 - Patient-level statistics (`arsc.stats`: composition, paired and permutation tests, binomial GLMM,
   LMM, GEE, minimum detectable effect) and pseudobulk DE (`arsc.de`: DESeq2 via pydeseq2,

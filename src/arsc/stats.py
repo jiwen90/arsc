@@ -217,7 +217,7 @@ def _psignrank_counts(n: int) -> np.ndarray:
 def wilcoxon_signed_rank(x, exact: bool | None = None, correct: bool = True) -> float:
     """Two-sided one-sample / paired Wilcoxon signed-rank p-value replicating R ``wilcox.test(x, exact=...)``.
 
-    Zeros are dropped; ``exact`` defaults to n < 50 and is only honoured without zeros/ties (R falls back to the
+    Zeros are dropped; ``exact`` defaults to n < 50 and is only honored without zeros/ties (R falls back to the
     normal approximation with continuity correction and tie-corrected variance otherwise).
 
     Parameters
@@ -341,7 +341,7 @@ def perm_test(x, y, stat=None, B: int = 20000, seed: int = 1) -> dict:
 
     Exact enumeration when ``choose(n_x + n_y, n_x) <= B``, otherwise ``B`` random permutations.
     Two-sided: exact p = fraction of permutations with ``|stat| >= |observed|``; sampled p =
-    ``(1 + #extreme) / (B + 1)``, which is never 0 (the observed labelling counts as one permutation).
+    ``(1 + #extreme) / (B + 1)``, which is never 0 (the observed labeling counts as one permutation).
     Non-finite values are dropped first; an empty group or a non-finite observed statistic gives p = NaN.
 
     Parameters
@@ -487,7 +487,7 @@ def _laplace_fit(X, Z_list, y, n, vcov_method="hessian"):
             g = ZL.T @ (y - n * mu) - b
             H = ZL.T @ (w[:, None] * ZL) + np.eye(len(b))
             step = np.linalg.solve(H, g)
-            # step-halving on the penalised log-likelihood
+            # step-halving on the penalized log-likelihood
             f0 = _pen(eta, b, y, n)
             t = 1.0
             while t > 1e-6:
@@ -566,7 +566,7 @@ def glmm_prop(comp: pd.DataFrame, fixed: str = "timepoint", groups=("patient_ali
 
     ``groups`` are independent random-intercept factors; a missing ``sample_id`` is created as observation-level
     (one level per row), which is the overdispersion term of the R default.  Estimated by Laplace-approximated ML
-    over (beta, sigma), so estimates / variance components match glmer to optimiser tolerance; Std. Error uses
+    over (beta, sigma), so estimates / variance components match glmer to optimizer tolerance; Std. Error uses
     lme4's default Vcov (numerical Hessian of the deviance in (sigma, beta); ``vcov_method="conditional"`` gives
     the RX^-1 version).
 
@@ -806,7 +806,7 @@ def mde(n, n2=None, sd: float = 1.0, alpha: float = 0.05, power: float = 0.8) ->
     return dict(design="two-group", n=n, n2=n2, min_p=min_p, mde_sd=d, mde=d * sd, feasible=True)
 
 
-# ------------------------------------------------------------------ randomisation tests on per-patient values
+# ------------------------------------------------------------------ randomization tests on per-patient values
 _ALTS = ("two-sided", "greater", "less")
 
 
@@ -856,7 +856,7 @@ def _extreme(null, obs, alternative):
 @records_seed("seed")
 def signflip_test(d, stat="mean", alternative: str = "two-sided", max_exact: int = 20, B: int = 100_000,
                   seed: int = 1) -> dict:
-    """One-sample sign-flip (randomisation) test of per-patient differences: H0 = each difference is symmetric about 0.
+    """One-sample sign-flip (randomization) test of per-patient differences: H0 = each difference is symmetric about 0.
 
     Exact over all ``2**n`` sign patterns for ``n <= max_exact``; otherwise ``B`` random patterns with the
     never-zero Monte Carlo p-value ``(1 + #extreme) / (B + 1)``. Non-finite values are dropped first (a NaN
@@ -1609,7 +1609,7 @@ def downsample_counts(X, target, method: str = "hypergeometric", seed: int = 1):
     ``pp.downsample_counts``, Seurat ``SampleUMI``, vegan ``rrarefy``): every thinned cell has total ``target``.
     ``method="binomial"`` keeps each UMI with probability ``target / total`` (expected total ``target``; the
     variance is larger and totals vary). Cells whose total is at or below ``target`` are returned unchanged:
-    drop them (``totals < target``) when an exact common depth matters. Normalise thinned cells by their own
+    drop them (``totals < target``) when an exact common depth matters. Normalize thinned cells by their own
     new total (or by ``target`` for the hypergeometric method, where they are equal).
 
     Parameters
@@ -1765,7 +1765,7 @@ def perm_pvalue(null, obs, alternative: str = "two-sided", exact: bool = False) 
 
     Use it for the p whenever the null is not one of the standard schemes (:func:`perm_test`,
     :func:`strat_perm_test`, :func:`signflip_test`, :func:`freedman_lane`): it does the three things hand-written
-    versions got wrong. The Monte Carlo p is ``(1 + #extreme) / (B + 1)`` and never 0 (the observed labelling counts
+    versions got wrong. The Monte Carlo p is ``(1 + #extreme) / (B + 1)`` and never 0 (the observed labeling counts
     as one draw); non-finite null values are dropped before counting (a NaN makes every comparison False, so a
     hand count returns p = 0); "as or more extreme" uses a tie tolerance of 1e-12 + 1e-10 * |obs|, so equal sums
     that differ by floating-point rounding count as ties.
@@ -1774,10 +1774,10 @@ def perm_pvalue(null, obs, alternative: str = "two-sided", exact: bool = False) 
     ----------
     null : statistics of the null draws (not including the observed value).
     obs : the observed statistic.
-    alternative : ``"two-sided"`` (``|null| >= |obs|``: the null must be centred at 0, e.g. a difference or a
-        centred sum), ``"greater"`` (``null >= obs``) or ``"less"`` (``null <= obs``).
-    exact : True when ``null`` is the complete enumeration of the randomisation distribution (every
-        permutation, observed labelling included): then p = ``#extreme / len(null)``.
+    alternative : ``"two-sided"`` (``|null| >= |obs|``: the null must be centered at 0, e.g. a difference or a
+        centered sum), ``"greater"`` (``null >= obs``) or ``"less"`` (``null <= obs``).
+    exact : True when ``null`` is the complete enumeration of the randomization distribution (every
+        permutation, observed labeling included): then p = ``#extreme / len(null)``.
 
     Returns
     -------
@@ -1836,7 +1836,7 @@ def strat_perm_test(y, labels, strata, stat="mean_diff", alternative: str = "two
         values in sorted order, or True minus False for boolean labels.
     strata : stratum per unit (patient for clone-level data, batch for patient-level data).
     stat : ``"mean_diff"`` (default: mean over informative strata of the within-stratum difference of means),
-        ``"sum"`` (sum of ``y`` in the first group over informative strata, centred at its permutation mean: the
+        ``"sum"`` (sum of ``y`` in the first group over informative strata, centered at its permutation mean: the
         stratified linear statistic; it weights strata by size), or a callable
         ``stat(y, is_first_group, strata) -> float``
         (applied to the units that remain after dropping missing values).
@@ -1943,7 +1943,7 @@ def boot_ci_diff(x, y, f=np.median, paired: bool = False, conf_level: float = 0.
     Parameters
     ----------
     x, y : per-patient values of the two groups (or the two conditions when paired).
-    f : statistic of one group; ``np.median`` / ``np.mean`` are vectorised, any other callable is applied per
+    f : statistic of one group; ``np.median`` / ``np.mean`` are vectorized, any other callable is applied per
         resample.
     paired : resample pairs (equal lengths required).
     conf_level : central coverage of the percentile interval.

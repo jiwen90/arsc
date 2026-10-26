@@ -37,7 +37,7 @@ compute step (object plumbing; the `arsc.Dataset` + pandas equivalent is noted),
 | `RunALRA` | 0 | 0 | 4 | S: a Python ALRA implementation already exists; randomized SVD, not bit-reproducible vs R |
 | `Misc`, `Assays`, `Layers`, `Reductions`, `Cells`, `LayerData`, `SetAssayData`, `FetchData` | 9 | 1 | 10 | N (object plumbing) |
 | `FindAllMarkers` | 0 | 0 | 2 | **P** `seurat_extra.find_all_markers` |
-| `SCTransform` | 0 | 0 | 2 | S: v2 flavour (2 calls, exploratory); needs glmGamPoi-offset NB fits + kernel regularisation + R-RNG gene/cell subsampling. Not worth a partial port; keep LogNormalize+vst or run in R |
+| `SCTransform` | 0 | 0 | 2 | S: v2 flavor (2 calls, exploratory); needs glmGamPoi-offset NB fits + kernel regularization + R-RNG gene/cell subsampling. Not worth a partial port; keep LogNormalize+vst or run in R |
 | `FindMultiModalNeighbors` | 0 | 0 | 2 | **P** `neighbors.wnn` |
 | `Read10X`, `Read10X_h5` | 0 | 0 | 3 | N (`arsc.read_10x_h5` / `arsc.read_10x_mtx`) |
 | `RunAzimuth`, `FindTransferAnchors`, `MapQuery`, `IntegrateData`, `SelectIntegrationFeatures` | 0 | 0 | 2+1+1+1+1 | S: one-off calls, reference-based (Azimuth) or CCA anchors; no Python equivalent worth validating |
@@ -59,7 +59,7 @@ Priority was by call count; every compute-bearing function with >= 1 call is cov
 | `normalize_data` | `NormalizeData` | LogNormalize, CLR (`margin` 1 or 2), RC. |
 | `add_metadata`, `which_cells`, `split_object`, `rename_idents` | `AddMetaData`, `WhichCells`/`subset`, `SplitObject`, `RenameIdents` | thin pandas helpers. |
 
-Behaviours worth knowing (all verified against R):
+Behaviors worth knowing (all verified against R):
 * Seurat 4.3 `FindMarkers(test.use="wilcox")` uses `limma::rankSumTestWithCorrelation`; in current limma this has the
   tie correction, so p-values equal `presto::wilcoxauc`'s (identical formula) but are computed only for genes passing the
   pre-filters, and `p_val_adj` is Bonferroni over **all** assay features.
@@ -141,8 +141,8 @@ and `arsc.datasets.toy`. Scripts: `benchmarks/umap_parity.py`, `benchmarks/leide
 Since the scanpy-matching switch (CHANGELOG, Unreleased) `arsc.knn` searches exactly with scikit-learn brute force
 up to 4,096 cells and with pynndescent above; the table below documents the partition search it replaced.
 
-The exact search scans only the ring of each k-means cluster that can hold neighbours (points sorted by distance to
-their centre) and resolves ties at the k-th place by (distance, index), so the result no longer depends on the
+The exact search scans only the ring of each k-means cluster that can hold neighbors (points sorted by distance to
+their center) and resolves ties at the k-th place by (distance, index), so the result no longer depends on the
 partition seed or the scan order (on data rounded to one decimal, the old code gave 2 different results across
 partition seeds and threads; now 1). On the real data the output is identical to the previous version (indices and
 distances).
@@ -154,14 +154,14 @@ distances).
 | seconds, exact, 1 thread: before / after | 18.1 / 12.4 | 57.7 / 47.7 |
 | seconds, exact, 8 threads (after) | 4.0 | about 10 |
 
-pynndescent misses 2-5% of the neighbours on flow data (below a 0.99 recall bar); flow callers that need exact neighbours pass `method="exact"`.
+pynndescent misses 2-5% of the neighbors on flow data (below a 0.99 recall bar); flow callers that need exact neighbors pass `method="exact"`.
 Tree search is no alternative on these data (scikit-learn KDTree, 15 PCs: 124 s on one thread).
 
 ### UMAP (`arsc.umap(engine="arsc")`)
 
 The same exact kNN for both engines; umap-learn 0.5.12's layout run seeded (single-threaded) on the same graph.
-Median (min-max) over seeds 0-4; trustworthiness on a 5,000-event subsample with 15 neighbours; kNN preservation =
-share of each event's 15 input neighbours among its 15 layout neighbours; disparity = Procrustes disparity.
+Median (min-max) over seeds 0-4; trustworthiness on a 5,000-event subsample with 15 neighbors; kNN preservation =
+share of each event's 15 input neighbors among its 15 layout neighbors; disparity = Procrustes disparity.
 
 | | real, 80,000 x 15 PCs | synthetic, 20,000 x 10, 8 separate blobs |
 |---|---|---|
@@ -173,7 +173,7 @@ share of each event's 15 input neighbours among its 15 layout neighbours; dispar
 | disparity arsc-arsc / ref-ref / arsc-ref | 0.0023 / 0.0036 / 0.0144 | 0.42 / 0.69 / 0.85 |
 | identical coordinates at 1, 2, 4, 8 threads | yes | yes |
 
-Reading: the graph and the initialisation are umap-learn's, and the layouts reach the same quality (trustworthiness
+Reading: the graph and the initialization are umap-learn's, and the layouts reach the same quality (trustworthiness
 within 0.1%, kNN preservation equal). On the real data two umap-learn seeds differ less from each other (0.004) than
 from arsc (0.014): there the seed changes only the noise and the negative samples (the spectral start is the same),
 and arsc's epoch differs systematically from umap-learn's sequential one (other points read from the epoch's
@@ -188,7 +188,7 @@ differs from run to run.
 
 ### Leiden / Louvain (`arsc.cluster(engine="arsc")`)
 
-Ports of libleidenalg's default optimiser (queue-based local moving, randomised refinement, aggregation on the refined
+Ports of libleidenalg's default optimizer (queue-based local moving, randomized refinement, aggregation on the refined
 partition, the `n_iterations` loop) and of igraph `community_multilevel`; modularity with resolution and
 `objective="cpm"`. Median (min-max) over seeds 0-9, ARI over seed pairs; Leiden `n_iterations=2`, Louvain
 `n_start=10`.

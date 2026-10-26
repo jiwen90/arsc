@@ -33,7 +33,7 @@ references are absent. 7 are synthetic tests that always run.
 | enrichment p | `cluster_profile_enrich` | `profile_enrichment` | statistical (permutations) |
 | ns basis | `splines::ns` | `ns_basis` | same column space (< 1e-10); df=1 equal up to sign |
 | ridge spline F / LRT | `soft_cluster_gam_fit` | `soft_cluster_fit` | rtol 1e-7 |
-| bin filter | `bin_filter_profile_mass` | `bin_filter` | identical, including R's NA-bin behaviour |
+| bin filter | `bin_filter_profile_mass` | `bin_filter` | identical, including R's NA-bin behavior |
 | co-embedding graph | `cell_clone_coembed` | `coembed_graph` | same edges, < 1e-12 |
 
 ## Speed (full public demo: 34,782 cells, 802 clones; 32 threads)

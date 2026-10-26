@@ -77,7 +77,7 @@ def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matr
     X = as_csr(X)
     d = X.data[:100000]
     if d.size and d.max() < 30 and (d != np.round(d)).any():
-        warnings.warn("log_normalize: input is non-integer with small values; it looks already log-normalised. "
+        warnings.warn("log_normalize: input is non-integer with small values; it looks already log-normalized. "
                       "Pass raw counts (e.g. st.X('RNA', 'counts'); an h5ad's .X arrives as layer 'X')",
                       stacklevel=2)
     out = np.empty(X.data.shape, dtype=dtype)

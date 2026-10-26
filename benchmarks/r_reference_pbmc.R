@@ -20,7 +20,7 @@ source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), 
 tm("load_qs", obj <- qs::qread(src, nthreads = 16))
 cells <- colnames(obj)
 
-# ---- stored WNN neighbours (computed by the original analysis, Seurat 4.0.4)
+# ---- stored WNN neighbors (computed by the original analysis, Seurat 4.0.4)
 wn <- obj@neighbors$weighted.nn
 write_dense(wn@nn.idx, file.path(out, "stored_weighted_nn_idx"))
 write_dense(wn@nn.dist, file.path(out, "stored_weighted_nn_dist"))

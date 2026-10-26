@@ -10,7 +10,7 @@ Generated from the docstrings by `docs/build_docs.py`; do not edit by hand. Star
 * [arsc.views](#arscviews): Subset stores as views of their parent stores
 * [arsc.markers](#arscmarkers): Markers (presto)
 * [arsc.scores](#arscscores): Signature scores
-* [arsc.neighbors](#arscneighbors): Neighbours and WNN
+* [arsc.neighbors](#arscneighbors): Neighbors and WNN
 * [arsc.harmony](#arscharmony): Harmony
 * [arsc.symphony](#arscsymphony): Symphony reference mapping
 * [arsc.de](#arscde): Differential expression and GSEA
@@ -1975,7 +1975,7 @@ Examples
 
 ## arsc.neighbors
 
-Neighbours and WNN.
+Neighbors and WNN.
 
 ### `arsc.neighbors.find_neighbors(emb: 'np.ndarray', k: 'int' = 20, prune: 'float' = 0.06666666666666667, l2_norm: 'bool' = False, method: 'str' = 'auto', seed: 'int' = 0) -> 'dict'`
 
@@ -1990,7 +1990,7 @@ table).
 Parameters
 ----------
 emb : (n x d) embedding (PCs, harmony).
-k : neighbours including self (Seurat ``k.param``).
+k : neighbors including self (Seurat ``k.param``).
 prune : SNN Jaccard cutoff (Seurat ``prune.SNN``).
 l2_norm : L2-normalize rows first (Seurat ``l2.norm``).
 method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`knn`).
@@ -2019,20 +2019,20 @@ Examples
 ### `arsc.neighbors.knn(X, k: 'int', query=None, *, method: 'str' = 'auto', seed: 'int' = 0, n_clusters: 'int | None' = None)`
 
 ```text
-k nearest neighbours (Euclidean): exact up to 4,096 points, approximate above (``"auto"``).
+k nearest neighbors (Euclidean): exact up to 4,096 points, approximate above (``"auto"``).
 
 Both methods start from a seeded k-means partition of the points (numba and BLAS, no other dependency) and
 report exact float64 distances (the plain sum of squared differences, as brute force), ordered by (distance,
 index).
 
-``method="exact"``: each query scans clusters in order of their centre's distance, skipping a cluster or a
+``method="exact"``: each query scans clusters in order of their center's distance, skipping a cluster or a
 ring of it when the triangle inequality proves it cannot hold a closer point; candidates pass a float32 filter
 with a proven rounding margin before the float64 check. The answer is the exact k-NN at any size; ``seed`` and
 ``n_clusters`` change only the speed. Deterministic; the query point itself comes first when ``query`` is None.
 
 ``method="approximate"`` (alias ``"approx"``): about 2 sqrt(n) clusters; each query scans every point of its
 24 nearest clusters. Distances to a cluster's points are float32 matrix products of the queries that probe it
-(grouped by nearest centre) and the cluster's points, both centred on the cluster's centre; the k + 8 best
+(grouped by nearest center) and the cluster's points, both centered on the cluster's center; the k + 8 best
 candidates are re-scored exactly in float64. Recall@k on real PCs: 0.96-0.996 (100k and 1M cells, k = 15 and
 30). Deterministic for a given ``seed`` and independent of the thread count. Speed against FAISS, hnswlib,
 Voyager, Annoy, pynndescent and scanpy: ``SCANPY_PARITY.md`` ("k-NN backend").
@@ -2043,7 +2043,7 @@ Voyager, Annoy, pynndescent and scanpy: ``SCANPY_PARITY.md`` ("k-NN backend").
 Parameters
 ----------
 X : (n x d) dense embedding (e.g. PCs).
-k : neighbours per query (self included when ``query`` is None); capped at n.
+k : neighbors per query (self included when ``query`` is None); capped at n.
 query : optional (m x d) query points; default ``X`` itself.
 method : ``"auto"``, ``"exact"`` or ``"approximate"`` (``"approx"``).
 seed : integer seed of the k-means partition.
@@ -2093,7 +2093,7 @@ Seurat ``ComputeSNN``: Jaccard similarity of k-NN sets, entries < ``prune`` remo
 
 Parameters
 ----------
-idx : (n x k) neighbour index matrix, e.g. from :func:`knn` (include self for
+idx : (n x k) neighbor index matrix, e.g. from :func:`knn` (include self for
     ``FindNeighbors`` semantics).
 prune : Jaccard cutoff (Seurat ``prune.SNN``, default 1/15).
 
@@ -2116,7 +2116,7 @@ Examples
 ### `arsc.neighbors.wnn(embeddings: 'list', k_nn: 'int' = 20, knn_range: 'int' = 200, prune_snn: 'float' = 0.06666666666666667, sd_scale: 'float' = 1.0, cross_constant=0.0001, l2_norm: 'bool' = True, smooth: 'bool' = False, knn_method: 'str' = 'auto', seed: 'int' = 0) -> 'WNNResult'`
 
 ```text
-Weighted nearest neighbours (Seurat ``FindMultiModalNeighbors`` / ``FindModalityWeights``).
+Weighted nearest neighbors (Seurat ``FindMultiModalNeighbors`` / ``FindModalityWeights``).
 
 Parameters
 ----------
@@ -2148,11 +2148,11 @@ Output of :func:`wnn`.
 Attributes
 ----------
 weights : n x M modality weights (rows sum to 1; Seurat ``RNA.weight`` etc.).
-idx, dist : n x k weighted neighbours, self excluded (Seurat ``weighted.nn``).
+idx, dist : n x k weighted neighbors, self excluded (Seurat ``weighted.nn``).
 wknn : binary, symmetrized k-NN graph, diagonal 1.
 wsnn : pruned Jaccard SNN graph (cluster this).
 sigma : per-cell kernel bandwidths, per modality.
-nearest_dist : distance to the nearest neighbour, per modality.
+nearest_dist : distance to the nearest neighbor, per modality.
 
 Examples
 --------
@@ -2219,7 +2219,7 @@ Attributes
 ----------
 Z_corr : (n_cells, d) corrected embedding (what :func:`run_harmony` returns by default).
 R : (n_cells, nclust) soft cluster assignments (cells first; R harmony stores the transpose).
-Y : (nclust, d) cluster centroids (L2-normalised rows).
+Y : (nclust, d) cluster centroids (L2-normalized rows).
 objective_harmony : objective after each harmony round.
 objective_kmeans : objective after each clustering iteration.
 kmeans_rounds : clustering iterations per harmony round.
@@ -2321,11 +2321,11 @@ Build a Symphony reference (R ``symphony::buildReference``).
 Parameters
 ----------
 X : reference cells x genes matrix: raw counts (``normalize=True``, the default, as R ``do_normalize``) or
-    log-normalised values (``normalize=False``). A memory-mapped store matrix works (``st.X("RNA", "counts")``).
+    log-normalized values (``normalize=False``). A memory-mapped store matrix works (``st.X("RNA", "counts")``).
 genes : gene names aligned to the columns of ``X``.
 obs : reference metadata, row-aligned with ``X`` (index = barcodes); kept for label transfer.
 vars : batch column(s) for Harmony (R ``vars``); None = no Harmony (soft k-means clusters instead).
-normalize : log-normalise counts first (LogNormalize, scale factor 1e4).
+normalize : log-normalize counts first (LogNormalize, scale factor 1e4).
 topn : variable genes (per group when ``vargenes_groups`` is given; groups' top genes are united).
 vargenes_groups : obs column whose groups each contribute ``topn`` genes (R ``vargenes_groups``).
 hvg : optional explicit gene list instead of the vst selection (e.g. the HVGs of an existing Seurat object).
@@ -2386,14 +2386,14 @@ Map query cells onto a Symphony reference (R ``symphony::mapQuery``).
 
 Parameters
 ----------
-X : query cells x genes, raw counts (``normalize=True``) or log-normalised. Only the reference's variable
+X : query cells x genes, raw counts (``normalize=True``) or log-normalized. Only the reference's variable
     genes are densified; library sizes use all genes. A memory-mapped store matrix works.
 genes : gene names of ``X``'s columns.
 obs : query metadata, row-aligned with ``X``.
 ref : the :class:`Reference`.
 vars : query batch column(s) to correct (R ``vars``). The correction removes what these columns explain, so
     never include the biology you want to compare (e.g. timepoint or response).
-normalize : log-normalise counts first.
+normalize : log-normalize counts first.
 sigma : soft-clustering width (R ``sigma = 0.1``).
 lambda_ : ridge penalty on the batch terms (symphony fixes 1).
 umap : place query cells on the reference UMAP (needs ``ref.umap_model``).
@@ -2484,12 +2484,12 @@ A compressed Symphony reference (``buildReference`` output), cells-first orienta
 Attributes
 ----------
 genes : Index of the reference variable genes (order of ``mean``, ``sd`` and the ``loadings`` rows).
-mean, sd : per-gene mean and s.d. (n - 1) of the log-normalised reference expression.
+mean, sd : per-gene mean and s.d. (n - 1) of the log-normalized reference expression.
 loadings : (genes x d) PCA gene loadings (R ``loadings``).
 Z_orig : (cells x d) reference PCs before Harmony.
 Z_corr : (cells x d) Harmony-corrected reference embedding.
 R : (K x cells) soft cluster assignments.
-centroids : (K x d) L2-normalised Harmony centroids (R ``centroids``, transposed).
+centroids : (K x d) L2-normalized Harmony centroids (R ``centroids``, transposed).
 Nr : (K,) cluster sizes ``R.sum(1)`` (R ``cache[[1]]``).
 C : (K x d) ``R @ Z_corr`` (R ``cache[[2]]``).
 obs : reference cell metadata (index = cell barcodes, row-aligned with ``Z_corr``).
@@ -2514,7 +2514,7 @@ Build a reference from an existing PCA + Harmony run (R ``buildReferenceFromHarm
 
 Use it to wrap a reference made elsewhere, e.g. the matrices of a saved R symphony reference or a Seurat
 object (``Z_orig`` = PCs, ``Z_corr`` = Harmony embedding, ``R`` = Harmony's soft clusters, ``loadings`` =
-feature loadings, ``mean``/``sd`` = the variable genes' log-normalised mean and s.d.).
+feature loadings, ``mean``/``sd`` = the variable genes' log-normalized mean and s.d.).
 
 Parameters
 ----------
@@ -2553,14 +2553,14 @@ Parameters
 ref : the :class:`Reference`.
 query : the :class:`QueryMap`.
 labels : a column of ``ref.obs`` or an array of reference labels (row-aligned with ``ref.Z_corr``).
-k : neighbours (R ``k = 5``).
+k : neighbors (R ``k = 5``).
 seed : integer seed for breaking vote ties.
 
 Returns
 -------
 DataFrame indexed by query cell: ``label`` (majority among the k nearest reference cells, Euclidean on the
 corrected embeddings) and ``prob`` (share of the k votes for it; R ``_prob``). Low ``prob`` marks cells whose
-neighbourhood is mixed, e.g. a state absent from the reference.
+neighborhood is mixed, e.g. a state absent from the reference.
 
 Examples
 --------
@@ -2623,7 +2623,7 @@ Examples
 
 ```text
 limma::duplicateCorrelation(..., block) consensus correlation via per-gene REML (statmod mixedModel2Fit model:
-whitened var = s_e^2 I + s_a^2 ZZ').  The REML objective is profiled over rho = s_a^2/(s_e^2+s_a^2) and maximised
+whitened var = s_e^2 I + s_a^2 ZZ').  The REML objective is profiled over rho = s_a^2/(s_e^2+s_a^2) and maximized
 over (1/(1-maxblock), 0.999); per-gene values are then clipped to [1/(1-maxblock)+0.01, 0.99] as in limma.
 
 Used inside :func:`voom` (``block=``); call it directly only to inspect the correlation.
@@ -2763,7 +2763,7 @@ acutoff : cutoff on A values.
 
 Returns
 -------
-numpy.ndarray of normalisation factors, one per sample (geometric mean 1).
+numpy.ndarray of normalization factors, one per sample (geometric mean 1).
 
 Examples
 --------
@@ -2905,7 +2905,7 @@ location shift. Non-finite values are dropped (pairwise when paired); fewer than
 Parameters
 ----------
 x, y : per-patient values of the two groups (or the two conditions when paired).
-f : statistic of one group; ``np.median`` / ``np.mean`` are vectorised, any other callable is applied per
+f : statistic of one group; ``np.median`` / ``np.mean`` are vectorized, any other callable is applied per
     resample.
 paired : resample pairs (equal lengths required).
 conf_level : central coverage of the percentile interval.
@@ -2990,7 +2990,7 @@ Thin a cells x genes count matrix to a common depth per cell (removes depth diff
 ``pp.downsample_counts``, Seurat ``SampleUMI``, vegan ``rrarefy``): every thinned cell has total ``target``.
 ``method="binomial"`` keeps each UMI with probability ``target / total`` (expected total ``target``; the
 variance is larger and totals vary). Cells whose total is at or below ``target`` are returned unchanged:
-drop them (``totals < target``) when an exact common depth matters. Normalise thinned cells by their own
+drop them (``totals < target``) when an exact common depth matters. Normalize thinned cells by their own
 new total (or by ``target`` for the hypergeometric method, where they are equal).
 
 Parameters
@@ -3118,7 +3118,7 @@ Binomial GLMM  ``cbind(k, n-k) ~ <fixed> + (1|g1) + (1|g2) ...``  (== lme4::glme
 
 ``groups`` are independent random-intercept factors; a missing ``sample_id`` is created as observation-level
 (one level per row), which is the overdispersion term of the R default.  Estimated by Laplace-approximated ML
-over (beta, sigma), so estimates / variance components match glmer to optimiser tolerance; Std. Error uses
+over (beta, sigma), so estimates / variance components match glmer to optimizer tolerance; Std. Error uses
 lme4's default Vcov (numerical Hessian of the deviance in (sigma, beta); ``vcov_method="conditional"`` gives
 the RX^-1 version).
 
@@ -3381,7 +3381,7 @@ permutation scheme, shuffled clone labels).
 
 Use it for the p whenever the null is not one of the standard schemes (:func:`perm_test`,
 :func:`strat_perm_test`, :func:`signflip_test`, :func:`freedman_lane`): it does the three things hand-written
-versions got wrong. The Monte Carlo p is ``(1 + #extreme) / (B + 1)`` and never 0 (the observed labelling counts
+versions got wrong. The Monte Carlo p is ``(1 + #extreme) / (B + 1)`` and never 0 (the observed labeling counts
 as one draw); non-finite null values are dropped before counting (a NaN makes every comparison False, so a
 hand count returns p = 0); "as or more extreme" uses a tie tolerance of 1e-12 + 1e-10 * |obs|, so equal sums
 that differ by floating-point rounding count as ties.
@@ -3390,10 +3390,10 @@ Parameters
 ----------
 null : statistics of the null draws (not including the observed value).
 obs : the observed statistic.
-alternative : ``"two-sided"`` (``|null| >= |obs|``: the null must be centred at 0, e.g. a difference or a
-    centred sum), ``"greater"`` (``null >= obs``) or ``"less"`` (``null <= obs``).
-exact : True when ``null`` is the complete enumeration of the randomisation distribution (every
-    permutation, observed labelling included): then p = ``#extreme / len(null)``.
+alternative : ``"two-sided"`` (``|null| >= |obs|``: the null must be centered at 0, e.g. a difference or a
+    centered sum), ``"greater"`` (``null >= obs``) or ``"less"`` (``null <= obs``).
+exact : True when ``null`` is the complete enumeration of the randomization distribution (every
+    permutation, observed labeling included): then p = ``#extreme / len(null)``.
 
 Returns
 -------
@@ -3416,7 +3416,7 @@ Two-group permutation test on per-patient values (e.g. responders vs non-respond
 
 Exact enumeration when ``choose(n_x + n_y, n_x) <= B``, otherwise ``B`` random permutations.
 Two-sided: exact p = fraction of permutations with ``|stat| >= |observed|``; sampled p =
-``(1 + #extreme) / (B + 1)``, which is never 0 (the observed labelling counts as one permutation).
+``(1 + #extreme) / (B + 1)``, which is never 0 (the observed labeling counts as one permutation).
 Non-finite values are dropped first; an empty group or a non-finite observed statistic gives p = NaN.
 
 Parameters
@@ -3555,7 +3555,7 @@ Examples
 ### `arsc.stats.signflip_test(d, stat='mean', alternative: 'str' = 'two-sided', max_exact: 'int' = 20, B: 'int' = 100000, seed: 'int' = 1) -> 'dict'`
 
 ```text
-One-sample sign-flip (randomisation) test of per-patient differences: H0 = each difference is symmetric about 0.
+One-sample sign-flip (randomization) test of per-patient differences: H0 = each difference is symmetric about 0.
 
 Exact over all ``2**n`` sign patterns for ``n <= max_exact``; otherwise ``B`` random patterns with the
 never-zero Monte Carlo p-value ``(1 + #extreme) / (B + 1)``. Non-finite values are dropped first (a NaN
@@ -3603,7 +3603,7 @@ labels : group per unit; exactly two distinct values. The statistic is "first mi
     values in sorted order, or True minus False for boolean labels.
 strata : stratum per unit (patient for clone-level data, batch for patient-level data).
 stat : ``"mean_diff"`` (default: mean over informative strata of the within-stratum difference of means),
-    ``"sum"`` (sum of ``y`` in the first group over informative strata, centred at its permutation mean: the
+    ``"sum"`` (sum of ``y`` in the first group over informative strata, centered at its permutation mean: the
     stratified linear statistic; it weights strata by size), or a callable
     ``stat(y, is_first_group, strata) -> float``
     (applied to the units that remain after dropping missing values).
@@ -3634,7 +3634,7 @@ Examples
 ```text
 Two-sided one-sample / paired Wilcoxon signed-rank p-value replicating R ``wilcox.test(x, exact=...)``.
 
-Zeros are dropped; ``exact`` defaults to n < 50 and is only honoured without zeros/ties (R falls back to the
+Zeros are dropped; ``exact`` defaults to n < 50 and is only honored without zeros/ties (R falls back to the
 normal approximation with continuity correction and tie-corrected variance otherwise).
 
 Parameters
@@ -3817,7 +3817,7 @@ Examples
 ### `arsc.clones.clone_tissue_entropy(mat: 'pd.DataFrame') -> 'pd.DataFrame'`
 
 ```text
-Per-clone tissue distribution: entropy, normalised entropy, breadth and dominant tissue.
+Per-clone tissue distribution: entropy, normalized entropy, breadth and dominant tissue.
 
 Low entropy = tissue-restricted clone, high = disseminated.
 
@@ -4163,7 +4163,7 @@ STARTRAC-style clonal indices (Zhang et al. 2018) computed per patient (or sampl
 
 expa(state) = 1 - H(clone sizes in state) / log2(n cells in state); tran(state) = sum_c w_c H_c(states);
 migr(state) = the same with ``loc_col``; pairwise tran(A, B) over pairs of states. Entropies in bits,
-unnormalised.
+unnormalized.
 
 Parameters
 ----------
@@ -4265,7 +4265,7 @@ Double-normalized transition matrix ``T = Z D^-1 K D^-1 Z`` of the kNN kernel (R
 Parameters
 ----------
 embedding : cells x dims array (e.g. 15 PCs).
-k : neighbours per cell for :func:`knn_connectivity` (default 30).
+k : neighbors per cell for :func:`knn_connectivity` (default 30).
 
 Returns
 -------
@@ -4303,7 +4303,7 @@ Parameters
 embedding : cells x dims, rows aligned to ``Q``.
 Q : cells x clones (DataFrame keeps the clone names), e.g. :func:`filter_and_sparsify`.
 method : ``"nn"`` (default) or ``"exact"``.
-graph_k : neighbours of the SNN cost graph (default 10).
+graph_k : neighbors of the SNN cost graph (default 10).
 prob_thresh : membership threshold (default 0.1 for ``"nn"``, 0.05 for ``"exact"``).
 k : number of smallest path lengths averaged (``"nn"``; default 2).
 graph : a precomputed cost graph (skips :func:`snn_cost_graph`).
@@ -4344,7 +4344,7 @@ Parameters
 ----------
 clone_embedding : clones x dims DataFrame (e.g. :func:`cmdscale` / :func:`isomds`).
 root : clone name or row position of the root.
-k : neighbours of the clone kNN graph (default 10).
+k : neighbors of the clone kNN graph (default 10).
 dpt_k : number of eigenpairs (default 30; capped by the number of clones).
 
 Returns
@@ -4590,8 +4590,8 @@ Parameters
 cell_embedding : cells x dims, rows aligned to ``Q``.
 clone_embedding : clones x dims, rows aligned to ``Q``'s columns.
 Q : cells x clones probabilities.
-cell_k : cell neighbours (default 30).
-clone_k : clone neighbours (default 15).
+cell_k : cell neighbors (default 30).
+clone_k : clone neighbors (default 15).
 min_weight : minimum clone weight of a kept pair (default 0.1).
 n_keep : distances kept per cell (default 20).
 
@@ -4775,7 +4775,7 @@ weight is ``K_ij = exp(-d_ij^2 / (sigma_i sigma_j))``.
 Parameters
 ----------
 embedding : cells x dims array.
-k : neighbours per cell (default 30).
+k : neighbors per cell (default 30).
 self_loops : add ``(i, i, 0)`` edges after symmetrization (R ``if_self``).
 mode : ``"connectivity"`` (kernel weights, default) or ``"dist"`` (the distances).
 
@@ -4994,9 +4994,9 @@ clusters : cells x resolutions labels (give it for reproducible results). Defaul
     UMAP kNN graph at ``resolutions``, like R (partitions are not identical to R's).
 sample : optional group per clone; only same-group pairs set the medians.
 local_rescale : rescale distances by local density (R ``local_rescale``).
-local_k : neighbours for the local rescaling (default 7).
+local_k : neighbors for the local rescaling (default 7).
 resolutions : Leiden resolutions of the default ladder.
-cluster_k : neighbours of the default ladder's kNN graph (default 15).
+cluster_k : neighbors of the default ladder's kNN graph (default 15).
 mean_weight : fix the blend weight instead of selecting it.
 s_grid : grid of candidate blend weights.
 seed : leidenalg seed of the default ladder (default 0; unused with ``clusters`` or ``mean_weight``).
@@ -5041,20 +5041,20 @@ cells : cell names (default: the DataFrame index or ``0..n-1``).
 cell_clusters : cell cluster per cell; with ``start_cluster`` it picks the pseudotime root (default: the
     first clone).
 start_cluster : the cluster where trajectories start.
-k : neighbours of :func:`cell_transition` (default 30).
+k : neighbors of :func:`cell_transition` (default 30).
 min_size : minimum cells per propagated clone (default 10).
 alpha : propagation weight (default 0.6).
 n_boot : bootstraps for the deviance (default 48).
 max_deviance : deviance filter (default 0.3).
 distance : ``"nn"`` (default) or ``"exact"`` (:func:`clone_distance`).
-graph_k : neighbours of the SNN cost graph (default 10).
+graph_k : neighbors of the SNN cost graph (default 10).
 revised : apply :func:`revise_distance` (default False).
 revise_clusters : cells x resolutions labels for :func:`revise_distance`.
 n_mds : dimensions of the clone MDS (default 30; capped by the number of clones).
-cluster_k : neighbours for :func:`cluster_clones` (default 20).
+cluster_k : neighbors for :func:`cluster_clones` (default 20).
 resolution : Leiden resolution for :func:`cluster_clones` (default 0.5).
 dpt_k : eigenpairs for :func:`clone_dpt` (default 30).
-dpt_nn : neighbours for :func:`clone_dpt` (default 10).
+dpt_nn : neighbors for :func:`clone_dpt` (default 10).
 seed : integer seed of the whole pipeline (default 0).
 
 Returns
@@ -5107,7 +5107,7 @@ Examples
 ### `arsc.clonotrace.snn_cost_graph(embedding, k: 'int' = 10) -> 'sp.csr_matrix'`
 
 ```text
-Shared-nearest-neighbour cost graph (``bluster::makeSNNGraph(type="number")`` + ``exp(-w)``).
+Shared-nearest-neighbor cost graph (``bluster::makeSNNGraph(type="number")`` + ``exp(-w)``).
 
 ``w_ij = |({i} + kNN_i) & ({j} + kNN_j)|``, i.e. the off-diagonal of ``(I + A)(I + A)^T``. There is an edge
 for every pair with ``w >= 1``, and its cost is ``exp(-w_ij)``.
@@ -5115,7 +5115,7 @@ for every pair with ``w >= 1``, and its cost is ``exp(-w_ij)``.
 Parameters
 ----------
 embedding : cells x dims array.
-k : neighbours per cell (default 10).
+k : neighbors per cell (default 10).
 
 Returns
 -------
@@ -5975,7 +5975,7 @@ features : gene names (index of the result).
 flavor : ``"seurat"`` (default), ``"cell_ranger"``, ``"seurat_v3"`` (or ``"seurat_v3_paper"``).
 n_top_genes : number of genes to flag (required for seurat_v3).
 min_mean, max_mean, min_disp, max_disp : cutoffs for seurat/cell_ranger when ``n_top_genes`` is None.
-n_bins : number of mean bins for dispersion normalisation (default 20).
+n_bins : number of mean bins for dispersion normalization (default 20).
 span : loess span for seurat_v3 (default 0.3).
 log1p_base : base used for log1p, if not natural.
 batch_key : array of batch labels (seurat_v3 only): per-batch ranking combined by median rank, as scanpy.
@@ -6044,8 +6044,8 @@ Examples
 ``palantir.utils.run_magic_imputation``: ``T^n_steps @ X``, values below ``clip_threshold`` set to 0.
 
 Applies ``T`` ``n_steps`` times to dense gene chunks instead of forming the denser ``T^n_steps`` (same
-result up to float32 rounding, ~1e-6 relative). Imputed values are smoothed over neighbours: use them for
-visualisation, not as independent observations in tests.
+result up to float32 rounding, ~1e-6 relative). Imputed values are smoothed over neighbors: use them for
+visualization, not as independent observations in tests.
 
 Parameters
 ----------
@@ -6082,12 +6082,12 @@ Examples
 
 Uses :func:`arsc.knn` with scanpy's switch (``method="auto"``: exact up to 4,096 cells, arsc's approximate
 search above; ``"exact"`` forces exact search). As
-scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbours).
+scanpy, ``n_neighbors`` counts the cell itself (n_neighbors - 1 real neighbors).
 
 Parameters
 ----------
 emb : cells x d embedding (e.g. PCA or Harmony).
-n_neighbors : neighbourhood size including the cell itself (default 15).
+n_neighbors : neighborhood size including the cell itself (default 15).
 metric : ``"euclidean"`` or ``"cosine"``.
 method : ``"auto"`` (default), ``"exact"`` or ``"approximate"`` (see :func:`arsc.knn`).
 random_state : integer seed (default 0) of the approximate search's partition (unused by exact search).
@@ -6146,8 +6146,8 @@ Examples
 ```text
 ``palantir.utils.run_diffusion_maps`` (adaptive anisotropic kernel, Setty 2019).
 
-kNN (self excluded, ``knn - 1`` neighbours as scanpy's distance matrix), adaptive bandwidth = distance to
-the ``floor(knn / 3)``-th neighbour, kernel ``exp(-d / sigma_i)`` symmetrized as ``W + W^T``, row-normalized
+kNN (self excluded, ``knn - 1`` neighbors as scanpy's distance matrix), adaptive bandwidth = distance to
+the ``floor(knn / 3)``-th neighbor, kernel ``exp(-d / sigma_i)`` symmetrized as ``W + W^T``, row-normalized
 transition ``T``, ``eigs`` with palantir's tolerance and start vector (``default_rng(seed).random``). Exact
 kNN here vs scanpy's approximate kNN for > 4,096 cells in palantir: identical below that size.
 
@@ -6155,7 +6155,7 @@ Parameters
 ----------
 emb : cells x d embedding (e.g. PCA / Harmony).
 n_components : number of eigenvectors (default 10).
-knn : neighbourhood size (default 30).
+knn : neighborhood size (default 30).
 alpha : anisotropy (default 0).
 seed : integer seed (default 0, as palantir) for the ARPACK start vector and the kNN partition.
 method : kNN method, ``"auto"`` (default: exact up to 4,096 cells), ``"exact"`` or ``"approximate"``.
@@ -6351,7 +6351,7 @@ Examples
 ### `arsc.scanpy_extra.umap_from_connectivities(connectivities, *, min_dist: 'float' = 0.5, spread: 'float' = 1.0, n_components: 'int' = 2, maxiter: 'int | None' = None, alpha: 'float' = 1.0, gamma: 'float' = 1.0, negative_sample_rate: 'int' = 5, init_pos: 'str' = 'spectral', random_state: 'int' = 0) -> 'np.ndarray'`
 
 ```text
-``sc.tl.umap``: UMAP layout optimisation on the scanpy connectivities graph (not on raw X).
+``sc.tl.umap``: UMAP layout optimization on the scanpy connectivities graph (not on raw X).
 
 Same call path as scanpy (``umap.umap_.simplicial_set_embedding`` with ``a, b = find_ab_params``).
 ``random_state`` seeds the spectral-init noise and the SGD layout through a local ``RandomState``;

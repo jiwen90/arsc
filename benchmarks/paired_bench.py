@@ -9,7 +9,7 @@ the real arsc store named by ``ARSC_BENCH_STORE`` memory-mapped and read-only (a
 and otherwise generates the toy data of ``suite_sim.py`` in memory from a fixed seed (default 20,000 cells;
 larger sizes only when asked). The parent computes the shared 30-PC embedding once and hands it to the children
 through shared memory (RAM); each child rebuilds the counts itself (untimed) and returns its result, with the
-neighbour lists / cluster labels for the agreement check, on stdout.
+neighbor lists / cluster labels for the agreement check, on stdout.
 
 Every (size, step, repeat) runs arsc and scanpy back to back, each in a fresh process (``run_suite.run_child``,
 with the untimed JIT warm-up of ``suite_py``), in alternating order (repeat 0: arsc then scanpy; repeat 1:
@@ -206,7 +206,7 @@ def main():
                          "(tool, repeat) running all steps (or per step with --per-step-process)")
     ap.add_argument("--per-step-process", action="store_true", help="a fresh process per (tool, step, repeat), "
                     "with peak-memory sampling (slower: every process pays its own start-up and warm-up)")
-    ap.add_argument("--quality", action="store_true", help="also run scanpy's neighbours with another seed "
+    ap.add_argument("--quality", action="store_true", help="also run scanpy's neighbors with another seed "
                     "(its run-to-run overlap; one more process)")
     a = ap.parse_args()
     source = resolve_source(a.source)

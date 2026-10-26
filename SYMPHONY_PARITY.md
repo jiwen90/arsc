@@ -67,7 +67,7 @@ of umap-learn's `transform` for the query cells.
 Clinical case (a longitudinal CD8 T-cell dataset): a 6,000-cell pan-T-sort reference (Harmony on patient x timepoint, d = 30, K = 100) and a 2,000-cell
 CD8-sort query (`vars` = patient x timepoint x sort, sigma 0.1), labels = the reference's 9 CD8 clusters, genes
 detected in >= 10 of the 8,000 cells. CD8 clusters lie on a continuum, so about half the query cells have mixed
-neighbourhoods; there arsc and R disagree as often as R disagrees with itself under another seed.
+neighborhoods; there arsc and R disagree as often as R disagrees with itself under another seed.
 
 ## Differences that remain
 
@@ -79,6 +79,6 @@ neighbourhoods; there arsc and R disagree as often as R disagrees with itself un
 * `transfer_labels` breaks vote ties with numpy, not R's RNG, and does not widen the vote to ties at the k-th
   distance (`class::knn` does); neither occurred in the vignette case (labels identical given R's reference).
 * A zero-s.d. gene scales to 0 (R gives NaN; reference variable genes never have zero s.d.).
-* UMAP: umap-learn with uwot's settings (30 neighbours, cosine, min_dist 0.1, learning rate 0.5, spectral
-  init); coordinates differ from uwot, neighbourhoods agree (table).
+* UMAP: umap-learn with uwot's settings (30 neighbors, cosine, min_dist 0.1, learning rate 0.5, spectral
+  init); coordinates differ from uwot, neighborhoods agree (table).
 * Not ported: `vargenes_method = "mvp"`, `calcPerClusterMappingMetric`, the k-NN correlation metrics.

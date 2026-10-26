@@ -60,7 +60,7 @@ mmq = sy.QueryMap(np.zeros((10, 4)), r("mm_Zq.csv").T, r("mm_Rq.csv"), pd.DataFr
 rec("internal", "calcPerCellMappingMetric max abs diff", maxabs(sy.mapping_score(mmref, mmq), r("mm_maha.csv").ravel()))
 
 # ---------------- data
-X = scipy.io.mmread(os.path.join(D, "pbmcs_exprs.mtx")).tocsr().T.tocsr()  # cells x genes, log-normalised
+X = scipy.io.mmread(os.path.join(D, "pbmcs_exprs.mtx")).tocsr().T.tocsr()  # cells x genes, log-normalized
 genes = pd.Index(open(os.path.join(D, "pbmcs_genes.txt")).read().split())
 meta = pd.read_csv(os.path.join(D, "pbmcs_meta.csv"), index_col=0)
 isref = meta["donor"].isin(["3pv1", "3pv2"]).to_numpy()

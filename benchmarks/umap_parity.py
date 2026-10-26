@@ -5,9 +5,9 @@
 
 Measures (results in SEURAT_PARITY.md, "UMAP engines"):
 * fuzzy graph: same sparsity pattern and max |weight difference| against ``umap.umap_.fuzzy_simplicial_set``;
-* spectral initialisation: |correlation| of each axis with umap-learn's ``spectral_layout`` on the same pruned graph;
-* layout quality per seed: trustworthiness (scikit-learn, 5,000-point subsample, 15 neighbours), kNN preservation
-  (share of each point's 15 input-space neighbours among its 15 layout neighbours), and Procrustes disparity
+* spectral initialization: |correlation| of each axis with umap-learn's ``spectral_layout`` on the same pruned graph;
+* layout quality per seed: trustworthiness (scikit-learn, 5,000-point subsample, 15 neighbors), kNN preservation
+  (share of each point's 15 input-space neighbors among its 15 layout neighbors), and Procrustes disparity
   between layouts (arsc vs arsc, umap-learn vs umap-learn, arsc vs umap-learn);
 * seconds: umap-learn's layout (single-threaded, seeded), arsc's at each thread count;
 * determinism: SHA-1 of arsc's layout at each thread count.

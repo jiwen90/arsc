@@ -338,7 +338,7 @@ def test_perm_pvalue_edge_cases():
 
 # ----------------------------------------------------------------------------- strat_perm_test
 def _brute_strat(y, g, s, f, alternative="two-sided"):
-    """Every distinct within-stratum relabelling (itertools.permutations, de-duplicated)."""
+    """Every distinct within-stratum relabeling (itertools.permutations, de-duplicated)."""
     strata = sorted(set(s))
     per = []
     for c in strata:
@@ -376,7 +376,7 @@ def test_strat_perm_matches_brute_force():
             assert r["exact"] and r["n_perm"] == n
             assert r["stat"] == pytest.approx(obs, abs=1e-12)
             assert r["p"] == pytest.approx(p, abs=1e-12)
-        lin = lambda yy, gg, ss: float(yy[gg].sum())  # noqa: E731  (the centred sum has the same ordering)
+        lin = lambda yy, gg, ss: float(yy[gg].sum())  # noqa: E731  (the centered sum has the same ordering)
         p2, _, _ = _brute_strat(y, g, s, lambda yy, gg, ss: lin(yy, gg, ss) - sum(
             gg[ss == c].sum() * yy[ss == c].mean() for c in np.unique(ss)))
         assert st.strat_perm_test(y, g, s, stat="sum")["p"] == pytest.approx(p2, abs=1e-12)

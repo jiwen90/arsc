@@ -1,6 +1,6 @@
 """arsc's kNN: the exact method (clustered search with proven pruning, float64 distances) equals float64 brute
 force (ties, duplicates, odd dimensions, external queries, large coordinates, any partition); the approximate method
-(the same kernel scanning each query's nearest clusters) finds nearly all true neighbours, reports exact distances and
+(the same kernel scanning each query's nearest clusters) finds nearly all true neighbors, reports exact distances and
 is reproducible with a seed; "auto" switches at 4,096 points like scanpy; the SNN graph matches its definition."""
 import numpy as np
 import pytest
@@ -57,7 +57,7 @@ def test_approx_recall_exact_distances_and_seed():
     ri, _ = _brute(X, X[qs], 15)
     rec = np.mean([len(set(i[q]) & set(ri[a])) / 15 for a, q in enumerate(qs)])
     assert rec > 0.95, rec
-    # the distances reported are the exact ones for the neighbours found
+    # the distances reported are the exact ones for the neighbors found
     exact = np.sqrt(((X[qs, None, :] - X[i[qs]]) ** 2).sum(-1))
     assert np.allclose(d[qs], exact, rtol=1e-12)
     assert np.all(np.diff(d, axis=1) >= 0) and (i[:, 0] == np.arange(X.shape[0])).all()

@@ -12,7 +12,7 @@ Every (size, tool, step) runs in a fresh process. The parent samples the child's
 times and memory are not polluted by earlier steps. The timed region covers only the analysis call;
 data loading and inputs the step does not own are prepared before it, untimed.
 
-To compare like with like, steps that need upstream results (PCA, neighbours, clustering, DE) read
+To compare like with like, steps that need upstream results (PCA, neighbors, clustering, DE) read
 shared inputs computed once with arsc (``common/``): the 2,000 HVGs, the 30-PC embedding and the
 pseudobulk matrix of cell type T0. Agreement is then a property of the step alone.
 

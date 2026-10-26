@@ -3,15 +3,15 @@
 Ports of the reference algorithms, step for step:
 
 * **Leiden** follows libleidenalg's ``Optimiser`` with leidenalg's defaults (the engine behind
-  ``leidenalg.find_partition``): fast local moving with a queue (``move_nodes``: neighbour
+  ``leidenalg.find_partition``): fast local moving with a queue (``move_nodes``: neighbor
   communities plus one empty community, a move needs an improvement above ``10 * DBL_EPSILON``),
   refinement by ``merge_nodes_constrained`` with ``RAND_NEIGH_COMM`` (a still-singleton node picks a
-  random neighbour inside its community, with probability k / (k + 1), and joins that neighbour's
+  random neighbor inside its community, with probability k / (k + 1), and joins that neighbor's
   refined community when the move does not lower the quality), aggregation on the refined partition
   with the unrefined partition as the starting membership, repeated while the graph shrinks;
   ``n_iterations`` such passes (-1: until a pass no longer improves).
 * **Louvain** follows igraph's ``community_multilevel``: per level a random node order, passes in
-  that order moving each node to the neighbour community with the largest positive gain until a
+  that order moving each node to the neighbor community with the largest positive gain until a
   pass no longer raises modularity, then aggregation; stops when a level merges nothing.
 
 Quality functions: modularity with a resolution (leidenalg ``RBConfigurationVertexPartition``,
@@ -431,7 +431,7 @@ def _check_kind(objective):
 
 def leiden(graph, resolution: float = 1.0, seed: int = 0, n_iterations: int = 2,
            objective: str = "modularity", initial=None) -> np.ndarray:
-    """Leiden partition of a weighted undirected graph (port of leidenalg's default optimiser).
+    """Leiden partition of a weighted undirected graph (port of leidenalg's default optimizer).
 
     Parameters
     ----------
@@ -439,7 +439,7 @@ def leiden(graph, resolution: float = 1.0, seed: int = 0, n_iterations: int = 2,
         ``(indptr, indices, data)`` of :func:`prepare_graph`.
     resolution : resolution parameter (modularity: ``RBConfigurationVertexPartition``; CPM: density).
     seed : integer seed.
-    n_iterations : optimiser passes (leidenalg ``n_iterations``; -1 = until a pass does not improve).
+    n_iterations : optimizer passes (leidenalg ``n_iterations``; -1 = until a pass does not improve).
     objective : ``"modularity"`` or ``"cpm"``.
     initial : optional starting membership (default: singletons).
 

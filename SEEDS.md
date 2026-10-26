@@ -127,11 +127,11 @@ without any extra code (tests: `tests/test_seedlog.py`):
   products in arsc (small, or row-wise) are not covered by this guarantee.
 * **pynndescent** with `random_state` set is deterministic in the tested version (0.6) for a fixed thread
   count, but **not thread-invariant**: its parallel NN-descent updates depend on the numba thread count
-  (measured on 600 synthetic cells, k = 10: 5 of 6000 neighbour entries differ between 1 and 4 threads;
+  (measured on 600 synthetic cells, k = 10: 5 of 6000 neighbor entries differ between 1 and 4 threads;
   1 and 2 threads agreed). Record `arsc.get_threads()` with the seed, or use `knn(method="exact")`, when the
   graph must not depend on threads. Across versions, only statistical agreement is guaranteed.
 
-## Behaviour changes in this revision (could alter previous results)
+## Behavior changes in this revision (could alter previous results)
 
 * `seed=None` / `random_state=None` now raises instead of drawing unseeded. This affects `umap`,
   `add_module_score` and `cell_cycle_scoring`, `score_genes`, `umap_from_connectivities`, and every other
