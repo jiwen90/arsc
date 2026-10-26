@@ -1,10 +1,14 @@
 """Paired arsc vs scanpy table (benchmarks/paired_bench.py results) -> README.md and SCANPY_PARITY.md.
 
-    python benchmarks/render_paired.py [--sessions S1,S2,...]
+    python benchmarks/render_paired.py [--sessions S1,S2,...] [--note TEXT] [--label step=TEXT ...]
+                                       [--timing N=results/paired/timing_<name>.json ...]
 
 Uses, for every (size, step), the most recent session in results/paired/runs.jsonl (or the sessions given), and
 writes the table between ``<!-- PAIRED:START -->`` and ``<!-- PAIRED:END -->``. Each row gives the median and
 range of the interleaved runs, the number of runs, the thread count, and the machine state seen before the runs.
+``--note`` replaces the sentence describing the data (default: the synthetic data), ``--label`` a step's row label
+(e.g. the gene count of a real store), and ``--timing`` adds, per size, the other processes' CPU use recorded by the
+framework's ``tools/timing_lock.py`` during the run.
 """
 from __future__ import annotations
 
@@ -29,7 +33,11 @@ def fmt(s):
     return f"{s:.2f} s" if s < 10 else (f"{s:.0f} s" if s < 600 else f"{s / 60:.1f} min")
 
 
-def table(sessions=None) -> str:
+SYNTH_NOTE = "Synthetic data of `benchmarks/suite_sim.py`."
+
+
+def table(sessions=None, note=SYNTH_NOTE, labels=None, timing=None) -> str:
+    label = {**LABEL, **(labels or {})}
     runs = pd.DataFrame([json.loads(l) for l in (P / "runs.jsonl").read_text().splitlines() if l.strip()])
     runs = runs[runs["ok"] == True]  # noqa: E712
     if sessions:
@@ -43,7 +51,7 @@ def table(sessions=None) -> str:
     qual = pd.concat(qual) if qual else pd.DataFrame()
     L = ["Same session, interleaved (arsc and scanpy alternate first), the same thread count for both; median "
          "(min-max) of the runs; machine state = system CPU use in the second before each run and the framework's "
-         "CPU leases (other jobs on the shared machine). Synthetic data of `benchmarks/suite_sim.py`.", ""]
+         "CPU leases (other jobs on the shared machine). " + note, ""]
     for n in sorted(runs["n"].unique()):
         g = runs[runs["n"] == n]
         L += [f"**{n:,} cells**:", "",
@@ -70,13 +78,28 @@ def table(sessions=None) -> str:
                     q = q.iloc[-1]
                     agree = (f"ARI arsc-scanpy {q['ari_arsc_scanpy']:.3f}; vs truth arsc {q['ari_truth_arsc']:.3f}, "
                              f"scanpy {q['ari_truth_scanpy']:.3f}")
-            L.append(f"| {LABEL[step]} | {fmt(a.median())} ({fmt(a.min())}-{fmt(a.max())}) | {fmt(s.median())} "
+                    if pd.notna(q.get("ari_scanpy_seed0_seed1", np.nan)):
+                        agree = (f"ARI arsc-scanpy {q['ari_arsc_scanpy']:.3f} vs scanpy seed 0-seed 1 "
+                                 f"{q['ari_scanpy_seed0_seed1']:.3f} ({int(q['n_clusters_arsc'])} / "
+                                 f"{int(q['n_clusters_scanpy'])} / {int(q['n_clusters_scanpy_seed1'])} clusters); "
+                                 f"vs the cell-type labels arsc {q['ari_truth_arsc']:.3f}, scanpy "
+                                 f"{q['ari_truth_scanpy']:.3f}")
+            L.append(f"| {label[step]} | {fmt(a.median())} ({fmt(a.min())}-{fmt(a.max())}) | {fmt(s.median())} "
                      f"({fmt(s.min())}-{fmt(s.max())}) | **{s.median() / a.median():.1f}x**; {worst:.1f}x | "
                      f"{len(a)} | {int(h['threads'].iloc[0])} | {h['cpu_percent_1s'].min():.0f}-"
                      f"{h['cpu_percent_1s'].max():.0f}% | {agree} |")
         lease = g["lease"].dropna().unique()
-        L += ["", f"Measured {g['time'].min()} to {g['time'].max()}; leases seen: "
-              + "; ".join(sorted(set(str(x) for x in lease))[:3]) + ".", ""]
+        line = (f"Measured {g['time'].min()} to {g['time'].max()}; leases seen: "
+                + "; ".join(sorted(set(str(x) for x in lease))[:3]) + ".")
+        tf = (timing or {}).get(int(n))
+        if tf:
+            t = json.loads(Path(tf).read_text(encoding="utf-8"))
+            line = (f"Run {t['start']} under the machine-wide timing lock ({t['threads']} threads, "
+                    f"{t['physical_cores']} physical cores, {t['wall_s'] / 60:.0f} min including data loading and "
+                    f"warm-up): other processes used {t['other_cpu_pct_mean']:.1f}% of the machine's CPU on average "
+                    f"(at most {t['other_cpu_pct_max']:.1f}%; {t['other_cores_mean']:.2f} cores on average), "
+                    f"sampled every second ({t['n_samples']:,} samples).")
+        L += ["", line, ""]
     return "\n".join(L)
 
 
@@ -86,14 +109,19 @@ def inject(path: Path, text: str) -> None:
     if a not in s:
         raise SystemExit(f"{path.name}: no {a} marker")
     s = s[: s.index(a) + len(a)] + "\n" + text + "\n" + s[s.index(b):]
-    path.write_text(s, encoding="utf-8")
+    path.write_text(s, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--sessions", default="")
+    ap.add_argument("--note", default=SYNTH_NOTE, help="the sentence describing the data")
+    ap.add_argument("--label", action="append", default=[], help="step=row label (repeatable)")
+    ap.add_argument("--timing", action="append", default=[], help="N=timing JSON of tools/timing_lock.py (repeatable)")
+    ap.add_argument("--dry-run", action="store_true", help="print the table only")
     a = ap.parse_args()
-    t = table([s for s in a.sessions.split(",") if s] or None)
+    t = table([s for s in a.sessions.split(",") if s] or None, a.note,
+              dict(x.split("=", 1) for x in a.label), {int(k): v for k, v in (x.split("=", 1) for x in a.timing)})
     print(t)
-    for f in ("README.md", "SCANPY_PARITY.md"):
+    for f in [] if a.dry_run else ("README.md", "SCANPY_PARITY.md"):
         inject(ROOT / f, t)

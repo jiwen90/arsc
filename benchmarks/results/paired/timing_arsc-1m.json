@@ -1,0 +1,21 @@
+{
+ "name": "arsc-1m",
+ "cmd": "python benchmarks/paired_bench.py --sizes 1000000 --threads 16 --repeats 3 --quality --step-repeats rank_genes=1",
+ "exit": 0,
+ "start": "2026-10-26 02:04:27",
+ "wall_s": 6814.25,
+ "waited_s": 10.1,
+ "threads": 16,
+ "physical_cores": 16,
+ "logical_cores": 32,
+ "affinity_cpus": 32,
+ "own_cpu_method": "job-object",
+ "n_samples": 6752,
+ "other_cpu_pct_max": 26.58,
+ "other_cpu_pct_mean": 2.81,
+ "other_cores_max": 8.51,
+ "other_cores_mean": 0.9,
+ "own_cores_mean": 2.31,
+ "quiet_load_max_before": 3.96,
+ "samples_dropped": "6752 per-second samples summarized above (other_cpu_*), not kept"
+}

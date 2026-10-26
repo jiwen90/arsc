@@ -29,6 +29,12 @@ All notable changes to arsc are recorded here. The format follows
 - `genesets.msigdb` no longer searches `$AR_ROOT/scratch/arsc/msigdb`.
 
 ### Changed
+- Paired arsc vs scanpy timings now on real data at 16 cores (README, SCANPY_PARITY.md): 100,000 and 1,000,000
+  cells of a 1.37M-cell PBMC store, each size under the framework's machine-wide timing lock; they replace the
+  3-thread synthetic-data tables. `benchmarks/paired_bench.py`: `--step-repeats` (e.g. `rank_genes=1`), progress
+  printed as each in-process result arrives, `--quality` also reports scanpy's Leiden ARI between two seeds, k-NN
+  recall scored on 2,000 query cells (was 1,000). `benchmarks/render_paired.py`: `--note`, `--label`, `--timing`
+  (other processes' CPU from the timing lock), `--dry-run`.
 - k-NN backend: arsc's own kernel replaces pynndescent (approximate) and scikit-learn (exact); neither is a
   dependency any more. Approximate: seeded k-means into 2 sqrt(n) clusters, each cell scans its 24 nearest
   clusters with float32 matrix products, the k + 8 best re-scored in float64. Exact: the same partition with

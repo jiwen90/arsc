@@ -1,0 +1,21 @@
+{
+ "name": "arsc-100k-b",
+ "cmd": "python benchmarks/paired_bench.py --sizes 100000 --threads 16 --repeats 3 --quality",
+ "exit": 0,
+ "start": "2026-10-26 01:53:21",
+ "wall_s": 655.79,
+ "waited_s": 10.1,
+ "threads": 16,
+ "physical_cores": 16,
+ "logical_cores": 32,
+ "affinity_cpus": 32,
+ "own_cpu_method": "job-object",
+ "n_samples": 650,
+ "other_cpu_pct_max": 50.43,
+ "other_cpu_pct_mean": 4.09,
+ "other_cores_max": 16.14,
+ "other_cores_mean": 1.31,
+ "own_cores_mean": 3.71,
+ "quiet_load_max_before": 6.33,
+ "samples_dropped": "650 per-second samples summarized above (other_cpu_*), not kept"
+}

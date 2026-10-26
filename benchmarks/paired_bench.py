@@ -21,7 +21,7 @@ the same session are compared; nothing is compared with a stored number.
 
 Outputs (``--out``, default ``benchmarks/results/paired``; small tables only): ``runs.jsonl`` (one line per
 run), ``summary.csv`` (per size and step: median, min and max seconds per tool, median of the per-pair ratios
-arsc / scanpy, the loads seen) and ``quality_<session>.csv`` (``neighbors``: recall against brute force on 1,000
+arsc / scanpy, the loads seen) and ``quality_<session>.csv`` (``neighbors``: recall against brute force on 2,000
 cells for arsc and scanpy, the overlap of arsc with scanpy and of scanpy with itself under another
 ``random_state``; ``cluster``: adjusted Rand index against the cell types and between the tools, on up to 20,000
 cells).
@@ -90,16 +90,26 @@ def run_tool(n, tool, step, source, seed, pca_shm, py, threads, extra_env=None):
     return run_child(cmd, None, TIMEOUT.get(n, 3600), env=child_env(threads, extra_env))
 
 
-def run_inprocess(n, steps, repeats, source, seed, pca_shm, py, threads):
+def run_inprocess(n, steps, repeats, source, seed, pca_shm, py, threads, step_repeats=""):
     """The fast mode: one child times every step for both tools (suite_py.py --tool both)."""
     cmd = [py, str(HERE / "suite_py.py"), "--tool", "both", "--step", ",".join(steps), "--source", source, "--n",
-           str(n), "--seed", str(seed), "--pca-shm", pca_shm, "--repeats", str(repeats)]
-    p = subprocess.run(cmd, capture_output=True, text=True, env=child_env(threads),
-                       timeout=TIMEOUT.get(n, 3600) * len(steps),
-                       creationflags=0x08000000 if os.name == "nt" else 0)
-    out = [json.loads(l[9:]) for l in p.stdout.splitlines() if l.startswith("@@RESULT ")]
+           str(n), "--seed", str(seed), "--pca-shm", pca_shm, "--repeats", str(repeats),
+           "--step-repeats", step_repeats]
+    # streamed: each result is collected as it arrives and a progress line printed (a 1M-cell session runs hours)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=child_env(threads),
+                         creationflags=0x08000000 if os.name == "nt" else 0)
+    out, tail, t0 = [], [], time.time()
+    for line in p.stdout:
+        if line.startswith("@@RESULT "):
+            r = json.loads(line[9:])
+            out.append(r)
+            print(f"[n={n:>8,}] +{(time.time() - t0) / 60:.1f} min: {r['tool']} {r['step']} rep {r.get('rep')} done",
+                  flush=True)
+        else:
+            tail = (tail + [line])[-60:]
+    p.wait(timeout=TIMEOUT.get(n, 3600) * len(steps))
     if not out:
-        raise SystemExit("in-process benchmark child failed:\n" + (p.stdout + p.stderr)[-3000:])
+        raise SystemExit("in-process benchmark child failed:\n" + "".join(tail)[-3000:])
     return out
 
 
@@ -120,7 +130,7 @@ def run_batch(n, tool, steps, source, seed, pca_shm, py, threads, extra_env=None
 
 
 def knn_quality(E: np.ndarray, payloads: dict) -> dict:
-    """Recall of each tool's k-NN (the 1,000 evaluation cells of suite_py.eval_cells) against brute force;
+    """Recall of each tool's k-NN (the 2,000 evaluation cells of suite_py.eval_cells) against brute force;
     overlaps between tools."""
     from suite_py import eval_cells
     nn = {t: np.asarray(p["nn"]) for t, p in payloads.items() if p and "nn" in p}
@@ -159,6 +169,8 @@ def cluster_agreement(cell_type: np.ndarray, payloads: dict) -> dict:
         out[f"n_clusters_{t}"] = int(len(np.unique(l)))
     if {"arsc", "scanpy"} <= set(labs):
         out["ari_arsc_scanpy"] = float(ari(labs["arsc"], labs["scanpy"]))
+    if {"scanpy", "scanpy_seed1"} <= set(labs):
+        out["ari_scanpy_seed0_seed1"] = float(ari(labs["scanpy"], labs["scanpy_seed1"]))
     return out
 
 
@@ -194,6 +206,8 @@ def main():
                                                      "'store:<dir>' (read-only, memory-mapped)")
     ap.add_argument("--steps", default=",".join(PAIRED_STEPS))
     ap.add_argument("--repeats", type=int, default=3)
+    ap.add_argument("--step-repeats", default="", help="per-step repeats overriding --repeats (in-process mode), "
+                    "e.g. 'rank_genes=1' when scanpy's Wilcoxon takes hours at 1M cells")
     ap.add_argument("--threads", type=int, default=int(os.environ.get("AR_THREADS", "8")))
     ap.add_argument("--out", default=str(HERE / "results" / "paired"))
     ap.add_argument("--python", default=sys.executable)
@@ -206,8 +220,8 @@ def main():
                          "(tool, repeat) running all steps (or per step with --per-step-process)")
     ap.add_argument("--per-step-process", action="store_true", help="a fresh process per (tool, step, repeat), "
                     "with peak-memory sampling (slower: every process pays its own start-up and warm-up)")
-    ap.add_argument("--quality", action="store_true", help="also run scanpy's neighbors with another seed "
-                    "(its run-to-run overlap; one more process)")
+    ap.add_argument("--quality", action="store_true", help="also run scanpy's neighbors and clustering with "
+                    "another seed (its run-to-run overlap and ARI; two more processes)")
     a = ap.parse_args()
     source = resolve_source(a.source)
     out = Path(a.out)
@@ -233,7 +247,8 @@ def main():
             if a.mode == "inprocess":
                 groups = []
                 st = machine_state()
-                for r in run_inprocess(n, steps, a.repeats, source, a.seed, spec, a.python, a.threads):
+                for r in run_inprocess(n, steps, a.repeats, source, a.seed, spec, a.python, a.threads,
+                                       a.step_repeats):
                     pl = r.pop("payload", None)
                     if r.get("rep") == 0:
                         payloads.setdefault(r["step"], {})[r["tool"]] = pl
@@ -281,6 +296,11 @@ def main():
                 r = run_tool(n, "scanpy", "neighbors", source, a.seed, spec, a.python, a.threads,
                              extra_env={"ARSC_BENCH_SCANPY_SEED": "1"})
                 payloads["neighbors"]["scanpy_seed1"] = r.get("payload")
+            if "cluster" in steps and a.quality:
+                # the same for Leiden: scanpy's clusters with another random_state (k-NN and Leiden)
+                r = run_tool(n, "scanpy", "cluster", source, a.seed, spec, a.python, a.threads,
+                             extra_env={"ARSC_BENCH_SCANPY_SEED": "1"})
+                payloads["cluster"]["scanpy_seed1"] = r.get("payload")
             if "neighbors" in steps:
                 q = knn_quality(E, payloads["neighbors"])
                 q.update(n=n, session=session, step="neighbors")

@@ -32,7 +32,7 @@ N_HVG, N_PC, K_NN, RES = 2000, 30, 20, 0.8
 # Threads: ARSC_BENCH_THREADS (set by paired_bench.py) gives both tools the same count: the parent puts it in
 # AR_THREADS / NUMBA_NUM_THREADS / OMP / BLAS variables; here it also sets scanpy's n_jobs and pydeseq2's n_cpus.
 BENCH_THREADS = int(os.environ.get("ARSC_BENCH_THREADS", "8"))
-SCANPY_NN_SEED = int(os.environ.get("ARSC_BENCH_SCANPY_SEED", "0"))  # pynndescent random_state (run-to-run variation)
+SCANPY_NN_SEED = int(os.environ.get("ARSC_BENCH_SCANPY_SEED", "0"))  # pynndescent and Leiden random_state (run-to-run variation)
 N_KEEP = 500  # cells whose normalized values are saved for the agreement check
 
 
@@ -194,7 +194,8 @@ def run_scanpy(step, D, out, T):
         with T:
             sc.pp.neighbors(a, n_neighbors=K_NN, use_rep="X_pca", random_state=SCANPY_NN_SEED)
             if step == "cluster":
-                sc.tl.leiden(a, resolution=RES, flavor="igraph", n_iterations=2, directed=False)
+                sc.tl.leiden(a, resolution=RES, flavor="igraph", n_iterations=2, directed=False,
+                             random_state=SCANPY_NN_SEED)
         if step == "neighbors":
             Dm = a.obsp["distances"].tocsr()
             ev = eval_cells(E.shape[0])
@@ -267,7 +268,7 @@ def _touch(X):
 
 
 PAYLOAD = {}   # small agreement data returned with the result (in-memory mode writes no output files)
-N_EVAL, N_LABEL = 1000, 20_000
+N_EVAL, N_LABEL = 2000, 20_000   # k-NN recall on 2,000 query cells, as in the k-NN backend sweep
 
 
 def eval_cells(n):
@@ -356,8 +357,9 @@ def run_both(a, steps):
                 pass
             PAYLOAD.clear()
     warm_s = time.time() - tw
+    step_reps = {k: int(v) for k, v in (x.split("=") for x in a.step_repeats.split(",") if x)}
     for step in steps:
-        for rep in range(a.repeats):
+        for rep in range(step_reps.get(step, a.repeats)):
             order = ("arsc", "scanpy") if rep % 2 == 0 else ("scanpy", "arsc")
             for pos, tool in enumerate(order):
                 T = Timer()
@@ -390,6 +392,7 @@ def main():
     ap.add_argument("--warm", default="", help="run the step first, untimed, on a 12,000-cell toy dataset (in "
                                                "memory; 'toy') or a dataset dir, so JIT compilation is excluded")
     ap.add_argument("--repeats", type=int, default=1, help="--tool both: timed repeats per step and tool")
+    ap.add_argument("--step-repeats", default="", help="--tool both: per-step override, e.g. 'rank_genes=1'")
     a = ap.parse_args()
     steps = [x for x in a.step.split(",") if x]
     if a.tool == "both":
