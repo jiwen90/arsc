@@ -93,3 +93,63 @@ def _add(t, p, out):
         out[r0:r1] = p
     else:
         out[r0:r1] += p
+
+
+PANEL = 256  # columns of one output panel of ``gram``; fixed, like BLOCK
+
+
+def gram(Z, block: int = BLOCK, panel: int = PANEL) -> np.ndarray:
+    """``Z.T @ Z`` (symmetric), bit-identical for any thread count and equal to ``matmul(Z.T, Z)``.
+
+    ``matmul`` cuts only the rows of ``Z.T`` and the inner (cell) dimension, so a Gram matrix of a few thousand
+    features over ~10,000 cells is 1 x 3 blocks and runs on 3 threads. Here the output is also cut into fixed
+    ``panel``-wide column panels: each upper-triangle panel pair sums its partial products over the same
+    ``block``-row inner blocks, in the same order, as ``matmul`` (diagonal panels use the symmetric BLAS product,
+    off-diagonal ones the general product, then mirrored), so every entry is summed exactly as before
+    (measured equal on 10,000 and 100,000 real cells x 2,000 genes) and the panel pairs run in parallel.
+
+    Parameters
+    ----------
+    Z : 2-D array (cells x features).
+    block : inner block size (keep the default; it is part of the summation order).
+    panel : output panel width (does not change any entry's summation order).
+
+    Returns
+    -------
+    ndarray, ``Z.T @ Z`` (features x features).
+    """
+    Z = np.asarray(Z)
+    n, p = Z.shape
+    inner = [(i, min(i + block, n)) for i in range(0, max(n, 1), block)]
+    pans = [(j, min(j + panel, p)) for j in range(0, p, panel)]
+    pairs = [(a, b) for ai, a in enumerate(pans) for b in pans[ai:]]
+    out = np.empty((p, p), dtype=Z.dtype)
+
+    def part(t):
+        (a0, a1), (b0, b1) = t
+        res = None
+        for r0, r1 in inner:  # summed in inner-block order, as matmul's _add
+            A = Z[r0:r1, a0:a1]
+            P = A.T @ A if a0 == b0 else A.T @ Z[r0:r1, b0:b1]
+            if res is None:
+                res = P
+            else:
+                res += P
+        return t, res
+
+    def put(t, P):
+        (a0, a1), (b0, b1) = t
+        out[a0:a1, b0:b1] = P
+        if a0 != b0:
+            out[b0:b1, a0:a1] = P.T
+
+    with single_thread("blas"):
+        nt = min(_threads(), len(pairs))
+        if nt <= 1:
+            for t in pairs:
+                put(*part(t))
+        else:
+            with ThreadPoolExecutor(nt) as ex:
+                for t, P in ex.map(part, pairs):
+                    put(t, P)
+    return out

@@ -288,6 +288,28 @@ def scale(X, center: bool = True, do_scale: bool = True, scale_max: float = 10.0
 
 
 # --------------------------------------------------------------------------- PCA
+@nb.njit(parallel=True, cache=True)
+def _col_sumsq_kernel(Z, out):
+    """Per-column sum of squares in float64, rows added in order (numpy's axis-0 reduction order)."""
+    n, p = Z.shape
+    nb_ = (p + 63) // 64
+    for b in nb.prange(nb_):
+        j0 = b * 64
+        j1 = min(j0 + 64, p)
+        for i in range(n):
+            for j in range(j0, j1):
+                v = np.float64(Z[i, j])
+                out[j] += v * v
+
+
+def _col_sumsq(Z) -> np.ndarray:
+    """``(Z.astype(np.float64) ** 2).sum(0)`` with no n x p temporaries (equal bit for bit for C-ordered Z)."""
+    Z = np.ascontiguousarray(Z)
+    out = np.zeros(Z.shape[1], dtype=np.float64)
+    _col_sumsq_kernel(Z, out)
+    return out
+
+
 @dataclass
 class PCAResult:
     """Result of :func:`pca`.
@@ -377,7 +399,8 @@ def pca(Z: np.ndarray, n_comps: int = 30, method: str = "auto", seed: int = 42,
     k = min(n_comps, p - 1, n - 1)
     if method == "auto":
         method = "gram" if p <= 6000 else "arpack"
-    total_var = float(((Z.astype(np.float64) ** 2).sum(0) / (n - 1)).sum()) if Z.size else 0.0
+    # = ((Z.astype(float64) ** 2).sum(0) / (n - 1)).sum(), bit for bit, without two n x p temporaries
+    total_var = float((_col_sumsq(Z) / (n - 1)).sum()) if Z.size else 0.0
     from ._detla import matmul, single_thread  # thread-count-invariant products (SEEDS.md)
     with single_thread("blas"):
         d, V = _pca_core(Z, k, method, seed, n_oversamples, n_iter, matmul)
@@ -392,11 +415,20 @@ def _pca_core(Z, k, method, seed, n_oversamples, n_iter, matmul):
     """Singular values and right vectors (BLAS pinned to 1 thread by the caller; big products via ``matmul``)."""
     n, p = Z.shape
     if method == "gram":
-        G = matmul(Z.T, Z)
-        w, V = np.linalg.eigh(G)
-        o = np.argsort(w)[::-1][:k]
-        d = np.sqrt(np.maximum(w[o], 0))
-        V = V[:, o]
+        from ._detla import gram
+        G = gram(Z)  # = matmul(Z.T, Z) entry for entry, with the output panels in parallel
+        if 1 <= k < p:
+            # only the top k eigenpairs (LAPACK syevr): about 3x faster than the full eigh at p = 2,000, which
+            # dominated PCA on ~10,000 cells; same values to ~1e-15 relative, same vectors up to sign
+            from scipy.linalg import eigh
+            w, V = eigh(G, subset_by_index=[p - k, p - 1], driver="evr")
+            w, V = w[::-1], V[:, ::-1]
+        else:
+            w, V = np.linalg.eigh(G)
+            o = np.argsort(w)[::-1][:k]
+            w, V = w[o], V[:, o]
+        d = np.sqrt(np.maximum(w, 0))
+        V = np.ascontiguousarray(V)
     elif method == "arpack":
         from scipy.sparse.linalg import svds
         from scipy.sparse.linalg import LinearOperator

@@ -229,3 +229,28 @@ def test_glmm_lmm_vs_lme4():
     l = stats.lmm_score(d, "lp ~ timepoint")
     L = pd.read_csv(REF / f"R_lmer_{ct}.csv")
     assert np.abs(l.Estimate.values - L.Estimate.values).max() < 1e-6
+
+
+def test_pseudobulk_sums_exact_with_and_without_floor():
+    """Group sums equal an indicator-matrix product exactly; dropping no group (min_cells=0) returns the same
+    arrays as the floor path, and a floor that drops groups returns exactly the kept rows."""
+    import scipy.sparse as sp
+    import arsc
+    r = np.random.default_rng(5)
+    X = sp.random(3000, 400, density=0.1, format="csr", random_state=5, dtype=np.float64)
+    X.data = np.round(X.data * 20)
+    X.eliminate_zeros()
+    lab = r.choice([f"g{i:02d}" for i in range(30)], 3000, p=np.r_[np.full(29, 0.0343), 0.0053])
+    obs = pd.DataFrame({"g": lab})
+    pb = arsc.pseudobulk(X, obs, "g")
+    codes = pd.Categorical(lab).codes
+    ind = sp.csr_matrix((np.ones(3000), (codes, np.arange(3000))), shape=(30, 3000))
+    assert np.array_equal(pb.X, (ind @ X).toarray())
+    assert np.array_equal(pb.n_detected, (ind @ (X != 0).astype(np.int64)).toarray())
+    assert len(pb.dropped) == 0 and list(pb.dropped.columns) == list(pb.groups.columns)
+    k = int(np.bincount(codes).min()) + 1
+    fl = arsc.pseudobulk(X, obs, "g", min_cells=k)
+    ok = pb.groups["n_cells"].to_numpy() >= k
+    assert 0 < len(fl.dropped) < 30
+    assert np.array_equal(fl.X, pb.X[ok]) and np.array_equal(fl.n_detected, pb.n_detected[ok])
+    pd.testing.assert_frame_equal(fl.groups, pb.groups[ok])

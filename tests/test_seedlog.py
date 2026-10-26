@@ -193,3 +193,35 @@ def test_detla_matmul_matches_numpy():
     assert np.allclose(matmul(A, B), A @ B, rtol=1e-12, atol=1e-12)
     assert np.allclose(matmul(A.T, A), A.T @ A, rtol=1e-12, atol=1e-10)
     assert np.allclose(matmul(A, B[:, 0]), A @ B[:, 0])
+
+
+def test_detla_gram_equals_matmul_bit_for_bit():
+    """gram() cuts the output into fixed panels on top of matmul's fixed inner blocks: every entry is summed in the
+    same order, so it equals matmul(Z.T, Z) exactly, for any thread count (several inner blocks, a ragged panel)."""
+    from arsc import set_threads, get_threads
+    from arsc._detla import gram, matmul
+    Z = np.random.default_rng(3).standard_normal((9000, 600))
+    ref = matmul(Z.T, Z)
+    old = get_threads()
+    try:
+        for t in (1, 3):
+            set_threads(t)
+            G = gram(Z)
+            assert np.array_equal(G, ref)
+            assert np.array_equal(G, G.T)
+    finally:
+        set_threads(old)
+
+
+def test_pca_total_variance_bit_for_bit():
+    """pca's total variance (no n x p temporaries) equals the numpy expression it replaced, exactly."""
+    from arsc.preprocessing import _col_sumsq
+    r = np.random.default_rng(4)
+    for Z in (r.standard_normal((5003, 130)), r.standard_normal((700, 70)).astype(np.float32)):
+        assert np.array_equal(_col_sumsq(Z), (Z.astype(np.float64) ** 2).sum(0))
+    import arsc
+    Z = r.standard_normal((800, 40))
+    pc = arsc.pp.pca(Z, n_comps=10)
+    full = np.linalg.svd(Z, compute_uv=False)[:10]
+    assert np.allclose(pc.stdev, full / np.sqrt(799), rtol=1e-12)
+    assert pc.total_variance == float(((Z ** 2).sum(0) / 799).sum())

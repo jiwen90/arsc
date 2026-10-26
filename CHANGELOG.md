@@ -19,6 +19,18 @@ All notable changes to arsc are recorded here. The format follows
 - `benchmarks/cluster_factors.py`: separates the arsc-scanpy clustering agreement into graph, Leiden engine, seed
   and resolution, in memory.
 
+### Changed
+- Faster `pp.pca` (`method="gram"`, the default for up to 6,000 features) and `pseudobulk` on small data, with the
+  same results. At 10,000 real PBMCs x 2,000 HVGs, the full `eigh` of the Gram matrix took 0.87 s of 1.26 s on one
+  BLAS thread: only the top `n_comps` eigenpairs are computed now (LAPACK `syevr`, 0.32 s); the Gram product is cut
+  into fixed 256-column panels that run in parallel (`_detla.gram`, equal to `matmul(Z.T, Z)` bit for bit and still
+  thread-count invariant; 0.30 s -> 0.12 s, it ran on 3 threads before); the total variance no longer makes two
+  cells x features temporaries (bit for bit the same). Singular values agree to 3e-15 relative, loadings to 6e-15,
+  no sign change, the total variance is identical. `pseudobulk` with no group below `min_cells` no longer copies its
+  groups x features sums and detection counts (2 x 400 MB for 1,367 groups x 36,601 genes); sums and counts
+  identical. Dev timing, 8 threads (scale + PCA / pseudobulk): 10k cells 1.39 -> 0.58 s / 0.29 -> 0.10 s, 100k cells
+  3.47 -> 2.49 s / 0.49 -> 0.20 s.
+
 ### Fixed
 - `find_markers` broke ties in `p_val` by `-avg_log2FC`; Seurat 4.3's `FindMarkers` keeps the feature order
   (its tie-break column is `p_val` itself). Ties are common on large data, where many p values underflow to 0, so

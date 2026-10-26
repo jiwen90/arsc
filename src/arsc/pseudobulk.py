@@ -177,4 +177,8 @@ def pseudobulk(X, obs: pd.DataFrame | None, by, *, features=None, min_cells: int
     feats = pd.Index(features) if features is not None else pd.RangeIndex(p)
     if len(feats) != p:
         raise ValueError(f"features has {len(feats)} names but X has {p} columns")
+    if ok.all():
+        # no group below the floor: keep S and nnz as they are (indexing copies two groups x features arrays,
+        # e.g. 2 x 400 MB for 1,367 sample x cell type groups x 36,601 genes, about 40% of the step at 10,000 cells)
+        return Pseudobulk(S, groups, feats, nnz, groups.iloc[:0])
     return Pseudobulk(S[ok], groups[ok], feats, nnz[ok], groups[~ok])
