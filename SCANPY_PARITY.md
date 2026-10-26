@@ -44,6 +44,30 @@ counts), harmony PCs for graph steps (3,000 cells, because scanpy switches from 
 
 ## Speed: paired runs (same session, same threads)
 
+**Speed gate, 10,000 cells, 16 cores** (2026-10-25 23:25, after the switch to arsc's own k-NN kernel;
+`ARSC_SPEED_GATE=1 python -m pytest -q tests/test_speed_gate.py` under `tools/timing_lock.py run`): toy data of
+`benchmarks/suite_sim.py` generated in memory, arsc and scanpy in one process, interleaved (alternating which runs first), 16 threads for
+both, warm: every step is run once untimed first, so numba compilation is not in the times (first-call cost: see
+the k-NN backend section). Median (min-max) of 3 runs each. 16 cores; other processes used 8.9% of the machine's
+CPU on average during the run (at most 27.9%).
+
+| Step | arsc | scanpy | speed-up (median) | slowest pair, arsc / scanpy |
+|---|---:|---:|---:|---:|
+| Log-normalize | 0.022 s (0.021-0.025) | 0.134 s (0.134-0.137) | **6.2x** | 0.18 |
+| Highly variable genes (2,000) | 0.204 s (0.203-0.206) | 0.428 s (0.428-0.429) | **2.1x** | 0.48 |
+| Scale + PCA (30 PCs) | 1.29 s (1.28-1.29) | 2.74 s (2.74-2.80) | **2.1x** | 0.47 |
+| k-NN graph (k = 20) | 0.093 s (0.092-0.097) | 1.20 s (1.20-1.23) | **12.9x** | 0.08 |
+| k-NN + Leiden clustering | 0.215 s (0.213-0.220) | 1.43 s (1.43-1.44) | **6.7x** | 0.15 |
+| Markers, scanpy-style Wilcoxon | 0.515 s (0.510-0.522) | 2.77 s (2.73-2.78) | **5.4x** | 0.19 |
+| Pseudobulk sums | 0.029 s (0.028-0.031) | 0.096 s (0.096-0.097) | **3.3x** | 0.32 |
+| Pseudobulk DESeq2 (paired) | 1.55 s (1.47-1.72) | 2.12 s (1.93-2.19) | **1.4x** | 0.89 |
+| scanpy gene-set score (5 sets) | 0.404 s (0.400-0.408) | 0.723 s (0.706-0.733) | **1.8x** | 0.58 |
+
+Agreement in the same run: k-NN recall against exact neighbors arsc 0.993, scanpy 0.949 (overlap arsc-scanpy
+0.943); Leiden ARI against the cell types arsc 0.995, scanpy 0.996, arsc-scanpy 0.997 (10 clusters each).
+
+The 100,000- and 1,000,000-cell tables below were measured earlier the same day at 3 threads, beside other jobs.
+
 <!-- PAIRED:START -->
 Same session, interleaved (arsc and scanpy alternate first), the same thread count for both; median (min-max) of the runs; machine state = system CPU use in the second before each run and the framework's CPU leases (other jobs on the shared machine). Synthetic data of `benchmarks/suite_sim.py`.
 
