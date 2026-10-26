@@ -757,25 +757,51 @@ def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: 
     return {"connectivities": conn.tocsr(), "distances": dist, "indices": idx}
 
 
+class _RNGIgraph:
+    """igraph's RNG as scanpy (>= 1.10) installs it for ``sc.tl.leiden(flavor="igraph")``: a private
+    ``numpy.random.RandomState(seed)`` behind igraph's ``random``-like interface, so the same seed gives
+    scanpy's partition (the global ``random`` / numpy states are never touched)."""
+
+    def __init__(self, seed: int):
+        self._rng = np.random.RandomState(seed)
+
+    def getrandbits(self, k: int) -> int:
+        return self._rng.tomaxint() & ((1 << k) - 1)
+
+    def randint(self, a: int, b: int) -> int:
+        return self._rng.randint(a, b + 1)
+
+    def __getattr__(self, attr: str):
+        return getattr(self._rng, "normal" if attr == "gauss" else attr)
+
+
 @records_seed("random_state")
 def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_iterations: int = -1,
-           directed: bool = True, use_weights: bool = True, flavor: str = "leidenalg") -> np.ndarray:
+           directed: bool = True, use_weights: bool = True, flavor: str = "leidenalg",
+           engine: str = "scanpy") -> np.ndarray:
     """``sc.tl.leiden`` on a connectivities graph (scanpy 1.11 defaults); same graph + seed -> identical labels.
 
     Default settings: leidenalg, directed graph, ``n_iterations=-1``, ``RBConfigurationVertexPartition``.
     Labels are integers exactly as leidenalg numbers them (scanpy stores them as strings). For
-    ``flavor="igraph"`` a private ``random.Random(random_state)`` is installed as igraph's RNG for the call and
-    igraph's default RNG restored afterwards (Python's global ``random`` state is never touched).
+    ``flavor="igraph"`` a private ``numpy.random.RandomState(random_state)`` is installed as igraph's RNG for
+    the call, as scanpy does (same seed -> scanpy's labels), and igraph's default RNG restored afterwards (Python's global ``random`` state is never touched).
 
     Parameters
     ----------
     connectivities : cells x cells weighted graph (``neighbors(...)["connectivities"]``).
     resolution : resolution parameter (default 1.0; higher = more clusters).
     random_state : integer seed (default 0).
-    n_iterations : leidenalg iterations (-1 = until stable).
+    n_iterations : Leiden iterations (-1 = until stable, both flavors, as scanpy; scanpy recommends 2 with
+        ``flavor="igraph"``).
     directed : build a directed igraph graph (scanpy default True for leidenalg).
     use_weights : use edge weights.
     flavor : ``"leidenalg"`` (default) or ``"igraph"`` (modularity, undirected).
+    engine : ``"scanpy"`` (default; leidenalg / igraph called as scanpy calls them: same graph + seed ->
+        scanpy's labels) or ``"arsc"`` (``flavor="igraph"`` only: arsc's own Leiden with igraph's
+        refinement, :func:`arsc.cluster` ``refinement="igraph"``; about 4x faster at 100,000 cells, a seed
+        gives a different but equally close partition: on 100,000 PBMCs its ARI against scanpy's clustering
+        equals scanpy's own seed-to-seed ARI, ``SCANPY_PARITY.md``). Labels are numbered by decreasing
+        cluster size.
 
     Returns
     -------
@@ -795,9 +821,21 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
     >>> labels.shape
     (600,)
     """
-    import igraph as ig
-
     random_state = check_seed(random_state, "random_state")
+    if engine not in ("scanpy", "arsc"):
+        raise ValueError(f"unknown engine {engine!r}; use 'scanpy' or 'arsc'")
+    if engine == "arsc":
+        if flavor != "igraph":
+            raise ValueError('engine="arsc" runs the igraph flavor (undirected modularity); pass flavor="igraph"')
+        from ._leiden import leiden as _arsc_leiden, prepare_graph
+        A = sp.csr_matrix(connectivities, dtype=np.float64)
+        if not use_weights:
+            A = A.copy()
+            A.data[:] = 1.0
+        return _arsc_leiden(prepare_graph(A), resolution=resolution, seed=random_state,
+                            n_iterations=n_iterations, refinement="igraph")
+
+    import igraph as ig
 
     A = sp.csr_matrix(connectivities)
     src, tgt = A.nonzero()
@@ -818,10 +856,10 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
     g.add_edges(list(zip(src, tgt)))
     g.es["weight"] = w
     import random
-    ig.set_random_number_generator(random.Random(random_state))
+    ig.set_random_number_generator(_RNGIgraph(random_state))
     try:
         part = g.community_leiden(objective_function="modularity", weights="weight" if use_weights else None,
-                                  resolution=resolution, n_iterations=2 if n_iterations == -1 else n_iterations)
+                                  resolution=resolution, n_iterations=n_iterations)
     finally:
         ig.set_random_number_generator(random)  # igraph's default
     return np.asarray(part.membership)

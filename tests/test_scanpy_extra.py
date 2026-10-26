@@ -206,6 +206,22 @@ def test_neighbors_leiden_umap(nbr):
         sc.tl.leiden(b, resolution=res, random_state=0)
         lab = sx.leiden(nn["connectivities"], res)
         assert (b.obs.leiden.astype(int).to_numpy() == lab).all()
+    for seed in (0, 3):  # igraph flavor: scanpy's numpy-backed igraph RNG, so the same seed gives the same labels
+        sc.tl.leiden(b, resolution=1.0, flavor="igraph", n_iterations=2, directed=False, random_state=seed)
+        lab = sx.leiden(nn["connectivities"], 1.0, flavor="igraph", n_iterations=2, random_state=seed)
+        assert (b.obs.leiden.astype(int).to_numpy() == lab).all()
+    sc.tl.leiden(b, resolution=1.0, flavor="igraph", directed=False, random_state=0)  # n_iterations=-1 as scanpy
+    assert (b.obs.leiden.astype(int).to_numpy() == sx.leiden(nn["connectivities"], 1.0, flavor="igraph")).all()
+    # engine="arsc": a different but equally close partition (ARI against scanpy within scanpy's seed range)
+    from sklearn.metrics import adjusted_rand_score as ari
+    sp_ = [sx.leiden(nn["connectivities"], 1.0, flavor="igraph", n_iterations=2, random_state=s) for s in range(4)]
+    ar_ = [sx.leiden(nn["connectivities"], 1.0, flavor="igraph", n_iterations=2, random_state=s, engine="arsc")
+           for s in range(4)]
+    own = [ari(sp_[i], sp_[j]) for i in range(4) for j in range(i + 1, 4)]
+    cross = [ari(x, y) for x in sp_ for y in ar_]
+    assert np.mean(cross) >= np.mean(own) - 0.05
+    with pytest.raises(ValueError):
+        sx.leiden(nn["connectivities"], 1.0, engine="arsc")  # leidenalg flavor (directed) is not ported
     b2 = b.copy()
     sc.tl.umap(b2, min_dist=0.4, spread=1.0)
     U = sx.umap_from_connectivities(nn["connectivities"], min_dist=0.4, spread=1.0)

@@ -73,6 +73,36 @@ def test_quality_not_below_reference(method):
     assert np.median(ours) >= min(ref) - 1e-3
 
 
+@pytest.mark.parametrize("objective,res", [("modularity", 0.8), ("cpm", 0.05)])
+def test_igraph_refinement(objective, res):
+    """refinement="igraph": recovers planted blocks, is reproducible, and its quality is within igraph
+    community_leiden's own seed range (the engine of scanpy's flavor="igraph", 2 iterations)."""
+    ig = pytest.importorskip("igraph")
+    A, truth = _planted(p_in=0.2, p_out=0.002) if objective == "cpm" else _planted()
+    lab = L.leiden(A, resolution=res if objective == "cpm" else 1.0, objective=objective, seed=0,
+                   refinement="igraph")
+    assert _ari(lab, truth) > 0.95
+    G = _snn()
+    ours = [L.quality(G, L.leiden(G, res, seed=s, objective=objective, refinement="igraph"), res, objective)
+            for s in range(6)]
+    assert np.array_equal(L.leiden(G, res, seed=1, objective=objective, refinement="igraph"),
+                          L.leiden(G, res, seed=1, objective=objective, refinement="igraph"))
+    U = sp.triu(G, 1).tocoo()
+    g = ig.Graph(n=G.shape[0], edges=np.column_stack([U.row, U.col]), directed=False)
+    g.es["weight"] = U.data
+    import random
+    ref = []
+    for s in range(6):
+        ig.set_random_number_generator(random.Random(s))
+        try:
+            m = g.community_leiden(objective_function=objective.upper() if objective == "cpm" else "modularity",
+                                   weights="weight", resolution=res, n_iterations=2).membership
+        finally:
+            ig.set_random_number_generator(random)
+        ref.append(L.quality(G, np.asarray(m), res, objective))
+    assert np.median(ours) >= min(ref) - 1e-3 * abs(min(ref))
+
+
 def test_cpm_quality_not_below_leidenalg():
     pytest.importorskip("leidenalg")
     G = _snn()
@@ -103,6 +133,8 @@ def test_engine_validation():
         arsc.cluster(G, engine="nope")
     with pytest.raises(ValueError):
         arsc.cluster(G, method="louvain", objective="cpm", engine="arsc")
+    with pytest.raises(ValueError):
+        arsc.cluster(G, method="leiden", refinement="nope")
 
 
 def test_group_singletons_matches_seurat_rule():

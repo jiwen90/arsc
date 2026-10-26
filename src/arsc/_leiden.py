@@ -10,6 +10,11 @@ Ports of the reference algorithms, step for step:
   refined community when the move does not lower the quality), aggregation on the refined partition
   with the unrefined partition as the starting membership, repeated while the graph shrinks;
   ``n_iterations`` such passes (-1: until a pass no longer improves).
+* **Leiden, igraph refinement** (``refinement="igraph"``): the same optimizer with the refinement of
+  igraph's ``community_leiden`` (``igraph_i_community_leiden_mergenodes``, the engine of scanpy's
+  ``flavor="igraph"``): within each community, a singleton that is well connected to the rest joins a
+  well-connected refined community (its own included, gain 0) drawn with probability proportional to
+  ``exp(gain / beta)`` among those with a non-negative gain, ``beta = 0.01`` (near-greedy).
 * **Louvain** follows igraph's ``community_multilevel``: per level a random node order, passes in
   that order moving each node to the neighbor community with the largest positive gain until a
   pass no longer raises modularity, then aggregation; stops when a level merges nothing.
@@ -386,7 +391,99 @@ def _merge_constrained(indptr, indices, data, k, size, constraint, kind, gamma, 
 
 
 @nb.njit(cache=True)
-def _leiden_pass(indptr, indices, data, memb0, kind, gamma, state):
+def _merge_igraph(indptr, indices, data, k, size, constraint, kind, gamma, two_m, state, beta):
+    """igraph ``community_leiden`` refinement (``igraph_i_community_leiden_mergenodes``) on a singleton partition.
+
+    Within each community of ``constraint``, a node still alone in its refined community, and well connected
+    to the rest of the community, leaves it and joins a well-connected refined community chosen with
+    probability proportional to ``exp(gain / beta)`` among those with a non-negative gain (its own, now empty,
+    community included with gain 0); igraph's gain is ``w_vc - a_v A_c scale`` (modularity: ``a = strength``,
+    ``scale = resolution / 2m``; CPM: ``a = node size``, ``scale = resolution``). When the weights overflow, the
+    best community is taken.
+    """
+    n = indptr.shape[0] - 1
+    a = k if kind == MODULARITY else size
+    scale = gamma / two_m if kind == MODULARITY else gamma
+    ref = np.arange(n)
+    A = a.copy()
+    cnt = np.ones(n, np.int64)
+    ext = np.zeros(n)
+    nc = 0
+    for v in range(n):
+        nc = max(nc, constraint[v] + 1)
+    T = np.zeros(nc)
+    for v in range(n):
+        T[constraint[v]] += a[v]
+        cv = constraint[v]
+        for e in range(indptr[v], indptr[v + 1]):
+            u = indices[e]
+            if u != v and constraint[u] == cv:
+                ext[v] += data[e]
+    order = np.arange(n)
+    _shuffle(order, state)
+    wc = np.zeros(n)
+    added = np.zeros(n, np.bool_)
+    comms = np.empty(n + 1, np.int64)
+    cum = np.empty(n + 1)
+    for v in order:
+        c0 = ref[v]
+        cv = constraint[v]
+        if cnt[c0] != 1 or ext[c0] < A[c0] * (T[cv] - A[c0]) * scale:
+            continue
+        A[c0] = 0.0
+        cnt[c0] = 0
+        ext[c0] = 0.0
+        comms[0] = c0
+        added[c0] = True
+        nk = 1
+        for e in range(indptr[v], indptr[v + 1]):
+            u = indices[e]
+            if u != v and constraint[u] == cv:
+                c = ref[u]
+                if not added[c]:
+                    added[c] = True
+                    comms[nk] = c
+                    nk += 1
+                wc[c] += data[e]
+        best = c0
+        max_diff = 0.0
+        tot = 0.0
+        av = a[v]
+        for i in range(nk):
+            c = comms[i]
+            if ext[c] >= A[c] * (T[cv] - A[c]) * scale:
+                d = wc[c] - av * A[c] * scale
+                if d > max_diff:
+                    max_diff = d
+                    best = c
+                if d >= 0.0:
+                    tot += np.exp(d / beta)
+            cum[i] = tot
+            added[c] = False
+        chosen = best
+        if tot < np.inf:
+            r = ((_next(state) >> np.uint64(11)) * (1.0 / 9007199254740992.0)) * tot
+            for i in range(nk):
+                if cum[i] >= r and (i == 0 or cum[i] > cum[i - 1]):
+                    chosen = comms[i]
+                    break
+        A[chosen] += av
+        cnt[chosen] += 1
+        for e in range(indptr[v], indptr[v + 1]):
+            u = indices[e]
+            if u != v and constraint[u] == cv:
+                if ref[u] == chosen:
+                    ext[chosen] -= data[e]
+                else:
+                    ext[chosen] += data[e]
+        ref[v] = chosen
+        for i in range(nk):
+            wc[comms[i]] = 0.0
+    return ref
+
+
+@nb.njit(cache=True)
+def _leiden_pass(indptr, indices, data, memb0, kind, gamma, state, refine=0, beta=0.01):
     """One ``Optimiser::optimise_partition`` call; ``memb0`` (contiguous ids) is updated in place."""
     n0 = indptr.shape[0] - 1
     ip, ix, w = indptr, indices, data
@@ -404,7 +501,10 @@ def _leiden_pass(indptr, indices, data, memb0, kind, gamma, state):
         for v in range(n0):
             memb0[v] = memb_l[agg[v]]
         nl = ip.shape[0] - 1
-        ref = _merge_constrained(ip, ix, w, k, size, memb_l, kind, gamma, two_m, state)
+        if refine == 0:
+            ref = _merge_constrained(ip, ix, w, k, size, memb_l, kind, gamma, two_m, state)
+        else:
+            ref = _merge_igraph(ip, ix, w, k, size, memb_l, kind, gamma, two_m, state, beta)
         ref, nref = _renumber_by_size(ref, nl)
         for v in range(n0):
             agg[v] = ref[agg[v]]
@@ -430,7 +530,8 @@ def _check_kind(objective):
 
 
 def leiden(graph, resolution: float = 1.0, seed: int = 0, n_iterations: int = 2,
-           objective: str = "modularity", initial=None) -> np.ndarray:
+           objective: str = "modularity", initial=None, refinement: str = "leidenalg",
+           beta: float = 0.01) -> np.ndarray:
     """Leiden partition of a weighted undirected graph (port of leidenalg's default optimizer).
 
     Parameters
@@ -442,6 +543,10 @@ def leiden(graph, resolution: float = 1.0, seed: int = 0, n_iterations: int = 2,
     n_iterations : optimizer passes (leidenalg ``n_iterations``; -1 = until a pass does not improve).
     objective : ``"modularity"`` or ``"cpm"``.
     initial : optional starting membership (default: singletons).
+    refinement : ``"leidenalg"`` (default; ``merge_nodes_constrained`` with ``RAND_NEIGH_COMM``) or
+        ``"igraph"`` (igraph ``community_leiden``'s refinement: a well-connected singleton joins a
+        well-connected community with probability proportional to ``exp(gain / beta)``).
+    beta : randomness of the ``"igraph"`` refinement (igraph's ``beta``, default 0.01).
 
     Returns
     -------
@@ -456,13 +561,16 @@ def leiden(graph, resolution: float = 1.0, seed: int = 0, n_iterations: int = 2,
     [0, 0, 0, 0, 0, 1, 1, 1, 1]
     """
     kind = _check_kind(objective)
+    if refinement not in ("leidenalg", "igraph"):
+        raise ValueError(f"unknown refinement {refinement!r}; use 'leidenalg' or 'igraph'")
+    refine = 0 if refinement == "leidenalg" else 1
     ip, ix, w = graph if isinstance(graph, tuple) else prepare_graph(graph)
     n = ip.shape[0] - 1
     memb = np.arange(n, dtype=np.int64) if initial is None else _renumber(np.asarray(initial, np.int64))[0]
     state = _state(np.random.SeedSequence(int(seed)))
     it = 0
     while True:
-        diff = _leiden_pass(ip, ix, w, memb, kind, float(resolution), state)
+        diff = _leiden_pass(ip, ix, w, memb, kind, float(resolution), state, refine, float(beta))
         it += 1
         if n_iterations < 0:
             if not diff > 0:

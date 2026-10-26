@@ -59,7 +59,7 @@ def _group_singletons(labels: np.ndarray, G: sp.csr_matrix) -> np.ndarray:
 @records_seed("seed")
 def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int = 0, n_iterations: int = 2,
             n_start: int = 10, group_singletons: bool = True, engine: str = "arsc",
-            objective: str = "modularity") -> np.ndarray:
+            objective: str = "modularity", refinement: str = "leidenalg") -> np.ndarray:
     """Cluster a weighted graph (e.g. ``find_neighbors(...)["snn"]`` or ``wnn(...).wsnn``).
 
     Seurat ``FindClusters``: labels are renumbered by decreasing cluster size (0 = largest) and
@@ -97,6 +97,12 @@ def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int =
     engine : ``"arsc"`` (default, own implementation) or ``"leidenalg"`` (leidenalg / igraph).
     objective : Leiden quality, ``"modularity"`` (default) or ``"cpm"`` (constant Potts model;
         leidenalg ``CPMVertexPartition``; needs ``method="leiden"``).
+    refinement : Leiden refinement step of the arsc engine: ``"leidenalg"`` (default; leidenalg's
+        random-neighbor merge, as Seurat ``algorithm = 4``) or ``"igraph"`` (igraph ``community_leiden``,
+        the engine of scanpy's ``sc.tl.leiden(flavor="igraph")``: well-connected singletons join a community
+        with probability proportional to ``exp(gain / 0.01)``). With 2 iterations ``"igraph"`` finds
+        steadier partitions; on scanpy's connectivities it matches scanpy's clustering within scanpy's own
+        seed-to-seed agreement (``SCANPY_PARITY.md``). Ignored by ``engine="leidenalg"``.
 
     Returns
     -------
@@ -117,6 +123,8 @@ def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int =
         raise ValueError(f"unknown method {method!r}; use 'leiden' or 'louvain'")
     if objective not in ("modularity", "cpm"):
         raise ValueError(f"unknown objective {objective!r}; use 'modularity' or 'cpm'")
+    if refinement not in ("leidenalg", "igraph"):
+        raise ValueError(f"unknown refinement {refinement!r}; use 'leidenalg' or 'igraph'")
     if method == "louvain" and objective != "modularity":
         raise ValueError("louvain optimizes modularity only; pass method=\"leiden\" for objective=\"cpm\"")
     G = _check_graph(graph)
@@ -129,7 +137,7 @@ def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int =
         gr = (H.indptr.astype(np.int64), H.indices.astype(np.int64), H.data.astype(np.float64))
         if method == "leiden":
             labels = _leiden.leiden(gr, resolution=resolution, seed=seed, n_iterations=n_iterations,
-                                    objective=objective)
+                                    objective=objective, refinement=refinement)
         else:
             labels = _leiden.louvain(gr, resolution=resolution, seed=seed, n_start=n_start)
     elif engine == "leidenalg":

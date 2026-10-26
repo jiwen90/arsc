@@ -80,6 +80,7 @@ def child_env(threads: int, extra: dict | None = None) -> dict:
     for v in THREAD_VARS:
         env[v] = str(threads)
     env["ARSC_BENCH_THREADS"] = str(threads)
+    env.setdefault("ARSC_BENCH_CLUSTER", "scanpy")  # arsc clusters scanpy's graph type (suite_py.py)
     env.update(extra or {})
     return env
 

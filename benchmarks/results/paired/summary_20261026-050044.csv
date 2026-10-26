@@ -1,0 +1,2 @@
+n,step,threads,arsc_median_s,arsc_min_s,arsc_max_s,arsc_runs,scanpy_median_s,scanpy_min_s,scanpy_max_s,scanpy_runs,pair_ratio_median,pair_ratio_max,speedup_median,cpu_percent_before_min,cpu_percent_before_max,mem_available_gb_min,session
+100000,cluster,16,1.988680362701416,1.9611248970031738,1.995272159576416,3,7.659507989883423,7.533353805541992,7.695863723754883,3,0.2584089887874367,0.2648584164610154,3.8515530869318666,2.9,2.9,403.3,20261026-050044

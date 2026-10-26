@@ -40,9 +40,13 @@ python benchmarks/render_table.py                                # headline tabl
 ```
 
 Environment variables: `ARSC_BENCH_STORE` / `ARSC_BENCH_STORE_COLUMNS` (real store for the in-memory
-benchmarks), `ARSC_BENCH_DIR` (run_suite.py only: where it writes data and raw outputs; no default),
+benchmarks), `ARSC_BENCH_CLUSTER` (arsc's clustering step: `scanpy`, UMAP connectivities + Leiden with igraph's
+refinement, set by `paired_bench.py`; or `seurat`, the SNN graph, the default elsewhere), `ARSC_BENCH_DIR` (run_suite.py only: where it writes data and raw outputs; no default),
 `ARSC_RLIB` (an extra R library path), `RSCRIPT` (default `Rscript`). Finished steps are skipped on a
 re-run (results are appended to `runs.jsonl`); `--rerun` forces them.
+
+`cluster_factors.py` separates the clustering agreement between arsc and scanpy into its factors (graph,
+Leiden engine, seed, resolution) on the same embedding, in memory (`SCANPY_PARITY.md`).
 
 R side: R 4.3 with Seurat 4.3, presto, DESeq2, limma, edgeR, UCell, Matrix and jsonlite. Python side:
 scanpy (with `scikit-misc` for `flavor="seurat_v3"`), pydeseq2, psutil.

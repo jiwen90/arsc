@@ -33,6 +33,9 @@ N_HVG, N_PC, K_NN, RES = 2000, 30, 20, 0.8
 # AR_THREADS / NUMBA_NUM_THREADS / OMP / BLAS variables; here it also sets scanpy's n_jobs and pydeseq2's n_cpus.
 BENCH_THREADS = int(os.environ.get("ARSC_BENCH_THREADS", "8"))
 SCANPY_NN_SEED = int(os.environ.get("ARSC_BENCH_SCANPY_SEED", "0"))  # pynndescent and Leiden random_state (run-to-run variation)
+# arsc's cluster step: "scanpy" (UMAP connectivities + Leiden with igraph's refinement, what scanpy's step computes;
+# set by paired_bench.py) or "seurat" (SNN graph + Leiden, Seurat FindNeighbors/FindClusters; the default here)
+CLUSTER_STYLE = os.environ.get("ARSC_BENCH_CLUSTER", "seurat")
 N_KEEP = 500  # cells whose normalized values are saved for the agreement check
 
 
@@ -87,9 +90,20 @@ def run_arsc(step, D, out, T):
             np.save(out / "neighbors.npy", nn["idx"].astype(np.int32))
     elif step == "cluster":
         E = np.asarray(D.pca).astype(np.float64)
-        with T:
-            nn = arsc.find_neighbors(E, k=K_NN)
-            lab = arsc.cluster(nn["snn"], method="leiden", resolution=RES)  # arsc's own engine (default since 0.3.0)
+        if CLUSTER_STYLE == "scanpy":
+            # the scanpy task (paired_bench.py): k-NN + UMAP connectivities (sc.pp.neighbors) and Leiden as
+            # sc.tl.leiden(flavor="igraph", n_iterations=2), on arsc's k-NN and arsc's own Leiden engine with
+            # igraph's refinement
+            from arsc import scanpy_extra as sx
+            with T:
+                conn = sx.neighbors(E, n_neighbors=K_NN)["connectivities"]
+                lab = sx.leiden(conn, RES, flavor="igraph", n_iterations=2, engine="arsc")
+        else:
+            # the Seurat task (FindNeighbors + FindClusters algorithm 4): the SNN graph gives about 40% more
+            # clusters than scanpy's connectivities at the same resolution (SCANPY_PARITY.md)
+            with T:
+                nn = arsc.find_neighbors(E, k=K_NN)
+                lab = arsc.cluster(nn["snn"], method="leiden", resolution=RES)
         PAYLOAD["labels"] = np.asarray(lab)[label_cells(E.shape[0])].astype(int).tolist()
         if out is not None:   # file outputs only in the on-disk suite (run_suite.py)
             np.save(out / "cluster.npy", np.asarray(lab, np.int32))

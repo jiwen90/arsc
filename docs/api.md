@@ -5999,25 +5999,32 @@ Examples
 True
 ```
 
-### `arsc.scanpy_extra.leiden(connectivities, resolution: 'float' = 1.0, *, random_state: 'int' = 0, n_iterations: 'int' = -1, directed: 'bool' = True, use_weights: 'bool' = True, flavor: 'str' = 'leidenalg') -> 'np.ndarray'`
+### `arsc.scanpy_extra.leiden(connectivities, resolution: 'float' = 1.0, *, random_state: 'int' = 0, n_iterations: 'int' = -1, directed: 'bool' = True, use_weights: 'bool' = True, flavor: 'str' = 'leidenalg', engine: 'str' = 'scanpy') -> 'np.ndarray'`
 
 ```text
 ``sc.tl.leiden`` on a connectivities graph (scanpy 1.11 defaults); same graph + seed -> identical labels.
 
 Default settings: leidenalg, directed graph, ``n_iterations=-1``, ``RBConfigurationVertexPartition``.
 Labels are integers exactly as leidenalg numbers them (scanpy stores them as strings). For
-``flavor="igraph"`` a private ``random.Random(random_state)`` is installed as igraph's RNG for the call and
-igraph's default RNG restored afterwards (Python's global ``random`` state is never touched).
+``flavor="igraph"`` a private ``numpy.random.RandomState(random_state)`` is installed as igraph's RNG for
+the call, as scanpy does (same seed -> scanpy's labels), and igraph's default RNG restored afterwards (Python's global ``random`` state is never touched).
 
 Parameters
 ----------
 connectivities : cells x cells weighted graph (``neighbors(...)["connectivities"]``).
 resolution : resolution parameter (default 1.0; higher = more clusters).
 random_state : integer seed (default 0).
-n_iterations : leidenalg iterations (-1 = until stable).
+n_iterations : Leiden iterations (-1 = until stable, both flavors, as scanpy; scanpy recommends 2 with
+    ``flavor="igraph"``).
 directed : build a directed igraph graph (scanpy default True for leidenalg).
 use_weights : use edge weights.
 flavor : ``"leidenalg"`` (default) or ``"igraph"`` (modularity, undirected).
+engine : ``"scanpy"`` (default; leidenalg / igraph called as scanpy calls them: same graph + seed ->
+    scanpy's labels) or ``"arsc"`` (``flavor="igraph"`` only: arsc's own Leiden with igraph's
+    refinement, :func:`arsc.cluster` ``refinement="igraph"``; about 4x faster at 100,000 cells, a seed
+    gives a different but equally close partition: on 100,000 PBMCs its ARI against scanpy's clustering
+    equals scanpy's own seed-to-seed ARI, ``SCANPY_PARITY.md``). Labels are numbered by decreasing
+    cluster size.
 
 Returns
 -------

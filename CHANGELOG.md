@@ -6,6 +6,26 @@ All notable changes to arsc are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `arsc.cluster(..., refinement="igraph")` and `arsc._leiden.leiden(..., refinement="igraph", beta=0.01)`: arsc's
+  Leiden with the refinement step of igraph's `community_leiden` (the engine of scanpy's `flavor="igraph"`).
+  `scanpy_extra.leiden(..., flavor="igraph", engine="arsc")` runs it on scanpy connectivities: on 100,000 PBMCs its
+  ARI against scanpy's clustering is 0.688, scanpy against itself 0.689, at 1.3 s per run vs igraph's 5.2 s
+  (`SCANPY_PARITY.md`, "Clustering agreement"). Defaults unchanged (Seurat: leidenalg's refinement).
+- `benchmarks/cluster_factors.py`: separates the arsc-scanpy clustering agreement into graph, Leiden engine, seed
+  and resolution, in memory.
+
+### Fixed
+- `scanpy_extra.leiden(flavor="igraph")` seeded igraph with `random.Random(seed)` where scanpy >= 1.10 uses a numpy
+  `RandomState(seed)` adapter, so the same seed gave a different partition than `sc.tl.leiden(flavor="igraph")`;
+  it now reproduces scanpy's labels. It also passes `n_iterations=-1` to igraph as scanpy does (it had used 2).
+
+### Changed
+- Paired benchmark: arsc's clustering step clusters scanpy's graph type (UMAP connectivities, Leiden with igraph's
+  refinement; `ARSC_BENCH_CLUSTER=scanpy`) instead of Seurat's SNN graph, which gives about 40% more clusters at the
+  same resolution and was the cause of the low arsc-scanpy ARI (0.54 at 100k). Re-run at 100k: ARI 0.628 vs scanpy
+  seed-to-seed 0.647, 3.9x faster than scanpy.
+
 ### Tests
 - Tests run on GitHub CI on every push (any branch, not only main). Locally, name the test files a change can break,
   or a group by area (`python tests/run.py knn`; the table is in `tests/run.py`); `tests/conftest.py`

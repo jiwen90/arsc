@@ -50,7 +50,7 @@ Same session, interleaved (arsc and scanpy alternate first), the same thread cou
 | Highly variable genes (2,000) | 1.26 s (1.24 s-1.27 s) | 3.70 s (3.70 s-3.70 s) | **2.9x**; 2.9x | 3 | 16 | 4-4% |  |
 | Scale + PCA (30 PCs) | 2.83 s (2.80 s-2.86 s) | 9.57 s (9.56 s-9.78 s) | **3.4x**; 3.4x | 3 | 16 | 4-4% |  |
 | k-NN graph (k = 20) | 0.68 s (0.66 s-0.70 s) | 2.47 s (2.44 s-2.49 s) | **3.6x**; 3.5x | 3 | 16 | 4-4% | recall vs exact: arsc 0.990, scanpy 0.949; overlap arsc-scanpy 0.940 vs scanpy seed 0-seed 1 0.939 |
-| k-NN + Leiden clustering | 2.28 s (2.27 s-2.34 s) | 7.73 s (7.71 s-7.75 s) | **3.4x**; 3.3x | 3 | 16 | 4-4% | ARI arsc-scanpy 0.544 vs scanpy seed 0-seed 1 0.647 (26 / 20 / 21 clusters); vs the cell-type labels arsc 0.106, scanpy 0.120 |
+| k-NN + Leiden clustering | 1.99 s (1.96 s-2.00 s) | 7.66 s (7.53 s-7.70 s) | **3.9x**; 3.8x | 3 | 16 | 3-3% | ARI arsc-scanpy 0.628 vs scanpy seed 0-seed 1 0.647 (18 / 20 / 21 clusters); vs the cell-type labels arsc 0.124, scanpy 0.120. Re-run 2026-10-26 05:00 under the timing lock (other processes 2.7% CPU on average), arsc on scanpy's graph type (UMAP connectivities, Leiden with igraph's refinement); the first run (2.28 s, ARI 0.544, 26 clusters) clustered Seurat's SNN graph |
 | Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 5.32 s (5.22 s-5.32 s) | 87 s (87 s-87 s) | **16.4x**; 16.3x | 3 | 16 | 4-4% |  |
 | Pseudobulk sums (sample x cell type) | 0.43 s (0.41 s-0.43 s) | 0.84 s (0.84 s-0.84 s) | **2.0x**; 1.9x | 3 | 16 | 4-4% |  |
 | Pseudobulk DESeq2 (paired, 25 patients x 2 timepoints) | 3.90 s (3.84 s-5.77 s) | 4.68 s (4.64 s-4.79 s) | **1.2x**; 0.8x | 3 | 16 | 4-4% |  |
@@ -66,7 +66,7 @@ Run 2026-10-26 01:53:21 under the machine-wide timing lock (16 threads, 16 physi
 | Highly variable genes (2,000) | 12 s (12 s-12 s) | 36 s (36 s-37 s) | **3.1x**; 3.0x | 3 | 16 | 4-4% |  |
 | Scale + PCA (30 PCs) | 19 s (18 s-19 s) | 99 s (99 s-100 s) | **5.3x**; 5.2x | 3 | 16 | 4-4% |  |
 | k-NN graph (k = 20) | 13 s (13 s-13 s) | 24 s (24 s-24 s) | **1.8x**; 1.8x | 3 | 16 | 4-4% | recall vs exact: arsc 0.988, scanpy 0.946; overlap arsc-scanpy 0.937 vs scanpy seed 0-seed 1 0.934 |
-| k-NN + Leiden clustering | 37 s (36 s-37 s) | 104 s (104 s-105 s) | **2.9x**; 2.8x | 3 | 16 | 4-4% | ARI arsc-scanpy 0.619 vs scanpy seed 0-seed 1 0.660 (33 / 24 / 22 clusters); vs the cell-type labels arsc 0.107, scanpy 0.122 |
+| k-NN + Leiden clustering | 37 s (36 s-37 s) | 104 s (104 s-105 s) | **2.9x**; 2.8x | 3 | 16 | 4-4% | ARI arsc-scanpy 0.619 vs scanpy seed 0-seed 1 0.660 (33 / 24 / 22 clusters); vs the cell-type labels arsc 0.107, scanpy 0.122. arsc clustered Seurat's SNN graph here (not re-run with scanpy's graph type) |
 | Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 55 s (55 s-55 s) | 77.6 min (77.6 min-77.6 min) | **84.4x**; 84.4x | 1 | 16 | 4-4% |  |
 | Pseudobulk sums (sample x cell type) | 0.96 s (0.95 s-0.98 s) | 5.23 s (5.21 s-5.24 s) | **5.4x**; 5.3x | 3 | 16 | 4-4% |  |
 | Pseudobulk DESeq2 (paired, 25 patients x 2 timepoints) | 5.71 s (5.71 s-13 s) | 6.87 s (6.85 s-6.90 s) | **1.2x**; 0.5x | 3 | 16 | 4-4% |  |

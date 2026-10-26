@@ -21,7 +21,7 @@ counts), harmony PCs for graph steps (3,000 cells, because scanpy switches from 
 | `sc.tl.pca` / `sc.pp.pca` (20+9) | `svd_solver='arpack'`, `n_comps=30/50` | `arsc.pp.pca` | covered | per-PC abs r >= 0.998 (arpack on 1,000 HVG vs gram), variance ratio diff 1.6e-5; scanpy 1.7 s vs arsc 0.46 s |
 | `sce.pp.harmony_integrate` (12) | key = sample | `arsc.run_harmony` (R harmony port) | covered, NOT validated against harmonypy | validated vs R harmony 2.0.5 / 2.1.0 / 1.2 (see HARMONY_PARITY.md). harmonypy is a different port, so expect r ~0.99 per dim, not identity |
 | `sc.pp.neighbors` (42) | `n_neighbors=30`, `use_rep='X_pca_harmony'`; 16 with `X_pca` euclidean / `X_scANVI` cosine | `scanpy_extra.neighbors` (kNN as scanpy: exact up to 4,096 cells, approximate above; + UMAP fuzzy simplicial set) | NEW | connectivities exact (max diff 0.0), distances 6e-14, euclidean and cosine |
-| `sc.tl.leiden` (25+) | `resolution` 0.4-2.0, default `leidenalg`, `random_state=0` | `scanpy_extra.leiden` | NEW | labels identical (res 0.5, 2.0), ARI 1.0 |
+| `sc.tl.leiden` (25+) | `resolution` 0.4-2.0, default `leidenalg`, `random_state=0` | `scanpy_extra.leiden` (`engine="arsc"`: own engine, igraph flavor) | NEW | labels identical (leidenalg res 0.5, 2.0; igraph flavor seeds 0 and 3), ARI 1.0; `engine="arsc"` agrees with scanpy as closely as scanpy's own seeds (ARI 0.688 vs 0.689 at 100k, "Clustering agreement") |
 | `sc.tl.umap` (25+) | default, or `min_dist=0.4, spread=1.0` | `scanpy_extra.umap_from_connectivities` | NEW | coordinates identical (max diff 0.0) |
 | `sc.tl.rank_genes_groups` (36+) | `method='wilcoxon'`, `pts=True`, `use_raw=True/False`, group by leiden / celltype / antigen_type | `scanpy_extra.rank_genes_groups` | NEW | wilcoxon (+ `tie_correct`), t-test, t-test_overestim_var, reference `rest` and a group: p-values equal to 1e-13, scores equal to float32 storage (rel 6e-8), pts exact |
 | `sc.get.rank_genes_groups_df` (50) | `group=None` | the output of `rank_genes_groups` is already that table | covered | same columns: `group, names, scores, logfoldchanges, pvals, pvals_adj` (+ `pct_nz_group`, `pct_nz_reference`) |
@@ -74,16 +74,73 @@ Agreement in the same run: k-NN recall against exact neighbors arsc 0.993, scanp
 
 * **Agreement.** k-NN recall against exact float64 neighbors of 2,000 query cells: arsc 0.990 / 0.988 (100k /
   1M), scanpy 0.949 / 0.946; arsc's overlap with scanpy (0.940 / 0.937) equals scanpy's overlap with itself under
-  another seed (0.939 / 0.934). The Leiden partitions agree less: ARI arsc-scanpy 0.54 / 0.62 against scanpy
-  seed 0-seed 1 0.65 / 0.66. The two tools cluster different graphs at the same resolution (arsc: the
-  Seurat-style shared-nearest-neighbor graph; scanpy: UMAP connectivities), and arsc finds more clusters (26 vs
-  20-21 at 100k, 33 vs 22-24 at 1M). On these PBMC data, where 30% of cells carry the label "unidentified", both
-  tools' ARI against the cell-type labels is about 0.1.
+  another seed (0.939 / 0.934). Clustering: in the first runs arsc clustered Seurat's shared-nearest-neighbor
+  graph, a different graph from scanpy's, so its partitions agreed less (ARI arsc-scanpy 0.54 / 0.62 against
+  scanpy seed 0-seed 1 0.65 / 0.66) and had more clusters (26 vs 20-21 at 100k, 33 vs 22-24 at 1M). With scanpy's
+  graph type the 100k step agrees within scanpy's own seed range (ARI 0.628 vs 0.647; 18 vs 20-21 clusters) and
+  is 3.9x faster than scanpy; the 1M row was not re-run. The factors are separated below ("Clustering agreement").
+  On these PBMC data, where 30% of cells carry the label "unidentified", both tools' ARI against the cell-type
+  labels is about 0.1.
 * **The slowest pair.** arsc's first DESeq2 run of each session was slower (5.8 s at 100k, 12.8 s at 1M, against
   3.8-3.9 s and 5.7 s for the next two), so its slowest pair loses to scanpy (0.8x, 0.5x); the medians favor arsc
   (1.2x at both sizes).
 * **Machine state.** At 100k another process briefly used up to 50% of the machine's CPU (4.1% on average); at
   1M up to 27% (2.8% on average).
+
+### Clustering agreement: graph, Leiden engine, seed
+
+arsc's clustering agrees with scanpy's as closely as scanpy agrees with itself when it clusters the same kind of
+graph. The gap in the first paired runs came from the graph: `arsc.find_neighbors(...)["snn"]` is Seurat's
+`FindNeighbors` graph (Jaccard overlap of 20-neighbor sets, pruned below 1/15), which has twice the edges of
+scanpy's UMAP connectivities (60 vs 30 per cell) and gives about 40% more clusters at the same resolution. That is
+arsc's documented Seurat convention (`SEURAT_PARITY.md`), not a departure from it. Measured with
+`benchmarks/cluster_factors.py` on the paired benchmark's 100,000-cell PBMC embedding (same 30 PCs, k = 20, Leiden
+modularity at resolution 0.8, 2 iterations), 10 seeds per pipeline; ARI against scanpy's pipeline over all 100 seed
+pairs (scanpy against itself: the 45 pairs of different seeds), on all cells; results in
+`benchmarks/results/cluster_seed_matrix_100k.csv`:
+
+| Graph | Leiden | ARI vs scanpy, mean (range) | ARI among own seeds | clusters | s per run |
+|---|---|---|---|---|---:|
+| scanpy (`sc.pp.neighbors`) | igraph (`sc.tl.leiden(flavor="igraph")`): **scanpy's pipeline** | **0.689** (0.553-0.785) | 0.689 | 18-22 | 5.2 |
+| scanpy | leidenalg | 0.646 (0.478-0.796) | 0.621 | 17-22 | 7.5 |
+| scanpy | arsc, leidenalg refinement (default) | 0.674 (0.554-0.785) | 0.657 | 18-21 | 1.6 |
+| scanpy | arsc, leidenalg refinement, `n_iterations=-1` | 0.691 (0.562-0.802) | 0.693 | 18-21 | 34 |
+| scanpy | arsc, igraph refinement | 0.697 (0.555-0.790) | 0.709 | 19-21 | 1.3 |
+| arsc UMAP (`scanpy_extra.neighbors`) | igraph | 0.696 (0.560-0.881) | 0.686 | 19-21 | 5.6 |
+| arsc UMAP | arsc, leidenalg refinement | 0.665 (0.545-0.814) | 0.653 | 17-21 | 1.3 |
+| arsc UMAP | arsc, igraph refinement (**`scanpy_extra.leiden(flavor="igraph", engine="arsc")`**) | **0.688** (0.549-0.806) | 0.687 | 18-21 | 1.3 |
+| arsc SNN (`find_neighbors`, Seurat) | igraph | 0.622 (0.463-0.693) | 0.802 | 28-29 | 7.9 |
+| arsc SNN | arsc, leidenalg refinement (first paired runs) | 0.605 (0.472-0.676) | 0.768 | 26-28 | 1.7 |
+| arsc SNN | arsc, igraph refinement | 0.617 (0.478-0.679) | 0.825 | 28-30 | 1.4 |
+| arsc SNN, resolution 0.4 (cluster count matched) | arsc, leidenalg refinement | 0.535 (0.434-0.699) | 0.781 | 16-20 | 1.7 |
+
+* **Graph.** Every pipeline on the SNN graph agrees with scanpy at ARI 0.61-0.62 whatever the engine, and
+  lowering the resolution to match scanpy's cluster count makes it worse (0.535): the SNN graph partitions the
+  cells differently, not just more finely. Single-seed resolution sweeps (0.3-1.2, every graph and engine;
+  `benchmarks/results/cluster_factors_100k.csv`) show the same: the SNN graph gives 17-34 clusters where scanpy's
+  gives 10-28.
+* **Engine.** On scanpy's own graph, arsc's Leiden with leidenalg's refinement (its port of leidenalg, the
+  Seurat engine) agrees with scanpy a little less than scanpy agrees with itself (0.674 vs 0.689), but more than
+  leidenalg does (0.646). scanpy's `flavor="igraph"` runs igraph's `community_leiden`, whose refinement step is
+  near-greedy (a well-connected singleton joins a community with probability proportional to exp(gain / 0.01))
+  where leidenalg's picks a random neighbor; with 2 iterations igraph's is steadier. arsc now has igraph's
+  refinement (`arsc.cluster(..., refinement="igraph")`), which closes the gap (0.697 on scanpy's graph, 0.688 on
+  arsc's) at 1.3 s per run against igraph's 5.2 s. leidenalg's refinement run to convergence (`n_iterations=-1`)
+  also closes it, at 34 s.
+* **Seed.** One seed pair is not a measurement: scanpy against itself ranges 0.55-0.79. Pairs that share a seed
+  and run igraph on nearly identical graphs share igraph's random stream, which inflates their ARI (the 0.881
+  maximum of arsc UMAP + igraph).
+* **`scanpy_extra.leiden(flavor="igraph")` RNG fixed.** It seeded igraph with `random.Random(seed)`; scanpy >= 1.10
+  installs a numpy `RandomState(seed)` adapter, so the same seed gave a different partition (ARI 0.61 at 100k).
+  It now uses scanpy's adapter and reproduces `sc.tl.leiden(flavor="igraph")` label for label (100k: ARI 1.0;
+  3,000 cells: identical labels, seeds 0 and 3, `tests/test_scanpy_extra.py`). It also passes `n_iterations=-1`
+  through to igraph as scanpy does (it had silently used 2).
+
+Which to use: for Seurat's convention, `arsc.find_neighbors(...)["snn"]` + `arsc.cluster(method="leiden")`
+(unchanged defaults). For scanpy's, `arsc.scanpy_extra.neighbors(emb, n_neighbors=k)["connectivities"]` +
+`arsc.scanpy_extra.leiden(conn, res, flavor="igraph", n_iterations=2)` (scanpy's labels exactly) or the same with
+`engine="arsc"` (an equally close partition, about 4x faster). The paired benchmark's arsc clustering step now
+runs the latter (`ARSC_BENCH_CLUSTER=scanpy`, set by `paired_bench.py`).
 
 These tables replace the 100,000- and 1,000,000-cell tables measured on 2026-10-25 at 3 threads on synthetic
 data beside other jobs (superseded; kept in `benchmarks/results/paired/` and the git history).
@@ -99,7 +156,7 @@ Same session, interleaved (arsc and scanpy alternate first), the same thread cou
 | Highly variable genes (2,000) | 1.26 s (1.24 s-1.27 s) | 3.70 s (3.70 s-3.70 s) | **2.9x**; 2.9x | 3 | 16 | 4-4% |  |
 | Scale + PCA (30 PCs) | 2.83 s (2.80 s-2.86 s) | 9.57 s (9.56 s-9.78 s) | **3.4x**; 3.4x | 3 | 16 | 4-4% |  |
 | k-NN graph (k = 20) | 0.68 s (0.66 s-0.70 s) | 2.47 s (2.44 s-2.49 s) | **3.6x**; 3.5x | 3 | 16 | 4-4% | recall vs exact: arsc 0.990, scanpy 0.949; overlap arsc-scanpy 0.940 vs scanpy seed 0-seed 1 0.939 |
-| k-NN + Leiden clustering | 2.28 s (2.27 s-2.34 s) | 7.73 s (7.71 s-7.75 s) | **3.4x**; 3.3x | 3 | 16 | 4-4% | ARI arsc-scanpy 0.544 vs scanpy seed 0-seed 1 0.647 (26 / 20 / 21 clusters); vs the cell-type labels arsc 0.106, scanpy 0.120 |
+| k-NN + Leiden clustering | 1.99 s (1.96 s-2.00 s) | 7.66 s (7.53 s-7.70 s) | **3.9x**; 3.8x | 3 | 16 | 3-3% | ARI arsc-scanpy 0.628 vs scanpy seed 0-seed 1 0.647 (18 / 20 / 21 clusters); vs the cell-type labels arsc 0.124, scanpy 0.120. Re-run 2026-10-26 05:00 under the timing lock (other processes 2.7% CPU on average), arsc on scanpy's graph type (UMAP connectivities, Leiden with igraph's refinement); the first run (2.28 s, ARI 0.544, 26 clusters) clustered Seurat's SNN graph |
 | Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 5.32 s (5.22 s-5.32 s) | 87 s (87 s-87 s) | **16.4x**; 16.3x | 3 | 16 | 4-4% |  |
 | Pseudobulk sums (sample x cell type) | 0.43 s (0.41 s-0.43 s) | 0.84 s (0.84 s-0.84 s) | **2.0x**; 1.9x | 3 | 16 | 4-4% |  |
 | Pseudobulk DESeq2 (paired, 25 patients x 2 timepoints) | 3.90 s (3.84 s-5.77 s) | 4.68 s (4.64 s-4.79 s) | **1.2x**; 0.8x | 3 | 16 | 4-4% |  |
@@ -115,7 +172,7 @@ Run 2026-10-26 01:53:21 under the machine-wide timing lock (16 threads, 16 physi
 | Highly variable genes (2,000) | 12 s (12 s-12 s) | 36 s (36 s-37 s) | **3.1x**; 3.0x | 3 | 16 | 4-4% |  |
 | Scale + PCA (30 PCs) | 19 s (18 s-19 s) | 99 s (99 s-100 s) | **5.3x**; 5.2x | 3 | 16 | 4-4% |  |
 | k-NN graph (k = 20) | 13 s (13 s-13 s) | 24 s (24 s-24 s) | **1.8x**; 1.8x | 3 | 16 | 4-4% | recall vs exact: arsc 0.988, scanpy 0.946; overlap arsc-scanpy 0.937 vs scanpy seed 0-seed 1 0.934 |
-| k-NN + Leiden clustering | 37 s (36 s-37 s) | 104 s (104 s-105 s) | **2.9x**; 2.8x | 3 | 16 | 4-4% | ARI arsc-scanpy 0.619 vs scanpy seed 0-seed 1 0.660 (33 / 24 / 22 clusters); vs the cell-type labels arsc 0.107, scanpy 0.122 |
+| k-NN + Leiden clustering | 37 s (36 s-37 s) | 104 s (104 s-105 s) | **2.9x**; 2.8x | 3 | 16 | 4-4% | ARI arsc-scanpy 0.619 vs scanpy seed 0-seed 1 0.660 (33 / 24 / 22 clusters); vs the cell-type labels arsc 0.107, scanpy 0.122. arsc clustered Seurat's SNN graph here (not re-run with scanpy's graph type) |
 | Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 55 s (55 s-55 s) | 77.6 min (77.6 min-77.6 min) | **84.4x**; 84.4x | 1 | 16 | 4-4% |  |
 | Pseudobulk sums (sample x cell type) | 0.96 s (0.95 s-0.98 s) | 5.23 s (5.21 s-5.24 s) | **5.4x**; 5.3x | 3 | 16 | 4-4% |  |
 | Pseudobulk DESeq2 (paired, 25 patients x 2 timepoints) | 5.71 s (5.71 s-13 s) | 6.87 s (6.85 s-6.90 s) | **1.2x**; 0.5x | 3 | 16 | 4-4% |  |
@@ -211,7 +268,8 @@ Full-size graph check (132,989 cells): arsc exact-kNN connectivities share 99.05
 - `score_genes` draws control genes from a local `RandomState(random_state)`, the same MT19937 stream scanpy draws after
   `np.random.seed`, so results match scanpy without touching the global RNG (`SEEDS.md`).
 - scanpy's `leiden` default (leidenalg, directed graph, `n_iterations=-1`) is reproduced; scanpy warns that the default will change
-  to igraph. Use `flavor="igraph"` to get the future default.
+  to igraph. Use `flavor="igraph"` (with `n_iterations=2`, as scanpy recommends) to get the future default; add
+  `engine="arsc"` for arsc's own engine (not label-identical; equally close, "Clustering agreement").
 - Palantir/hotspot validation used pip packages installed into a separate directory (scikit-misc 0.5.3,
   palantir 1.4.5, hotspotsc 1.1.3), not into the main environment; and the corresponding tests skip if the packages are absent.
 - Not ported (GAPs): the Palantir pseudotime run itself (waypoints, fate probabilities, branch selection), Hotspot
