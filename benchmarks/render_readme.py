@@ -2,8 +2,9 @@
 
     python benchmarks/render_readme.py [--dry-run]
 
-Also writes the detailed arsc vs Seurat tables (ranges, load and warm-up times, agreement) between
-``<!-- SEURAT_TIMING:START -->`` and ``<!-- SEURAT_TIMING:END -->`` in SEURAT_PARITY.md.
+arsc vs Seurat runs are included only when they ran under the timing lock with other processes below
+MAX_OTHER_LOAD; then the detailed tables also go between ``<!-- SEURAT_TIMING:START -->`` and
+``<!-- SEURAT_TIMING:END -->`` in SEURAT_PARITY.md (when those markers are present).
 
 One table per size, from the most recent real-store session of each (size, step) in results/paired/runs.jsonl and
 from results/seurat/seurat_timing_n<size>.json; written between ``<!-- SPEED:START -->`` and ``<!-- SPEED:END -->``
@@ -76,9 +77,25 @@ def complete_markers(r: dict) -> dict:
     return r
 
 
+MAX_OTHER_LOAD = 5.0   # % of the machine's CPU used by other processes (mean) above which a run is not published
+
+
+def tag(n: int) -> str:
+    return f"{n // 1_000_000}m" if n >= 1_000_000 else f"{n // 1000}k"
+
+
+def other_load(f: Path):
+    """Mean CPU use of other processes during a locked run (tools/timing_lock.py JSON), or None."""
+    return json.loads(f.read_text()).get("other_cpu_pct_mean") if f.exists() else None
+
+
 def seurat(n: int):
+    """The arsc vs Seurat run at this size, only if it ran under the timing lock with low load from other processes."""
     f = S / f"seurat_timing_n{n}.json"
-    return complete_markers(json.loads(f.read_text())) if f.exists() else None
+    load = other_load(S / f"timing_arsc-seurat-{tag(n)}.json")
+    if not f.exists() or load is None or load > MAX_OTHER_LOAD:
+        return None
+    return complete_markers(json.loads(f.read_text()))
 
 
 def table(n: int, pr: dict) -> list[str]:
@@ -135,8 +152,7 @@ def render() -> str:
             if sr["seurat"].get("markers_estimate_s"):
                 cond += (f". \\*Seurat's markers did not fit the time budget: "
                          f"{sr['seurat']['markers_estimate_basis']}")
-        else:
-            cond += "; Seurat not timed at this size"
+
         out += [cond + ".", ""]
     return "\n".join(out).rstrip() + "\n"
 
@@ -154,8 +170,8 @@ ARSC_CALL = {"normalize": "`pp.log_normalize`", "hvg": "`pp.hvg_vst`", "pca": "`
 def seurat_detail() -> str:
     out = []
     for f in sorted(S.glob("seurat_timing_n*.json"), key=lambda f: int(f.stem.split("_n")[-1])):
-        r = complete_markers(json.loads(f.read_text()))
-        if "seurat" not in r:
+        r = seurat(int(f.stem.split("_n")[-1]))
+        if r is None or "seurat" not in r:
             continue
         se, ag, th = r["seurat"], r["agreement"], r["seurat"]["threads"]
         out += [f"**{r['n']:,} cells** (run {r['time']}):", "",
@@ -230,4 +246,5 @@ if __name__ == "__main__":
     print(d)
     if not a.dry_run:
         inject(ROOT / "README.md", t)
-        inject(ROOT / "SEURAT_PARITY.md", d, "<!-- SEURAT_TIMING:START -->", "<!-- SEURAT_TIMING:END -->")
+        if d.strip() and "<!-- SEURAT_TIMING:START -->" in (ROOT / "SEURAT_PARITY.md").read_text(encoding="utf-8"):
+            inject(ROOT / "SEURAT_PARITY.md", d, "<!-- SEURAT_TIMING:START -->", "<!-- SEURAT_TIMING:END -->")

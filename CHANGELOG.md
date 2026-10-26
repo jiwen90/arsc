@@ -14,7 +14,8 @@ All notable changes to arsc are recorded here. The format follows
   (`SCANPY_PARITY.md`, "Clustering agreement"). Defaults unchanged (Seurat: leidenalg's refinement).
 - `benchmarks/seurat_timing.py` (+ `r_seurat_timing.R`): arsc's defaults against Seurat 4.3 step by step on a real
   store, with cluster ARI and marker agreement; R reads the subset straight from the store's `.npy` files, so no
-  benchmark data is written. `benchmarks/render_readme.py` builds the README's compact timing tables.
+  benchmark data is written (results not yet published). `benchmarks/render_readme.py` builds the README's compact
+  timing tables.
 - `benchmarks/cluster_factors.py`: separates the arsc-scanpy clustering agreement into graph, Leiden engine, seed
   and resolution, in memory.
 
@@ -35,8 +36,8 @@ All notable changes to arsc are recorded here. The format follows
 
 ### Changed
 - README: plain introduction stating that arsc follows Seurat's algorithms by default (SNN graph, Louvain at
-  resolution 0.6), compact timing tables at 10,000, 100,000 and 1,000,000 cells (Seurat at 10,000 and 100,000
-  only); the older three-way suite table and the earlier one-off measurements were removed from the README (they
+  resolution 0.6), compact arsc vs scanpy timing tables at 10,000, 100,000 and 1,000,000 cells (Seurat comparison
+  pending); the older three-way suite table and the earlier one-off measurements were removed from the README (they
   remain in `benchmarks/results/` and git history).
 - Paired benchmark: arsc's clustering step clusters scanpy's graph type (UMAP connectivities, Leiden with igraph's
   refinement; `ARSC_BENCH_CLUSTER=scanpy`) instead of Seurat's SNN graph, which gives about 40% more clusters at the

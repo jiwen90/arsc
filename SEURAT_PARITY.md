@@ -218,75 +218,16 @@ The real-data rows (80,000 events) were not re-run: those data are not distribut
 
 ## 6. Timing against Seurat
 
-arsc's defaults against Seurat 4.3.0 (SeuratObject 5.0.2, R 4.3.1), step by step with the same parameters, on
-deterministic subsets (seed 0) of a 1.37M-cell PBMC store (36,601 genes, 36 cell-type labels): the same cells as the
-paired arsc vs scanpy tables (`SCANPY_PARITY.md`). Seurat was timed at 10,000 and 100,000 cells only; at
-1,000,000 cells its steps take hours (the earlier three-way suite timed out on `ScaleData` + `RunPCA`).
-`benchmarks/seurat_timing.py` (R side: `benchmarks/r_seurat_timing.R`; tables: `benchmarks/render_readme.py`), each
-size under the machine-wide timing lock on a 16-core machine. Each tool runs its own chain (arsc's PCA feeds arsc's
-graph, Seurat's feeds Seurat's), as a user would. Warm runs only; arsc is the median of 3 runs at 16 threads, Seurat
-one run on one thread, which is Seurat's default: R's reference BLAS is single-threaded and `future` runs
-sequentially unless a parallel plan is set. Seurat 4.3's `FindAllMarkers` runs limma's rank-sum test per gene
-after extracting that gene's row from the column-compressed matrix, so its time grows with cells x genes x cell
-types. Earlier runs: the 2026-10-15 three-way suite on simulated data (`benchmarks/results/suite/`) and the git history.
+Seurat timing comparison pending. `benchmarks/seurat_timing.py` (R side `benchmarks/r_seurat_timing.R`) runs arsc's
+defaults against Seurat 4.3 step by step on a real store, reading the cells in R straight from the store's `.npy`
+files; first runs on 2026-10-26 shared the machine with other jobs (10-27% of its CPU on average) and are not
+published.
 
-<!-- SEURAT_TIMING:START -->
-**10,000 cells** (run 2026-10-26 11:38:48):
-
-| Seurat call | arsc call | arsc, median (min-max) | Seurat | speed-up |
-|---|---|---:|---:|---:|
-| `NormalizeData` | `pp.log_normalize` | 0.02 s (0.02 s-0.02 s) | 0.70 s | 28.6x |
-| `FindVariableFeatures` (vst, 2,000) | `pp.hvg_vst` | 0.20 s (0.20 s-0.21 s) | 1.22 s | 6.2x |
-| `ScaleData` + `RunPCA` (30) | `pp.scale` + `pp.pca` | 1.35 s (1.32 s-1.35 s) | 3.81 s | 2.8x |
-| `FindNeighbors` (k = 20) | `find_neighbors` | 0.07 s (0.07 s-0.08 s) | 1.64 s | 22.5x |
-| `FindClusters` (Louvain, resolution 0.6) | `cluster` | 0.21 s (0.20 s-0.21 s) | 0.87 s | 4.2x |
-| `FindAllMarkers` (Wilcoxon) | `find_all_markers` | 7.59 s (7.56 s-7.60 s) | 23 min | 178x |
-| `AggregateExpression` (sample x cell type) | `pseudobulk` | 0.30 s (0.28 s-0.31 s) | 0.63 s | 2.1x |
-| `AddModuleScore` (3 sets of 30 genes) | `add_module_score` | 0.40 s (0.40 s-0.40 s) | 0.54 s | 1.3x |
-
-Not timed: R package load 1.77 s, reading the cells from the store 3.87 s, `CreateSeuratObject` 1.18 s, warm-up on 2,000 cells 229 s; arsc import 0.99 s, warm-up (numba compilation) on 10,000 cells 10 s. Seurat threads: BLAS 1 (R's reference BLAS), `future` workers 1; arsc 16 threads.
-
-Agreement (each tool on its own chain):
-
-* Variable genes: 2,000 of 2,000 shared.
-* Clusters: ARI arsc-Seurat 0.815; Seurat seed 0-seed 1 0.951; arsc seed 0-seed 1 0.884 (15 / 13 / 14 clusters: arsc / Seurat / Seurat seed 1); against the cell-type labels arsc 0.126, Seurat 0.122.
-* Markers: 24,217 Seurat rows, 24,217 arsc rows, Jaccard of (cell type, gene) 1.000; avg_log2FC max diff 5.8e-15, p max rel. diff 2.0e-13; top-10 positive markers per cell type shared 100% on average (min 100%).
-* Pseudobulk: 1,367 groups each, total counts identical.
-* Module scores: max diff 4.6e-15 on the first 5,000 cells.
-
-**100,000 cells** (run 2026-10-26 12:10:46):
-
-| Seurat call | arsc call | arsc, median (min-max) | Seurat | speed-up |
-|---|---|---:|---:|---:|
-| `NormalizeData` | `pp.log_normalize` | 0.22 s (0.20 s-0.22 s) | 6.90 s | 31.4x |
-| `FindVariableFeatures` (vst, 2,000) | `pp.hvg_vst` | 1.25 s (1.24 s-1.26 s) | 6.58 s | 5.3x |
-| `ScaleData` + `RunPCA` (30) | `pp.scale` + `pp.pca` | 3.21 s (3.17 s-3.33 s) | 31 s | 9.6x |
-| `FindNeighbors` (k = 20) | `find_neighbors` | 0.70 s (0.67 s-0.71 s) | 22 s | 31.8x |
-| `FindClusters` (Louvain, resolution 0.6) | `cluster` | 8.84 s (8.58 s-9.01 s) | 28 s | 3.2x |
-| `FindAllMarkers` (Wilcoxon) | `find_all_markers` | 75 s (75 s-75 s) | ~176 min (estimate\*) | ~141x |
-| `AggregateExpression` (sample x cell type) | `pseudobulk` | 0.48 s (0.47 s-0.49 s) | 4.62 s | 9.6x |
-| `AddModuleScore` (3 sets of 30 genes) | `add_module_score` | 2.83 s (2.80 s-2.83 s) | 5.23 s | 1.8x |
-
-\*`FindAllMarkers` did not fit the time budget. It is `FindMarkers` for each cell type in turn, so the cell types were run one by one in a seeded random order until 70 min had passed: cd4_tfh (2,545 cells) 40 s, b_memory_exhausted (91 cells) 334 s, unidentified (29,780 cells) 142 s, gd_non_v2 (223 cells) 346 s, cd8_tem (3,155 cells) 110 s, mait (1,766 cells) 131 s, cdc (72 cells) 12 min, innate_t (533 cells) 72 s, b_memory_switched (50 cells) 420 s, cd8_t_exhausted (745 cells) 246 s, intermediate_monocyte (407 cells) 12 min, cd4_t_cytotoxic (1,925 cells) 107 s, cd4_th1 (1,712 cells) 89 s, pdc (46 cells) 12 min. Estimate = 14 of 35 cell types timed (4214 s, 40-736 s each); mean x 35.
-
-Not timed: R package load 1.82 s, reading the cells from the store 12 s, `CreateSeuratObject` 6.62 s, warm-up on 2,000 cells 247 s; arsc import 1.05 s, warm-up (numba compilation) on 12,000 cells 12 s. Seurat threads: BLAS 1 (R's reference BLAS), `future` workers 1; arsc 16 threads.
-
-Agreement (each tool on its own chain):
-
-* Variable genes: 1,998 of 2,000 shared.
-* Clusters: ARI arsc-Seurat 0.819; Seurat seed 0-seed 1 0.809; arsc seed 0-seed 1 0.780 (24 / 25 / 25 clusters: arsc / Seurat / Seurat seed 1); against the cell-type labels arsc 0.100, Seurat 0.111.
-* Markers (14 cell types Seurat finished): 13,014 Seurat rows, 13,014 arsc rows, Jaccard of (cell type, gene) 1.000; avg_log2FC max diff 5.8e-15, p max rel. diff 3.6e-11; top-10 not compared: this run's per-cell-type loop kept `FindMarkers`' tie order instead of `FindAllMarkers`' re-sort (see the note below the tables).
-* Pseudobulk: 2,030 groups each, total counts identical.
-* Module scores: max diff 4.7e-15 on the first 5,000 cells.
-<!-- SEURAT_TIMING:END -->
-
-Marker order at 100,000 cells. Many p values underflow to 0 there, so the order among tied rows decides the top of
-each list. Seurat 4.3's `FindMarkers` sorts by `order(p_val, -de.results[, 1])`, and column 1 is `p_val`, so ties keep
-the feature order; `FindAllMarkers` then re-sorts each cell type by `p_val` and `-avg_log2FC`. The 100,000-cell run
-above called `FindMarkers` per cell type without that re-sort, so its tie order differs from `FindAllMarkers` (top-10
-overlap 62% on average, min 0%, although every row, p value and fold change agreed). A separate check on the same
-100,000 cells (cd4_tfh, cd8_tem, mait; not timed): `arsc.find_markers` gives `FindMarkers`' exact order for
-cd4_tfh and cd8_tem, and `find_all_markers` gives `FindAllMarkers`' exact order for them; for mait the order differs
-only where one tool's p is a denormal near 1e-308 and the other's is 0 (21 vs 22 zeros); the top 10 matched in all
-three. The check also found that `arsc.find_markers` broke ties by `-avg_log2FC`, unlike `FindMarkers`; it now
-keeps the feature order. The benchmark's R loop now re-sorts as `FindAllMarkers` does.
+Marker order on large data. Many p values underflow to 0 at 100,000 cells, so the order among tied rows decides the
+top of each marker list. Seurat 4.3's `FindMarkers` sorts by `order(p_val, -de.results[, 1])`, and column 1 is
+`p_val`, so ties keep the feature order; `FindAllMarkers` then re-sorts each cell type by `p_val` and
+`-avg_log2FC`. A check on 100,000 PBMCs (cd4_tfh, cd8_tem, mait; not timed) against Seurat found every row, p value
+and fold change equal; `arsc.find_markers` now gives `FindMarkers`' exact order for cd4_tfh and cd8_tem and
+`find_all_markers` gives `FindAllMarkers`' exact order for them; for mait the order differs only where one tool's p
+is a denormal near 1e-308 and the other's is 0 (21 vs 22 zeros), and the top 10 matched in all three. Before this
+check `arsc.find_markers` broke ties by `-avg_log2FC`, unlike `FindMarkers` (`tests/test_marker_ties.py`).
