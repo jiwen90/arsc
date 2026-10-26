@@ -1,0 +1,216 @@
+{
+ "n": 10000,
+ "n_store": 1371548,
+ "seed": 0,
+ "repeats_arsc": 3,
+ "time": "2026-10-26 11:38:48",
+ "threads_arsc": 16,
+ "AR_THREADS": "16",
+ "arsc": {
+  "version": "0.3.0",
+  "import_s": 0.9929210001137108,
+  "read_subset_s": 2.096107800025493,
+  "warmup_s": 10.495972599834204,
+  "warm_times": {
+   "normalize": 0.25250139995478094,
+   "hvg": 0.22223789989948273,
+   "pca": 1.324621100211516,
+   "neighbors": 0.16598379984498024,
+   "cluster": 0.2831567001994699,
+   "markers": 7.5082962000742555,
+   "pseudobulk": 0.2932814999949187,
+   "score_module": 0.3965616999194026
+  },
+  "times": {
+   "normalize": [
+    0.024429300101473927,
+    0.024638399947434664,
+    0.024216100107878447
+   ],
+   "hvg": [
+    0.1969844999257475,
+    0.1971161998808384,
+    0.20576580008491874
+   ],
+   "pca": [
+    1.3542569000273943,
+    1.3489184000063688,
+    1.3241609998513013
+   ],
+   "neighbors": [
+    0.07893990003503859,
+    0.07186180003918707,
+    0.07281729998067021
+   ],
+   "cluster": [
+    0.20254889992065728,
+    0.20726830000057817,
+    0.207175699993968
+   ],
+   "markers": [
+    7.601848799968138,
+    7.55510829994455,
+    7.588020799914375
+   ],
+   "pseudobulk": [
+    0.28236870002001524,
+    0.3052988999988884,
+    0.30356169980950654
+   ],
+   "score_module": [
+    0.4016626998782158,
+    0.3996234000660479,
+    0.39851139998063445
+   ]
+  }
+ },
+ "platform": {
+  "python": "3.11.5",
+  "machine": "AMD64 Family 25 Model 8 Stepping 2, AuthenticAMD",
+  "os": "Windows-10-10.0.26200-SP0"
+ },
+ "seurat": {
+  "tool": "seurat",
+  "n": 10000,
+  "times": {
+   "normalize": 0.698495864868164,
+   "hvg": 1.22007703781128,
+   "pca": 3.80760502815247,
+   "neighbors": 1.63519191741943,
+   "cluster": 0.866219043731689,
+   "markers": 1353.45210981369,
+   "pseudobulk": 0.631253004074097,
+   "score_module": 0.537684917449951
+  },
+  "warm_times": {
+   "normalize": 0.236179828643799,
+   "hvg": 0.644550085067749,
+   "pca": 0.939496994018555,
+   "neighbors": 0.411586999893188,
+   "cluster": 0.1319260597229,
+   "markers": 226.398030042648,
+   "pseudobulk": 0.118487119674683,
+   "score_module": 0.155942916870117
+  },
+  "warm_n": 2000,
+  "package_load_s": 1.76723098754883,
+  "read_store_s": 3.87297391891479,
+  "create_object_s": 1.18147492408752,
+  "warmup_s": 229.080942869186,
+  "threads": {
+   "blas_threads": 1,
+   "omp_max_threads": 16,
+   "future_plan": "FutureStrategy",
+   "future_workers": 1,
+   "blas_lib": ""
+  },
+  "r_version": "R version 4.3.1 (2023-06-16 ucrt)",
+  "versions": {
+   "Seurat": "4.3.0",
+   "SeuratObject": "5.0.2",
+   "Matrix": "1.6.5",
+   "limma": "3.58.1",
+   "irlba": "2.3.5.1",
+   "RcppAnnoy": "0.0.22"
+  },
+  "process_wall_s": 1602.0628011999652
+ },
+ "agreement": {
+  "hvg_shared": 2000,
+  "ari_arsc_seurat": 0.8149799220004438,
+  "ari_seurat_seed0_seed1": 0.9506548620569935,
+  "ari_arsc_seed0_seed1": 0.8836031459405772,
+  "ari_arsc_celltype": 0.12645158400884846,
+  "ari_seurat_celltype": 0.1224139921771924,
+  "n_clusters_arsc": 15,
+  "n_clusters_seurat": 13,
+  "n_clusters_seurat_seed1": 14,
+  "markers_rows_arsc": 24217,
+  "markers_rows_seurat": 24217,
+  "markers_rows_jaccard": 1.0,
+  "markers_log2fc_maxdiff": 5.773159728050814e-15,
+  "markers_p_max_rel_diff": 2.0448168907821468e-13,
+  "markers_top10_overlap_mean": 1.0,
+  "markers_top10_overlap_min": 1.0,
+  "pseudobulk_total_arsc": 46723106.0,
+  "pseudobulk_total_seurat": 46723106.0,
+  "pseudobulk_groups_arsc": 1367,
+  "pseudobulk_groups_seurat": 1367,
+  "score_module_maxdiff_first_cells": 4.649058915617843e-15,
+  "score_module_cells_compared": 5000
+ },
+ "summary": [
+  {
+   "step": "normalize",
+   "label": "Log-normalize (NormalizeData)",
+   "arsc_median_s": 0.024429300101473927,
+   "arsc_min_s": 0.024216100107878447,
+   "arsc_max_s": 0.024638399947434664,
+   "seurat_s": 0.698495864868164,
+   "speedup": 28.59254509817171
+  },
+  {
+   "step": "hvg",
+   "label": "Highly variable genes, vst (FindVariableFeatures)",
+   "arsc_median_s": 0.1971161998808384,
+   "arsc_min_s": 0.1969844999257475,
+   "arsc_max_s": 0.20576580008491874,
+   "seurat_s": 1.22007703781128,
+   "speedup": 6.189633518446716
+  },
+  {
+   "step": "pca",
+   "label": "Scale + PCA, 30 PCs (ScaleData + RunPCA)",
+   "arsc_median_s": 1.3489184000063688,
+   "arsc_min_s": 1.3241609998513013,
+   "arsc_max_s": 1.3542569000273943,
+   "seurat_s": 3.80760502815247,
+   "speedup": 2.822709682167945
+  },
+  {
+   "step": "neighbors",
+   "label": "SNN graph, k = 20 (FindNeighbors)",
+   "arsc_median_s": 0.07281729998067021,
+   "arsc_min_s": 0.07186180003918707,
+   "arsc_max_s": 0.07893990003503859,
+   "seurat_s": 1.63519191741943,
+   "speedup": 22.456091036793474
+  },
+  {
+   "step": "cluster",
+   "label": "Louvain, resolution 0.6 (FindClusters)",
+   "arsc_median_s": 0.207175699993968,
+   "arsc_min_s": 0.20254889992065728,
+   "arsc_max_s": 0.20726830000057817,
+   "seurat_s": 0.866219043731689,
+   "speedup": 4.181084189684936
+  },
+  {
+   "step": "markers",
+   "label": "Markers, Wilcoxon, 36 cell types (FindAllMarkers)",
+   "arsc_median_s": 7.588020799914375,
+   "arsc_min_s": 7.55510829994455,
+   "arsc_max_s": 7.601848799968138,
+   "seurat_s": 1353.45210981369,
+   "speedup": 178.36694778550984
+  },
+  {
+   "step": "pseudobulk",
+   "label": "Pseudobulk sums, sample x cell type (AggregateExpression)",
+   "arsc_median_s": 0.30356169980950654,
+   "arsc_min_s": 0.28236870002001524,
+   "arsc_max_s": 0.3052988999988884,
+   "seurat_s": 0.631253004074097,
+   "speedup": 2.0794883032682514
+  },
+  {
+   "step": "score_module",
+   "label": "Module score, 3 sets of 30 genes (AddModuleScore)",
+   "arsc_median_s": 0.3996234000660479,
+   "arsc_min_s": 0.39851139998063445,
+   "arsc_max_s": 0.4016626998782158,
+   "seurat_s": 0.537684917449951,
+   "speedup": 1.3454790619395283
+  }
+ ]
+}

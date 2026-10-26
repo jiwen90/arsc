@@ -56,6 +56,13 @@ def lognorm_arsc(X):
     return arsc.pp.log_normalize(X)
 
 
+def marker_groups(g) -> list:
+    """Cell types with at least 3 cells (Seurat's min.cells.group): a 1-cell group stops both tools' Wilcoxon, which
+    happens in small subsets of real data; the other cells stay in every group's reference ("rest")."""
+    v, c = np.unique(np.asarray(g, dtype=str), return_counts=True)
+    return [str(x) for x in v[c >= 3]]
+
+
 # ------------------------------------------------------------------ arsc
 def run_arsc(step, D, out, T):
     import arsc
@@ -119,7 +126,7 @@ def run_arsc(step, D, out, T):
         L = arsc.normalize_total_log1p(D.X, dtype=np.float32)
         g = obs["cell_type"].astype(str).to_numpy()
         with T:
-            r = arsc.rank_genes_groups(L, g, genes)
+            r = arsc.rank_genes_groups(L, g, genes, groups_subset=marker_groups(g))
         if out is not None:   # file outputs only in the on-disk suite (run_suite.py)
             r.rename(columns={"names": "feature", "pvals": "pval", "scores": "statistic"})[
                 ["group", "feature", "statistic", "pval"]].to_parquet(out / "rank_genes.parquet")
@@ -249,7 +256,8 @@ def run_scanpy(step, D, out, T):
         sc.pp.log1p(a)
         a.obs["cell_type"] = a.obs["cell_type"].astype(str).astype("category")
         with T:
-            sc.tl.rank_genes_groups(a, "cell_type", method="wilcoxon", n_genes=a.n_vars, use_raw=False)
+            sc.tl.rank_genes_groups(a, "cell_type", method="wilcoxon", n_genes=a.n_vars, use_raw=False,
+                                    groups=marker_groups(a.obs["cell_type"].to_numpy()))
         r = sc.get.rank_genes_groups_df(a, None)
         if out is not None:   # file outputs only in the on-disk suite (run_suite.py)
             r.rename(columns={"names": "feature", "pvals": "pval", "scores": "statistic"})[

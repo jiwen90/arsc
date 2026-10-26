@@ -199,9 +199,13 @@ def _wilcox_rest_sparse(C, codes, G):
     Returns ``R`` (G x P) rank sums with the zero block averaged, and ``tc`` (P,) = sum(t^3 - t) over ties.
     """
     N, P = C.shape
+    # cells outside the compared groups (code -1, scanpy ``groups=``) are ranked but summed into an extra column G
+    # that is dropped (a -1 index would wrap around to the last group)
+    c2 = np.where(codes < 0, G, codes).astype(np.int64)
     rs, nnz, _sums, ties = _rank_stats(C.indptr.astype(np.int64), C.indices.astype(np.int64),
-                                       C.data.astype(np.float64), codes.astype(np.int64), G, N)
-    n_g = np.bincount(codes, minlength=G).astype(np.float64)
+                                       C.data.astype(np.float64), c2, G + 1, N)
+    rs, nnz = rs[:, :G], nnz[:, :G]
+    n_g = np.bincount(c2, minlength=G + 1)[:G].astype(np.float64)
     nz = (N - np.diff(C.indptr)).astype(np.float64)
     R = rs + (n_g[None, :] - nnz) * ((nz + 1.0) / 2.0)[:, None]
     allzero = np.diff(C.indptr) == 0
@@ -246,7 +250,7 @@ def _wilcox_scores_rest(X, codes, G, tie_correct):
             R, ties = _wilcox_rest_sparse(Cc, codes, G)
         else:
             R, ties = _wilcox_dense(Xd, codes, G)
-    n_g = np.bincount(codes, minlength=G).astype(np.float64)
+    n_g = np.bincount(codes[codes >= 0], minlength=G).astype(np.float64)
     coef = (1.0 - ties / (float(N) ** 3 - N)) if tie_correct else np.ones_like(ties)
     sd = np.sqrt(coef[None, :] * (n_g * (N - n_g) * (N + 1) / 12.0)[:, None])
     with np.errstate(divide="ignore", invalid="ignore"):

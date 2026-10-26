@@ -66,6 +66,9 @@ CPU on average during the run (at most 27.9%).
 Agreement in the same run: k-NN recall against exact neighbors arsc 0.993, scanpy 0.949 (overlap arsc-scanpy
 0.943); Leiden ARI against the cell types arsc 0.995, scanpy 0.996, arsc-scanpy 0.997 (10 clusters each).
 
+**10,000 real cells, 16 cores** (2026-10-26, `--sizes 10000`, same settings): arsc was faster on 6 of 8 steps
+(1.2x-17x) and slower on two: Scale + PCA (0.9x: 1.30 s vs 1.24 s) and pseudobulk sums (0.8x: 0.27 s vs 0.23 s).
+
 **100,000 and 1,000,000 real cells, 16 cores** (2026-10-26; `benchmarks/paired_bench.py --sizes 100000` and
 `--sizes 1000000 --step-repeats rank_genes=1`, `--threads 16 --repeats 3 --quality`, each size under
 `tools/timing_lock.py run` with nothing else admitted). arsc was faster than scanpy on all 9 steps at both sizes:
@@ -142,11 +145,30 @@ Which to use: for Seurat's convention, `arsc.find_neighbors(...)["snn"]` + `arsc
 `engine="arsc"` (an equally close partition, about 4x faster). The paired benchmark's arsc clustering step now
 runs the latter (`ARSC_BENCH_CLUSTER=scanpy`, set by `paired_bench.py`).
 
-These tables replace the 100,000- and 1,000,000-cell tables measured on 2026-10-25 at 3 threads on synthetic
-data beside other jobs (superseded; kept in `benchmarks/results/paired/` and the git history).
+Older paired runs: `benchmarks/results/paired/` (runs.jsonl, summary_*.csv) and the git history.
 
 <!-- PAIRED:START -->
-Same session, interleaved (arsc and scanpy alternate first), the same thread count for both; median (min-max) of the runs; machine state = system CPU use in the second before each run and the framework's CPU leases (other jobs on the shared machine). Real data: a deterministic subset (seed 0) of 100,000 or 1,000,000 cells of a 1.37M-cell PBMC store (36,601 genes, 32 patients, 36 cell-type labels), read memory-mapped and held in memory; nothing written to disk but these tables. Both tools in one process at 16 threads; every step run once untimed first (on a 12,000-cell toy dataset, so numba compilation is excluded).
+Same session, interleaved (arsc and scanpy alternate first), the same thread count for both; median (min-max) of the runs; machine state = system CPU use in the second before each run and the framework's CPU leases (other jobs on the shared machine). Real data: a deterministic subset (seed 0) of 10,000, 100,000 or 1,000,000 cells of a 1.37M-cell PBMC store (36,601 genes, 32 patients, 36 cell-type labels), read memory-mapped and held in memory; nothing written to disk but these tables. Both tools in one process at 16 threads; every step run once untimed first (on a 12,000-cell toy dataset, so numba compilation is excluded).
+
+**10,000 cells**:
+
+| Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
+|---|---:|---:|---|---:|---:|---|---|
+| Log-normalize | 0.02 s (0.02 s-0.02 s) | 0.12 s (0.12 s-0.14 s) | **5.9x**; 5.4x | 3 | 16 | 5-5% |  |
+| Highly variable genes (2,000) | 0.20 s (0.19 s-0.20 s) | 0.41 s (0.41 s-0.41 s) | **2.0x**; 2.0x | 3 | 16 | 5-5% |  |
+| Scale + PCA (30 PCs) | 1.30 s (1.30 s-1.31 s) | 1.24 s (1.22 s-1.30 s) | **0.9x**; 0.9x | 3 | 16 | 5-5% |  |
+| k-NN graph (k = 20) | 0.07 s (0.07 s-0.08 s) | 1.25 s (1.25 s-1.29 s) | **16.7x**; 15.7x | 3 | 16 | 5-5% | recall vs exact: arsc 0.996, scanpy 0.949; overlap arsc-scanpy 0.946 vs scanpy seed 0-seed 1 0.946 |
+| k-NN + Leiden clustering | 0.14 s (0.13 s-0.14 s) | 1.46 s (1.45 s-1.46 s) | **10.8x**; 10.7x | 3 | 16 | 5-5% | ARI arsc-scanpy 0.714 vs scanpy seed 0-seed 1 0.667 (15 / 15 / 16 clusters); vs the cell-type labels arsc 0.128, scanpy 0.126 |
+| Pseudobulk sums (sample x cell type) | 0.27 s (0.27 s-0.28 s) | 0.23 s (0.22 s-0.24 s) | **0.8x**; 0.8x | 3 | 16 | 5-5% |  |
+| Pseudobulk DESeq2 (paired) | 1.65 s (1.65 s-1.93 s) | 1.96 s (1.92 s-2.15 s) | **1.2x**; 1.0x | 3 | 16 | 5-5% |  |
+| scanpy gene-set score (3 sets of 30 genes) | 0.23 s (0.23 s-0.23 s) | 0.40 s (0.39 s-0.40 s) | **1.7x**; 1.7x | 3 | 16 | 5-5% |  |
+
+Run 2026-10-26 11:34:11 under the machine-wide timing lock (16 threads, 16 physical cores, 4 min including data loading and warm-up): other processes used 8.3% of the machine's CPU on average (at most 32.8%; 2.66 cores on average), sampled every second (218 samples).
+
+Markers were not timed at 10,000 cells: this subset has a cell type with 1 cell, which stopped both tools' Wilcoxon.
+The benchmark now leaves out cell types with fewer than 3 cells (and arsc's `groups_subset` crash this exposed is
+fixed); the 10,000-cell marker row still needs a run under the timing lock.
+
 
 **100,000 cells**:
 
@@ -234,25 +256,9 @@ First call in a fresh process (`benchmarks/cold_start.py --what knn`, 100,000 to
 `arsc.knn` 7.1 s with an empty numba cache (one-off compilation) and 1.1 s once compiled kernels are cached on disk;
 `scanpy.pp.neighbors` 50-55 s. pynndescent's own one-off compilation (about 30 s) is gone from arsc.
 
-## Speed, earlier single measurements (32-thread workstation, not paired)
+## Speed, earlier single measurements
 
-| step | scanpy | arsc |
-|---|---|---|
-| `rank_genes_groups` wilcoxon, 20k cells x 3,000 genes x 24 groups (`pts=True`) | 1.8 s (4.1 s with `tie_correct`) | 0.26 s (7-18x) |
-| `rank_genes_groups` wilcoxon, all 132,989 cells | 12.7 s | 1.3 s (10x) |
-| t-test (either), 20k cells | 1.0 s | 0.15-0.18 s (6x) |
-| `score_genes`, 20k cells | 0.12 s | 0.03 s |
-| `neighbors` (3,000 cells, scanpy includes numba compile) | 16 s | 1.3 s |
-| `neighbors`, all 132,989 cells (30 NN, harmony PCs) | 55 s (pynndescent, approximate) | 24 s (exact kNN; arsc 0.3 default, now `method="exact"`) |
-| `leiden` res 2.0, `n_iterations=-1`, 133k cells (22 clusters) | 880 s | 1,086 s (same leidenalg; single-threaded; no gain). Use `n_iterations=2` for speed |
-| `calculate_qc_metrics`, 20k cells | 0.12 s | 0.02 s |
-| `regress_out` (2 covariates) | 3-10 s | 1.1 s |
-| `pca` (30 comps, 1,000 HVG, 20k cells) | 1.7 s | 0.46 s |
-| `run_diffusion_maps` (3,000 cells) | 0.17 s | 0.05 s |
-| `run_magic_imputation` (3,000 cells x 3,000 genes) | 6.4 s | 0.5 s (13x) |
-| HVG seurat / cell_ranger | 0.1-0.3 s | 0.04-0.1 s |
-
-Full-size graph check (132,989 cells): arsc exact-kNN connectivities share 99.05% of scanpy's approximate-kNN edges (6.47M nnz each); Leiden res 2.0 on the two graphs agree at ARI 0.936. Leiden itself is not accelerated.
+Earlier unpaired timings (a 32-thread workstation, 2026-10) are in the git history of this file.
 
 ## Caveats
 - scanpy stores `scores`, `logfoldchanges` and `dispersions_norm` as float32; "exact" means equal at that precision.

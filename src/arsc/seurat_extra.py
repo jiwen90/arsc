@@ -367,8 +367,9 @@ def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, c
 
     Returns
     -------
-    DataFrame indexed by feature: ``p_val, avg_log2FC, pct.1, pct.2, p_val_adj``, ordered by
-    ``(p_val, -avg_log2FC)`` like Seurat.
+    DataFrame indexed by feature: ``p_val, avg_log2FC, pct.1, pct.2, p_val_adj``, ordered by ``p_val`` with
+    ties in feature order, like Seurat's ``FindMarkers`` (``find_all_markers`` re-sorts by ``(p_val, -avg_log2FC)``
+    like ``FindAllMarkers``).
 
     Examples
     --------
@@ -455,7 +456,9 @@ def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, c
     res = pd.DataFrame({"p_val": p}, index=names[j]).join(fc)
     if only_pos:
         res = res[res[fcname] > 0]
-    order = np.lexsort((-res[fcname].to_numpy(), res["p_val"].to_numpy()))  # order(p_val, -fc), stable
+    # Seurat 4.3 FindMarkers: order(p_val, -de.results[, 1]); column 1 is p_val itself, so ties (p values that
+    # underflow to 0 on large data) keep the feature order. FindAllMarkers re-sorts by (p_val, -avg_log2FC).
+    order = np.argsort(res["p_val"].to_numpy(), kind="stable")
     res = res.iloc[order]
     ntot = P if n_features_total is None else n_features_total
     res["p_val_adj"] = np.minimum(res["p_val"].to_numpy() * ntot, 1.0)

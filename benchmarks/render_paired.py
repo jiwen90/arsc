@@ -1,4 +1,4 @@
-"""Paired arsc vs scanpy table (benchmarks/paired_bench.py results) -> README.md and SCANPY_PARITY.md.
+"""Paired arsc vs scanpy table (benchmarks/paired_bench.py results) -> SCANPY_PARITY.md (README.md: render_readme.py).
 
     python benchmarks/render_paired.py [--sessions S1,S2,...] [--note TEXT] [--label step=TEXT ...]
                                        [--timing N=results/paired/timing_<name>.json ...]
@@ -123,5 +123,5 @@ if __name__ == "__main__":
     t = table([s for s in a.sessions.split(",") if s] or None, a.note,
               dict(x.split("=", 1) for x in a.label), {int(k): v for k, v in (x.split("=", 1) for x in a.timing)})
     print(t)
-    for f in [] if a.dry_run else ("README.md", "SCANPY_PARITY.md"):
+    for f in [] if a.dry_run else ("SCANPY_PARITY.md",):   # README.md: render_readme.py (compact tables)
         inject(ROOT / f, t)

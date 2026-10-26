@@ -5659,8 +5659,9 @@ Cell-level p-values rank markers; they are not evidence for a difference between
 
 Returns
 -------
-DataFrame indexed by feature: ``p_val, avg_log2FC, pct.1, pct.2, p_val_adj``, ordered by
-``(p_val, -avg_log2FC)`` like Seurat.
+DataFrame indexed by feature: ``p_val, avg_log2FC, pct.1, pct.2, p_val_adj``, ordered by ``p_val`` with
+ties in feature order, like Seurat's ``FindMarkers`` (``find_all_markers`` re-sorts by ``(p_val, -avg_log2FC)``
+like ``FindAllMarkers``).
 
 Examples
 --------

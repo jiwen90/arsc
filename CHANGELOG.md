@@ -12,15 +12,32 @@ All notable changes to arsc are recorded here. The format follows
   `scanpy_extra.leiden(..., flavor="igraph", engine="arsc")` runs it on scanpy connectivities: on 100,000 PBMCs its
   ARI against scanpy's clustering is 0.688, scanpy against itself 0.689, at 1.3 s per run vs igraph's 5.2 s
   (`SCANPY_PARITY.md`, "Clustering agreement"). Defaults unchanged (Seurat: leidenalg's refinement).
+- `benchmarks/seurat_timing.py` (+ `r_seurat_timing.R`): arsc's defaults against Seurat 4.3 step by step on a real
+  store, with cluster ARI and marker agreement; R reads the subset straight from the store's `.npy` files, so no
+  benchmark data is written. `benchmarks/render_readme.py` builds the README's compact timing tables.
 - `benchmarks/cluster_factors.py`: separates the arsc-scanpy clustering agreement into graph, Leiden engine, seed
   and resolution, in memory.
 
 ### Fixed
+- `find_markers` broke ties in `p_val` by `-avg_log2FC`; Seurat 4.3's `FindMarkers` keeps the feature order
+  (its tie-break column is `p_val` itself). Ties are common on large data, where many p values underflow to 0, so
+  the top of a marker list could differ from Seurat's. `find_all_markers` keeps `FindAllMarkers`' re-sort by
+  `p_val`, `-avg_log2FC` (`tests/test_marker_ties.py`; checked against Seurat on 100,000 cells, `SEURAT_PARITY.md`
+  section 6).
+- `scanpy_extra.rank_genes_groups(..., groups_subset=...)` with the Wilcoxon test against `"rest"` raised a
+  `ValueError` (negative group code in `np.bincount`) whenever some cells were outside the subset; those cells now
+  stay in every group's rest, as with scanpy's `groups=` (`tests/test_rank_genes_subset.py`). The paired benchmark's
+  marker step leaves out cell types with fewer than 3 cells (a 10,000-cell subset has a 1-cell type, which both
+  tools refuse to test).
 - `scanpy_extra.leiden(flavor="igraph")` seeded igraph with `random.Random(seed)` where scanpy >= 1.10 uses a numpy
   `RandomState(seed)` adapter, so the same seed gave a different partition than `sc.tl.leiden(flavor="igraph")`;
   it now reproduces scanpy's labels. It also passes `n_iterations=-1` to igraph as scanpy does (it had used 2).
 
 ### Changed
+- README: plain introduction stating that arsc follows Seurat's algorithms by default (SNN graph, Louvain at
+  resolution 0.6), compact timing tables at 10,000, 100,000 and 1,000,000 cells (Seurat at 10,000 and 100,000
+  only); the older three-way suite table and the earlier one-off measurements were removed from the README (they
+  remain in `benchmarks/results/` and git history).
 - Paired benchmark: arsc's clustering step clusters scanpy's graph type (UMAP connectivities, Leiden with igraph's
   refinement; `ARSC_BENCH_CLUSTER=scanpy`) instead of Seurat's SNN graph, which gives about 40% more clusters at the
   same resolution and was the cause of the low arsc-scanpy ARI (0.54 at 100k). Re-run at 100k: ARI 0.628 vs scanpy
