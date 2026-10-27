@@ -772,7 +772,9 @@ class Store:
 
     @property
     def uns(self) -> dict:
-        """Unstructured metadata imported from AnnData ``uns`` (JSON-able part)."""
+        """Unstructured metadata: AnnData ``uns`` (JSON-able part), or a Seurat object's misc / commands / tools /
+        images. R arrays keep their names: a named vector is a pandas Series, a matrix with dimnames a DataFrame (R:
+        ``arsc_read_uns()`` in ``R/read_uns.R``)."""
         if self._uns is None:
             p = self.path / "uns.json"
             if p.exists():

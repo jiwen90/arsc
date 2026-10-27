@@ -910,6 +910,11 @@ def _deep_eq(a, b, path="") -> tuple:
     if isinstance(a, pd.DataFrame):
         ok, why = _frame_eq(a, b)
         return ok, f"{path}: {why}"
+    if isinstance(a, pd.Series):  # a named R vector (uns)
+        if not isinstance(b, pd.Series) or list(a.index) != list(b.index):
+            return False, f"{path}: names differ"
+        ok, why = _arr_eq(np.asarray(a), np.asarray(b))
+        return ok, f"{path}: {why}"
     if sp.issparse(a):
         ok, why = _sparse_eq(a, b)
         return ok, f"{path}: {why}"

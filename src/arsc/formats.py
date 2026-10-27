@@ -203,6 +203,51 @@ def _uns_to_json(x: Any, path: str, skipped: list) -> Any:
 _SKIP = object()
 
 
+def _as_list(v) -> list:
+    return [] if v is None else v if isinstance(v, list) else [v]
+
+
+def _uns_axis_names(x: dict, base, ndim: int) -> list | None:
+    """Per-axis names of an R array in uns.json: inline "names" / "dimnames" (a list, or a dict for named R dimnames
+    in older stores) or sidecar files "names_file" / "dimnames_files" (one name per line, NA as \\N). None when the
+    array has none."""
+    def read(rel):
+        if rel is None or base is None:
+            return None
+        v = [s.rstrip("\r") for s in (Path(base) / rel).read_text(encoding="utf-8").split("\n")]
+        v = v[:-1] if v and v[-1] == "" else v
+        return [None if s == "\\N" else s for s in v]
+    if x.get("dimnames_files") is not None:
+        return [read(r) for r in _as_list(x["dimnames_files"])]
+    if x.get("names_file") is not None:
+        return [read(x["names_file"])]
+    dn = x.get("dimnames")
+    if dn is not None:
+        dn = list(dn.values()) if isinstance(dn, dict) else dn if isinstance(dn, list) else [dn]
+        if ndim == 1 and len(dn) != 1:  # jsonlite unboxes a one-axis list of one name
+            dn = [dn]
+        return [None if v is None else _as_list(v) for v in dn]
+    if x.get("names") is not None:
+        return [_as_list(x["names"])]
+    return None
+
+
+def _uns_named(a: np.ndarray, x: dict, base):
+    """An array from uns.json with its R names restored: 1-D -> pandas Series, 2-D -> pandas DataFrame (index and
+    columns; an axis without names keeps a RangeIndex), more axes -> {"array": a, "dimnames": [...]}; no names -> a."""
+    nm = _uns_axis_names(x, base, a.ndim)
+    if not nm or all(v is None for v in nm):
+        return a
+    if a.ndim == 1:
+        return pd.Series(a, index=nm[0], copy=False)
+    if a.ndim == 2 and len(nm) == 2:
+        df = pd.DataFrame(a, index=nm[0], columns=nm[1], copy=False)
+        if x.get("dimnames_names") is not None:
+            df.index.name, df.columns.name = (_as_list(x["dimnames_names"]) + [None, None])[:2]
+        return df
+    return {"array": a, "dimnames": nm, "dimnames_names": x.get("dimnames_names")}
+
+
 def _uns_from_json(x: Any, base: Path | None = None) -> Any:
     """Inverse of :func:`_uns_to_json`, plus the shapes the R exporter writes for a full Seurat export: arrays with
     ``shape``/``order``/``levels``, ``__dataframe__``, and files under ``uns/`` (``__npy__``, ``__csv__``, ``__mtx__``,
@@ -224,10 +269,10 @@ def _uns_from_json(x: Any, base: Path | None = None) -> Any:
                     a = a.reshape(shape, order=x.get("order", "C"))
             if x.get("levels") is not None:
                 lev = x["levels"] if isinstance(x["levels"], list) else [x["levels"]]
-                return pd.Categorical(a.ravel(), categories=lev)
-            if x.get("names") is not None and a.ndim == 1:
-                return pd.Series(a, index=x["names"] if isinstance(x["names"], list) else [x["names"]])
-            return a
+                c = pd.Categorical(a.ravel(order=x.get("order", "C")), categories=lev)
+                nm = _uns_axis_names(x, base, 1)
+                return pd.Series(c, index=nm[0]) if nm and nm[0] is not None and a.ndim == 1 else c
+            return _uns_named(a, x, base)
         if "__dataframe__" in x:
             cols = {k: _uns_from_json(v, base) for k, v in (x["__dataframe__"] or {}).items()}
             idx = x.get("index")
@@ -237,7 +282,9 @@ def _uns_from_json(x: Any, base: Path | None = None) -> Any:
         if base is not None:
             if "__npy__" in x:
                 a = np.load(Path(base) / x["__npy__"], mmap_mode="r")
-                return a.astype(bool) if x.get("logical") else a
+                if x.get("logical") and not (a.dtype.kind == "f" and np.isnan(a).any()):
+                    a = a.astype(bool)  # a logical with NA stays float, NA as NaN
+                return _uns_named(a, x, base)
             if "__csv__" in x:
                 df = pd.read_csv(Path(base) / x["__csv__"], keep_default_na=True, na_values=["NA"])
                 return df.set_index("_index") if "_index" in df.columns else df
@@ -246,9 +293,13 @@ def _uns_from_json(x: Any, base: Path | None = None) -> Any:
                 m = sp.csr_matrix(scipy.io.mmread(str(Path(base) / x["__mtx__"])))
                 return {"matrix": m, "rownames": x.get("rownames"), "colnames": x.get("colnames")}
             if "__txt__" in x:
-                vals = (Path(base) / x["__txt__"]).read_text(encoding="utf-8").split("\n")
+                vals = [v.rstrip("\r") for v in (Path(base) / x["__txt__"]).read_text(encoding="utf-8").split("\n")]
                 vals = vals[:-1] if vals and vals[-1] == "" else vals
-                return np.array([None if v == x.get("na") else v for v in vals], dtype=object)
+                a = np.array([None if v == x.get("na") else v for v in vals], dtype=object)
+                shape = [int(v) for v in _as_list(x.get("shape"))]
+                if len(shape) > 1 and int(np.prod(shape)) == a.size:
+                    a = a.reshape(shape, order=x.get("order", "F"))
+                return _uns_named(a, x, base)
         return {k: _uns_from_json(v, base) for k, v in x.items()}
     if isinstance(x, list):
         return [_uns_from_json(v, base) for v in x]

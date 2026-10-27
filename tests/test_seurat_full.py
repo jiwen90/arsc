@@ -8,6 +8,7 @@
    with ``full=True`` holds every component, and the environment is listed as unconvertible.
 """
 import json
+from pathlib import Path
 import shutil
 import subprocess
 
@@ -85,6 +86,38 @@ def test_full_store_reader(tmp_path):
     assert np.array_equal(u["big"], np.arange(6.0)) and u["f"]["__deparsed__"] == "y ~ x"
 
 
+def test_uns_names_restored(tmp_path):
+    """R names and dimnames of uns arrays come back: inline (list or older dict form) and sidecar files (.npy, .txt)."""
+    from arsc.formats import _uns_from_json
+    (tmp_path / "uns").mkdir()
+    _npy(tmp_path / "uns" / "0001_m.npy", np.asfortranarray(np.arange(6.0).reshape(2, 3, order="F")))
+    (tmp_path / "uns" / "0001_m.npy.dimnames1.txt").write_text("r1\nr2\n")
+    (tmp_path / "uns" / "0001_m.npy.dimnames2.txt").write_text("c1\n\\N\nc3\n")
+    _npy(tmp_path / "uns" / "0002_v.npy", np.array([1.0, np.nan, 0.0]))
+    (tmp_path / "uns" / "0002_v.npy.names.txt").write_text("a\nb\nc\n")
+    (tmp_path / "uns" / "0003_t.txt").write_text("x\n\\N\ny\nz\n")
+    (tmp_path / "uns" / "0003_t.txt.dimnames2.txt").write_text("k1\nk2\n")
+    j = {"m": {"__npy__": "uns/0001_m.npy", "logical": False, "dimnames_files": ["uns/0001_m.npy.dimnames1.txt",
+                                                                             "uns/0001_m.npy.dimnames2.txt"]},
+         "v": {"__npy__": "uns/0002_v.npy", "logical": True, "names_file": "uns/0002_v.npy.names.txt"},
+         "t": {"__txt__": "uns/0003_t.txt", "shape": [2, 2], "order": "F", "na": "\\N",
+               "dimnames_files": [None, "uns/0003_t.txt.dimnames2.txt"]},
+         "i": {"__ndarray__": [1, 2, 3, 4], "dtype": "<i4", "shape": [2, 2], "order": "F",
+               "dimnames": [["a", "b"], None]},
+         "old": {"__ndarray__": [1, 2, 3, 4], "dtype": "<i4", "shape": [2, 2], "order": "F",
+                 "dimnames": {"r": ["a", "b"], "c": ["x", "y"]}},
+         "plain": {"__npy__": "uns/0001_m.npy"}}
+    u = _uns_from_json(j, base=tmp_path)
+    assert list(u["m"].index) == ["r1", "r2"] and list(u["m"].columns) == ["c1", None, "c3"]
+    assert u["m"].loc["r2", "c3"] == 5.0
+    assert list(u["v"].index) == ["a", "b", "c"] and np.isnan(u["v"]["b"])  # a logical with NA stays float
+    assert isinstance(u["t"], pd.DataFrame) and list(u["t"].columns) == ["k1", "k2"] and u["t"].iloc[1, 0] is None
+    assert u["t"].iloc[0, 1] == "y" and list(u["t"].index) == [0, 1]
+    assert list(u["i"].index) == ["a", "b"] and u["i"].iloc[1, 1] == 4
+    assert list(u["old"].columns) == ["x", "y"]
+    assert isinstance(u["plain"], np.ndarray)
+
+
 R_FIXTURE = r'''
 suppressPackageStartupMessages({ library(SeuratObject); library(Matrix) })
 a <- commandArgs(trailingOnly = TRUE); set.seed(1)
@@ -104,12 +137,19 @@ o[["RNA.nn"]] <- new("Neighbor", nn.idx = cbind(1:nc, c(2:nc, 1)), nn.dist = mat
 # a query -> reference Neighbor (Azimuth): values index a 500-cell reference, not this object's cells
 o[["query_ref.nn"]] <- new("Neighbor", nn.idx = cbind(rep(500L, nc), 1:nc + 100L), nn.dist = matrix(1, nc, 2),
                            cell.names = cells)
-o@misc <- list(note = "x", env = new.env())
+cl <- paste0("clone", 1:400)  # a big matrix (> 1e5 values: written as .npy) and a big named vector keep their names
+big <- matrix(seq_len(400 * 400) / 7, 400, 400, dimnames = list(cl, cl))
+bigv <- setNames(seq_len(120000) / 3, paste0("k", seq_len(120000)))
+bigc <- matrix(rep(c("u", NA, "w"), 40000), 1000, 120, dimnames = list(NULL, paste0("c", 1:120)))
+small <- matrix(1:6, 2, 3, dimnames = list(r = c("a", "b"), c = c("x", "y", "z")))
+o@misc <- list(note = "x", env = new.env(), big = big, bigv = bigv, bigc = bigc, small = small,
+               tab = table(c("p", "q", "q")), nonames = matrix(as.numeric(1:200000), 400, 500))
 Idents(o) <- "grp"
 if (!inherits(o@assays$RNA, "Assay5")) o@assays$RNA <- as(o@assays$RNA, "Assay5")
 o@assays$RNA <- suppressWarnings(split(o@assays$RNA, f = rep(c("P1", "P2"), each = 30)))
 a5 <- o@assays$RNA; LayerData(a5, layer = "scale.data") <- t(scale(t(as.matrix(nd[1:5, ])))); o@assays$RNA <- a5
-qs::qsave(o, a[1]); cat("FIXTURE_OK\n")
+qs::qsave(o, a[1]); saveRDS(o@misc[setdiff(names(o@misc), "env")], sub("[.]qs$", "_misc.rds", a[1]))
+cat("FIXTURE_OK\n")
 '''
 
 
@@ -146,6 +186,29 @@ def test_export_seurat_full(tmp_path):
     qi, _ = st.neighbor("query_ref.nn")  # reference positions kept as they are (0-based), never mapped or NA
     assert st.manifest["neighbors"]["query_ref.nn"]["index_space"] == "other"
     assert qi.min() >= 0 and qi[0, 0] == 499 and qi[0, 1] == 100 and qi[59, 1] == 159
-    assert st.uns["misc"]["note"] == "x"
+    u = st.uns["misc"]
+    assert u["note"] == "x"
+    cl = [f"clone{i}" for i in range(1, 401)]
+    assert isinstance(u["big"], pd.DataFrame) and list(u["big"].index) == cl and list(u["big"].columns) == cl
+    assert u["big"].loc["clone3", "clone2"] == pytest.approx((1 * 400 + 3) / 7)  # column-major from R
+    assert isinstance(u["bigv"], pd.Series) and u["bigv"]["k5"] == pytest.approx(5 / 3)
+    assert u["bigc"].shape == (1000, 120) and list(u["bigc"].columns[:2]) == ["c1", "c2"]
+    assert u["bigc"].iloc[1, 0] is None and u["bigc"].iloc[2, 0] == "w" and u["bigc"].iloc[0, 1] is None  # column-major, NA kept
+    assert list(u["small"].index) == ["a", "b"] and list(u["small"].columns) == ["x", "y", "z"]
+    assert (u["small"].index.name, u["small"].columns.name) == ("r", "c") and u["small"].loc["b", "y"] == 4
+    assert isinstance(u["tab"], pd.Series) and u["tab"].to_dict() == {"p": 1, "q": 2}
+    assert isinstance(u["nonames"], np.ndarray) and u["nonames"].shape == (400, 500)
     assert [u["path"] for u in st.unconvertible] == ["misc/env"]
     assert st.manifest["export"]["mode"] == "full"
+    # the R reader gives back the same R values (names, dimnames, dims, types)
+    rd_uns = (Path(arsc.__file__).parent / "R" / "read_uns.R").as_posix()
+    store = (tmp_path / "st").as_posix()
+    chk = (f'source("{rd_uns}"); m <- readRDS("{(tmp_path / "o_misc.rds").as_posix()}"); '
+           f'u <- arsc_read_uns("{store}")$misc; '
+           'for (k in names(m)) { a <- m[[k]]; if (inherits(a, "table")) a <- c(a); b <- u[[k]]; if (is.list(b) && !is.data.frame(b)) b <- unlist(b); '
+           'if (!isTRUE(all.equal(a, b))) cat("DIFF", k, "\\n") }; cat("RCHECK_DONE\\n")')
+    r = subprocess.run([shutil.which("Rscript"), "-e", chk], capture_output=True, text=True)
+    assert "RCHECK_DONE" in r.stdout and "DIFF" not in r.stdout, r.stdout + r.stderr[-800:]
+    one = subprocess.run([shutil.which("Rscript"), "-e", f'source("{rd_uns}"); x <- arsc_read_uns("{store}", "misc/big"); '
+                          'cat(dim(x), rownames(x)[2], "\\n")'], capture_output=True, text=True)
+    assert "400 400 clone2" in one.stdout, one.stderr[-800:]

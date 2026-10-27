@@ -225,9 +225,13 @@ same_sparse <- function(a, b) {
 
 # ---------------------------------------------------------------- uns: R values -> JSON (+ files under uns/)
 # JSON shapes the Python reader understands (arsc.formats._uns_from_json): scalars, lists, dicts,
-# {"__ndarray__": values, "dtype", "shape", "order": "F", "names"/"levels"}, {"__dataframe__": {col: ...},
+# {"__ndarray__": values, "dtype", "shape", "order": "F", "names"/"dimnames"/"levels"}, {"__dataframe__": {col: ...},
 # "index"}, {"__npy__"|"__csv__"|"__mtx__"|"__txt__": "uns/<file>"}, {"__deparsed__": "<R code>"}; S4 objects
 # become {"__class__": "<class>", <slot>: ...}. Anything else is listed as unconvertible.
+# Every array keeps its names: an inline array carries "names" or "dimnames" (one entry per axis, null for an axis
+# without names; "dimnames_names" when the dimnames are named); an array written to a file under uns/ (.npy, .txt) gets
+# sidecar text files <file>.names.txt or <file>.dimnames<k>.txt (one name per line, NA as \N), listed in "names_file"
+# or "dimnames_files". arsc's Python reader (formats._uns_from_json) and R reader (R/read_uns.R) restore them.
 UNS_SKIP <- structure(list(), class = "uns_skip")
 uns_files <- 0L
 uns_file <- function(path, ext) {
@@ -237,10 +241,37 @@ uns_file <- function(path, ext) {
   list(rel = f, abs = file.path(out, f))
 }
 BIG <- 1e5
+names_lines <- function(v, rel) {  # one name per line (NA as \N) in the store folder; returns rel
+  con <- file(file.path(out, rel), "wb")
+  writeLines(enc2utf8(ifelse(is.na(v), "\\N", as.character(v))), con, useBytes = TRUE)
+  close(con)
+  rel
+}
+has_dimnames <- function(x) !is.null(dim(x)) && !is.null(dimnames(x)) && any(!vapply(dimnames(x), is.null, TRUE))
+names_sidecars <- function(x, f) {  # names / dimnames of an array written to f (a file under uns/), as sidecar files
+  r <- list()
+  if (has_dimnames(x)) {
+    dn <- dimnames(x)
+    r$dimnames_files <- unname(lapply(seq_along(dn), function(k)
+      if (is.null(dn[[k]])) NULL else names_lines(dn[[k]], paste0(f$rel, ".dimnames", k, ".txt"))))
+    if (any(nzchar(names(dn) %||% ""))) r$dimnames_names <- I(names(dn))
+  } else if (is.null(dim(x)) && !is.null(names(x))) {
+    r$names_file <- names_lines(names(x), paste0(f$rel, ".names.txt"))
+  }
+  r
+}
+inline_names <- function(x, r) {  # names / dimnames of an inline array (dimnames: an unnamed list, one entry per axis)
+  if (has_dimnames(x)) {
+    dn <- dimnames(x)
+    r$dimnames <- unname(lapply(dn, function(v) if (is.null(v)) NULL else I(v)))
+    if (any(nzchar(names(dn) %||% ""))) r$dimnames_names <- I(names(dn))
+  } else if (is.null(dim(x)) && !is.null(names(x))) r$names <- I(names(x))
+  r
+}
 atomic_json <- function(x, path, force_array = FALSE) {
   if (is.factor(x)) {
-    return(list(`__ndarray__` = I(as.character(x)), dtype = "str", levels = I(levels(x)),
-                shape = I(dim(x) %||% length(x))))
+    return(inline_names(x, list(`__ndarray__` = I(as.character(x)), dtype = "str", levels = I(levels(x)),
+                                shape = I(dim(x) %||% length(x)))))
   }
   d <- dim(x)
   nm <- names(x)
@@ -249,12 +280,12 @@ atomic_json <- function(x, path, force_array = FALSE) {
     if (is.character(x)) {
       f <- uns_file(path, ".txt")
       con <- file(f$abs, "wb"); writeLines(enc2utf8(ifelse(is.na(x), "\\N", x)), con, useBytes = TRUE); close(con)
-      return(list(`__txt__` = f$rel, shape = I(d %||% length(x)), na = "\\N"))
+      return(c(list(`__txt__` = f$rel, shape = I(d %||% length(x)), order = "F", na = "\\N"), names_sidecars(x, f)))
     }
     f <- uns_file(path, ".npy")
     type <- if (is.integer(x) && !anyNA(x)) "i4" else "f8"
     write_npy(as.vector(if (is.logical(x)) as.integer(x) else x), f$abs, type, d %||% length(x), fortran = TRUE)
-    return(list(`__npy__` = f$rel, logical = is.logical(x)))
+    return(c(list(`__npy__` = f$rel, logical = is.logical(x)), names_sidecars(x, f)))
   }
   if (!force_array && !is.null(nm) && is.null(d) && all(nzchar(nm)) && !anyDuplicated(nm) && length(x) <= 1000) {
     return(lapply(stats::setNames(as.list(x), nm), function(v) if (is.na(v) && !is.character(v)) NULL else v))
@@ -263,10 +294,7 @@ atomic_json <- function(x, path, force_array = FALSE) {
            else if (is.integer(x) && !anyNA(x)) "<i4" else "<f8"
   vals <- as.vector(x)
   if (is.integer(vals) && anyNA(vals)) vals <- as.double(vals)
-  r <- list(`__ndarray__` = I(vals), dtype = dtype, shape = I(d %||% length(x)), order = "F")
-  if (!is.null(nm)) r$names <- I(nm)
-  if (!is.null(d) && !is.null(dimnames(x))) r$dimnames <- lapply(dimnames(x), function(v) if (is.null(v)) NULL else I(v))
-  r
+  inline_names(x, list(`__ndarray__` = I(vals), dtype = dtype, shape = I(d %||% length(x)), order = "F"))
 }
 `%||%` <- function(a, b) if (is.null(a)) b else a
 to_json <- function(x, path, depth = 0) {
