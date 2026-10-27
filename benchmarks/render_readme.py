@@ -7,7 +7,9 @@ MAX_OTHER_LOAD; then the detailed tables also go between ``<!-- SEURAT_TIMING:ST
 ``<!-- SEURAT_TIMING:END -->`` in SEURAT_PARITY.md (when those markers are present).
 
 One table per size, from the most recent real-store session of each (size, step) in results/paired/runs.jsonl and
-from results/seurat/seurat_timing_n<size>.json; written between ``<!-- SPEED:START -->`` and ``<!-- SPEED:END -->``
+from results/seurat/seurat_timing_n<size>.json (arsc, timed under the lock), joined with
+results/seurat/seurat_timing_n<size>_seurat.json (Seurat timed apart on its one thread: seurat_timing.py --r-only)
+when that exists; written between ``<!-- SPEED:START -->`` and ``<!-- SPEED:END -->``
 in README.md. The full tables (ranges, machine state, agreement) are in SCANPY_PARITY.md and SEURAT_PARITY.md.
 """
 from __future__ import annotations
@@ -77,9 +79,10 @@ def complete_markers(r: dict) -> dict:
     return r
 
 
-SIZES = (10_000, 100_000)   # cell counts shown in the README; other sizes stay in results/ but are not published
+SIZES = (10_000, 100_000, 1_000_000)   # cell counts shown in the README; other sizes stay in results/
 
-MAX_OTHER_LOAD = 5.0   # % of the machine's CPU used by other processes (mean) above which a run is not published
+MAX_OTHER_LOAD = 10.0   # % of the machine's CPU used by other processes (mean) above which a run is not published (the
+# paired arsc vs scanpy tables publish runs up to this load too; the load is printed with every table)
 
 
 def tag(n: int) -> str:
@@ -97,7 +100,27 @@ def seurat(n: int):
     load = other_load(S / f"timing_arsc-seurat-{tag(n)}.json")
     if not f.exists() or load is None or load > MAX_OTHER_LOAD:
         return None
-    return complete_markers(json.loads(f.read_text()))
+    r = json.loads(f.read_text())
+    fs = S / f"seurat_timing_n{n}_seurat.json"   # Seurat timed apart (--r-only), on its one thread
+    if fs.exists():
+        rs = json.loads(fs.read_text())
+        r.update({"seurat": rs["seurat"], "agreement": rs["agreement"], "seurat_apart": True,
+                  "seurat_time": rs["time"], "machine_load_during_r": rs.get("machine_load_during_r")})
+    return complete_markers(r)
+
+
+def dnf(se: dict):
+    """A budgeted marker run stopped before every cell type: (seconds used, cell types done, total); else None."""
+    part = se.get("markers_partial")
+    if not part or se["times"].get("markers") is not None:
+        return None
+    used = se["times"].get("markers_partial_s") or sum(d["seconds"] for d in part.values())
+    return float(used), len(part), int(se.get("markers_groups_total") or 0)
+
+
+def paired_pinned(n: int) -> bool:
+    """True if part of the arsc vs scanpy run at this size ran without the timing lock (pinned to 16 cores)."""
+    return any(json.loads(f.read_text()).get("lock") is False for f in P.glob(f"timing_arsc-scanpy-{tag(n)}*.json"))
 
 
 def table(n: int, pr: dict) -> list[str]:
@@ -115,9 +138,9 @@ def table(n: int, pr: dict) -> list[str]:
             else:
                 sa = float(np.median(sr["arsc"]["times"][ss]))
                 v = sr["seurat"]["times"].get(ss)
-                if v is None and ss == "markers" and sr["seurat"].get("markers_estimate_s"):
-                    e = sr["seurat"]["markers_estimate_s"]
-                    row += f" {fmt(sa)} | ~{fmt(e)}\\* | ~{ratio(sa, e)} |"
+                d = dnf(sr["seurat"]) if ss == "markers" else None
+                if d:
+                    row += f" {fmt(sa)} | did not finish (> {fmt(d[0])})\\* | > {ratio(sa, d[0])} |"
                 else:
                     row += f" {fmt(sa)} | {fmt(v)} | {ratio(sa, v)} |"
         L.append(row)
@@ -142,18 +165,27 @@ def render() -> str:
                    if (n, sp, "arsc") not in pr or (n, sp, "scanpy") not in pr]
         if missing:
             cond += f"; not yet timed against scanpy at this size: {', '.join(missing)}"
+        if paired_pinned(n):
+            cond += ("; some steps ran without the timing lock (refused three times), pinned to 16 cores while "
+                     "other work ran (SCANPY_PARITY.md gives the load)")
         if sr is not None and "seurat" in sr:
             th = sr["seurat"]["threads"]
             cond += (f". arsc vs Seurat: a separate session, arsc median of {sr['repeats_arsc']} warm runs at "
                      f"{sr['threads_arsc']} threads; Seurat 4.3 one run after an untimed warm-up, on "
                      f"{th.get('blas_threads')} thread (R's reference BLAS, `future` with "
                      f"{th.get('future_workers')} worker: Seurat's default)")
+            ml = sr.get("machine_load_during_r")
+            if sr.get("seurat_apart") and ml:
+                cond += (f", timed apart from arsc as an ordinary job beside other work (machine CPU use "
+                         f"{ml['cpu_pct_mean']:.0f}% on average while it ran)")
             if sr["seurat"].get("markers_summed"):
                 cond += (f"; Seurat's markers ran as `FindMarkers` for each of the {sr['seurat']['markers_summed']} "
                          f"cell types, what `FindAllMarkers` runs, summed")
-            if sr["seurat"].get("markers_estimate_s"):
-                cond += (f". \\*Seurat's markers did not fit the time budget: "
-                         f"{sr['seurat']['markers_estimate_basis']}")
+            d = dnf(sr["seurat"])
+            if d:
+                cond += (f". \\*Seurat's markers did not finish: `FindAllMarkers` runs `FindMarkers` for each cell "
+                         f"type, and in {fmt(d[0])} it completed {d[1]} of {d[2]} cell types (seeded random order); "
+                         f"no estimate of the total is given")
 
         out += [cond + ".", ""]
     return "\n".join(out).rstrip() + "\n"
@@ -171,7 +203,8 @@ ARSC_CALL = {"normalize": "`pp.log_normalize`", "hvg": "`pp.hvg_vst`", "pca": "`
 
 def seurat_detail() -> str:
     out = []
-    for f in sorted(S.glob("seurat_timing_n*.json"), key=lambda f: int(f.stem.split("_n")[-1])):
+    arsc_files = [f for f in S.glob("seurat_timing_n*.json") if f.stem.split("_n")[-1].isdigit()]
+    for f in sorted(arsc_files, key=lambda f: int(f.stem.split("_n")[-1])):
         r = seurat(int(f.stem.split("_n")[-1]))
         if r is None or "seurat" not in r:
             continue
@@ -181,25 +214,36 @@ def seurat_detail() -> str:
         for step in SEURAT_CALL:
             v = np.asarray(r["arsc"]["times"][step], float)
             sv = se["times"].get(step)
-            if sv is None and step == "markers" and se.get("markers_estimate_s"):
-                e = se["markers_estimate_s"]
-                sc_txt, sp_txt = f"~{fmt(e)} (estimate\*)", f"~{ratio(float(np.median(v)), e)}"
+            d = dnf(se) if step == "markers" else None
+            if d:
+                sc_txt, sp_txt = f"did not finish (> {fmt(d[0])})\\*", f"> {ratio(float(np.median(v)), d[0])}"
             else:
                 sc_txt, sp_txt = fmt(sv), ratio(float(np.median(v)), sv)
             out.append(f"| {SEURAT_CALL[step]} | {ARSC_CALL[step]} | {fmt(float(np.median(v)))} "
                        f"({fmt(v.min())}-{fmt(v.max())}) | {sc_txt} | {sp_txt} |")
         out.append("")
+        tl = json.loads((S / f"timing_arsc-seurat-{tag(r['n'])}.json").read_text())
+        out += [f"arsc ran {tl['start']} under the machine-wide timing lock ({tl['threads']} threads, "
+                f"{tl['wall_s'] / 60:.0f} min including data loading and warm-up); other processes used "
+                f"{tl['other_cpu_pct_mean']:.1f}% of the machine's CPU on average (at most "
+                f"{tl['other_cpu_pct_max']:.0f}%).", ""]
         if se.get("markers_summed"):
             out += [f"Seurat's markers ran as `FindMarkers` for each of the {se['markers_summed']} cell types in turn "
                     f"(what `FindAllMarkers` runs, here with a time budget that turned out not to bind); the time is "
                     f"the sum.", ""]
-        if se.get("markers_estimate_s"):
+        if dnf(se):
             part = se["markers_partial"]
             per = ", ".join(f"{g} ({d['cells']:,} cells) {fmt(d['seconds'])}" for g, d in part.items())
-            out += [f"\*`FindAllMarkers` did not fit the time budget. It is `FindMarkers` for each cell type in "
-                    f"turn, so the cell types were run one by one in a seeded random order until "
-                    f"{fmt(se['times'].get('markers_partial_s'))} had passed: {per}. Estimate = "
-                    f"{se['markers_estimate_basis']}.", ""]
+            out += [f"\\*`FindAllMarkers` did not finish within its time budget. It is `FindMarkers` for each cell "
+                    f"type in turn, so the cell types were run one by one in a seeded random order until "
+                    f"{fmt(se['times'].get('markers_partial_s'))} had passed: {per} ({len(part)} of "
+                    f"{se.get('markers_groups_total')} cell types). No estimate of the total is given.", ""]
+        if r.get("seurat_apart"):
+            ml = r.get("machine_load_during_r") or {}
+            out += [f"Seurat ran apart from arsc (started {r['seurat_time']}), as an ordinary job on its one thread "
+                    f"beside other work: the machine's CPU use averaged {ml.get('cpu_pct_mean', float('nan')):.0f}% "
+                    f"(at most {ml.get('cpu_pct_max', float('nan')):.0f}%) while it ran. arsc's times come from a "
+                    f"separate run under the timing lock.", ""]
         out += [f"Not timed: R package load {fmt(se['package_load_s'])}, reading the cells from the store "
                 f"{fmt(se['read_store_s'])}, `CreateSeuratObject` {fmt(se['create_object_s'])}, warm-up on "
                 f"{se['warm_n']:,} cells {fmt(se['warmup_s'])}; arsc import {fmt(r['arsc']['import_s'])}, warm-up "

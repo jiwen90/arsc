@@ -48,6 +48,18 @@ All notable changes to arsc are recorded here. The format follows
   it now reproduces scanpy's labels. It also passes `n_iterations=-1` to igraph as scanpy does (it had used 2).
 
 ### Changed
+- Timing tables publish 1,000,000 cells again (README, `SCANPY_PARITY.md`; `render_readme.py` and
+  `render_paired.py`), re-timed on 2026-10-27 after the Gram-matrix PCA, pseudobulk and k-NN changes, in four parts
+  under the timing lock: arsc faster than scanpy on all 9 steps, 1.2x (DESeq2) to 81x (markers, 58 s vs 77.6 min);
+  scale + PCA 15 s vs 101 s (6.9x), k-NN 13 s vs 24 s (1.8x), clustering 41 s vs 114 s (2.8x). The previous 1M
+  numbers (2026-10-26) are replaced. At 1M the arsc-scanpy cluster ARI (0.521) is below scanpy's seed-to-seed ARI
+  (0.660), unlike at 10k and 100k. `render_paired.py --timing` takes several runs per size.
+- `benchmarks/seurat_timing.py`: `--r-only` times Seurat alone (one R thread, as an ordinary job; the machine's CPU
+  use is sampled while R runs) and `--skip-r` arsc alone (under the timing lock); `render_readme.py` joins them. A
+  Seurat marker run that does not finish its budget is published as "did not finish" with the time spent and the
+  cell types done, no longer as an extrapolated estimate. Seurat runs are published when other processes used at
+  most 10% of the CPU during arsc's locked run (was 5%; the paired tables already publish runs at that load, and the
+  load is printed with each table).
 - README: plain introduction stating that arsc follows Seurat's algorithms by default (SNN graph, Louvain at
   resolution 0.6), compact arsc vs scanpy timing tables at 10,000, 100,000 and 1,000,000 cells (Seurat comparison
   pending); the older three-way suite table and the earlier one-off measurements were removed from the README (they

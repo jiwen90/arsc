@@ -39,7 +39,9 @@ ARSC_BENCH_STORE=<store> python benchmarks/paired_bench.py --sizes 100000,100000
 python benchmarks/run_suite.py --bench-dir <scratch dir>         # three tools; WRITES data to <scratch dir>
 python benchmarks/run_suite.py --bench-dir <scratch dir> --steps markers,pseudobulk --sizes 10000
 python benchmarks/run_suite.py --bench-dir <scratch dir> --compare-only   # recompute agreement
-ARSC_BENCH_STORE=<store> python benchmarks/seurat_timing.py --n 100000 --markers-budget-s 3600   # arsc vs Seurat
+ARSC_BENCH_STORE=<store> python benchmarks/seurat_timing.py --n 100000   # arsc vs Seurat in one run
+ARSC_BENCH_STORE=<store> python benchmarks/seurat_timing.py --n 1000000 --skip-r                          # arsc only (timed, all cores)
+ARSC_BENCH_STORE=<store> python benchmarks/seurat_timing.py --n 1000000 --r-only --markers-budget-s 14400  # Seurat only (1 thread)
 python benchmarks/render_paired.py                               # paired tables -> SCANPY_PARITY.md
 python benchmarks/render_readme.py                               # compact tables -> README.md (SPEED markers)
 python benchmarks/render_table.py                                # three-way suite table (printed; README has no BENCH block)
@@ -51,7 +53,11 @@ python benchmarks/render_table.py                                # three-way sui
 own chain. Warm runs only (arsc warms on 12,000 cells, R on 2,000); package load, store read and warm-up are
 reported separately. Seurat's `FindAllMarkers` extracts one gene row of a sparse column-major matrix per test, so it
 grows with cells x genes x cell types; `--markers-budget-s` runs `FindMarkers` per cell type in a seeded random
-order until the budget is spent and extrapolates the total (reported as an estimate).
+order until the budget is spent. A run whose budget did not bind is the sum (a measurement); one that ran out is
+published as "did not finish" with the time spent and the cell types done, never as an extrapolated total.
+`--skip-r` times arsc alone (`seurat_timing_n<n>.json`) and `--r-only` Seurat alone (`seurat_timing_n<n>_seurat.json`,
+with the machine's CPU use sampled while R ran and an untimed arsc run for the agreement); `render_readme.py` joins
+the two, so Seurat's one-thread run need not hold the machine-wide lock.
 
 Environment variables: `ARSC_BENCH_STORE` / `ARSC_BENCH_STORE_COLUMNS` (real store for the in-memory
 benchmarks), `ARSC_BENCH_CLUSTER` (arsc's clustering step: `scanpy`, UMAP connectivities + Leiden with igraph's

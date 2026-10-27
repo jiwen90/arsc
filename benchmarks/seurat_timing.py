@@ -21,6 +21,11 @@ sets reach it on stdin and its results come back on stdout. Nothing is written t
 Warm runs only: each tool first runs every step once untimed on the first 12,000 cells of the subset (numba
 compilation for arsc; first-call overhead for R); import / package load and the warm-up are reported separately.
 arsc runs every step --repeats times (median, min, max); Seurat once (its steps take minutes).
+
+The two sides can run apart: ``--skip-r`` times arsc only (under the machine-wide timing lock, all cores), and
+``--r-only`` times Seurat only (one R thread, so it can run as an ordinary job beside other work). ``--r-only`` runs
+arsc's chain once untimed for the agreement check, samples the machine's CPU use while R runs, and writes
+``seurat_timing_n<n>_seurat.json``; ``render_readme.py`` joins it with the arsc file ``seurat_timing_n<n>.json``.
 """
 from __future__ import annotations
 
@@ -107,6 +112,31 @@ def run_seurat(store, rows, obs, sigs, rscript, warm_n=WARM_N_R, markers_budget_
     return res
 
 
+class LoadSampler:
+    """The machine's CPU use (percent of all logical CPUs) every 5 s in a background thread: mean, max, samples."""
+
+    def __init__(self, every: float = 5.0):
+        import threading
+        self.every, self.v, self.stop_ev = every, [], threading.Event()
+        self.th = threading.Thread(target=self._loop, daemon=True)
+
+    def _loop(self):
+        import psutil
+        psutil.cpu_percent(None)
+        while not self.stop_ev.wait(self.every):
+            self.v.append(psutil.cpu_percent(None))
+
+    def start(self):
+        self.th.start()
+        return self
+
+    def stop(self) -> dict:
+        self.stop_ev.set(); self.th.join()
+        v = self.v or [float("nan")]
+        return {"cpu_pct_mean": float(np.mean(v)), "cpu_pct_max": float(np.max(v)), "n_samples": len(self.v),
+                "every_s": self.every}
+
+
 def agreement(a: dict, r: dict, cell_type: np.ndarray) -> dict:
     from sklearn.metrics import adjusted_rand_score as ari
     ro = r["out"]
@@ -161,7 +191,9 @@ def main():
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--rscript", default=os.environ.get("ARSC_RSCRIPT", "Rscript"))
     ap.add_argument("--out", default=str(HERE / "results" / "seurat"))
-    ap.add_argument("--skip-r", action="store_true", help="arsc only (to check the driver)")
+    ap.add_argument("--skip-r", action="store_true", help="arsc only (timed; Seurat runs apart with --r-only)")
+    ap.add_argument("--r-only", action="store_true", help="Seurat only (timed); arsc runs once untimed for the "
+                    "agreement check; writes seurat_timing_n<n>_seurat.json")
     ap.add_argument("--warm-n", type=int, default=WARM_N, help="cells in arsc's untimed warm-up run")
     ap.add_argument("--warm-n-r", type=int, default=WARM_N_R, help="cells in Seurat's untimed warm-up run")
     ap.add_argument("--markers-budget-s", type=float, default=0.0,
@@ -186,9 +218,10 @@ def main():
 
     t_w = time.perf_counter()
     w = min(a.warm_n, X.shape[0])
-    warm_t, _ = arsc_steps(X[:w], obs.iloc[:w].copy(), genes, sigs, timed=False)
+    warm_t, _ = ({}, None) if a.r_only else arsc_steps(X[:w], obs.iloc[:w].copy(), genes, sigs, timed=False)
     t_w = time.perf_counter() - t_w
-    at, ao = arsc_steps(X, obs, genes, sigs, timed=True, repeats=a.repeats)
+    # --r-only: one untimed arsc run, only for its outputs (the agreement check)
+    at, ao = arsc_steps(X, obs, genes, sigs, timed=True, repeats=1 if a.r_only else a.repeats)
 
     res = {"n": int(X.shape[0]), "n_store": int(n_store), "seed": a.seed, "repeats_arsc": a.repeats,
            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -198,8 +231,16 @@ def main():
                     "times": at},
            "platform": {"python": platform.python_version(), "machine": platform.processor(),
                         "os": platform.platform()}}
+    if a.r_only:
+        res = {"n": int(X.shape[0]), "n_store": int(n_store), "seed": a.seed, "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+               "AR_THREADS": os.environ.get("AR_THREADS"), "platform": res["platform"],
+               "arsc_reference": {"version": arsc.__version__, "threads": int(numba.get_num_threads()),
+                                  "note": "one untimed run, for the agreement check only"}}
     if not a.skip_r:
+        load = LoadSampler().start() if a.r_only else None
         r = run_seurat(store, rows, obs, sigs, a.rscript, a.warm_n_r, a.markers_budget_s)
+        if load is not None:
+            res["machine_load_during_r"] = load.stop()
         res["seurat"] = {k: v for k, v in r.items() if k != "out"}
         part = r["out"].get("markers_partial")
         if part:
@@ -216,6 +257,14 @@ def main():
                 res["seurat"]["markers_estimate_basis"] = (f"{len(secs)} of {tot} cell types timed ({sum(secs):.0f} s, "
                                                           f"{min(secs):.0f}-{max(secs):.0f} s each); mean x {tot}")
         res["agreement"] = agreement(ao, r, obs["cell_type"].astype(str).to_numpy())
+    if a.r_only:
+        od = Path(a.out); od.mkdir(parents=True, exist_ok=True)
+        f = od / f"seurat_timing_n{X.shape[0]}_seurat.json"
+        f.write_text(json.dumps(res, indent=1, default=float))
+        print(json.dumps(res["seurat"]["times"], default=float))
+        print(json.dumps(res["agreement"], indent=1, default=float))
+        print(f"wrote {f}")
+        return
     rows_out = []
     for s in STEPS:
         v = np.asarray(at[s])

@@ -8,7 +8,8 @@ writes the table between ``<!-- PAIRED:START -->`` and ``<!-- PAIRED:END -->``. 
 range of the interleaved runs, the number of runs, the thread count, and the machine state seen before the runs.
 ``--note`` replaces the sentence describing the data (default: the synthetic data), ``--label`` a step's row label
 (e.g. the gene count of a real store), and ``--timing`` adds, per size, the other processes' CPU use recorded by the
-framework's ``tools/timing_lock.py`` during the run.
+framework's ``tools/timing_lock.py`` during the run (repeat it for a size whose steps ran in several parts; a part
+that ran without the lock, pinned to 16 cores, says so).
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ LABEL = {"normalize": "Log-normalize", "hvg": "Highly variable genes (2,000)", "
          "Markers, scanpy-style Wilcoxon (20k genes)", "pseudobulk": "Pseudobulk sums", "de_deseq2":
          "Pseudobulk DESeq2 (paired, 16 samples)", "score_genes": "scanpy gene-set score (5 sets)"}
 ORDER = list(LABEL)
-SIZES = (10_000, 100_000)   # cell counts shown in SCANPY_PARITY.md; other sizes stay in results/ but are not published
+SIZES = (10_000, 100_000, 1_000_000)   # cell counts shown in SCANPY_PARITY.md; other sizes stay in results/
 
 
 def fmt(s):
@@ -93,16 +94,29 @@ def table(sessions=None, note=SYNTH_NOTE, labels=None, timing=None) -> str:
         lease = g["lease"].dropna().unique()
         line = (f"Measured {g['time'].min()} to {g['time'].max()}; leases seen: "
                 + "; ".join(sorted(set(str(x) for x in lease))[:3]) + ".")
-        tf = (timing or {}).get(int(n))
-        if tf:
-            t = json.loads(Path(tf).read_text(encoding="utf-8"))
-            line = (f"Run {t['start']} under the machine-wide timing lock ({t['threads']} threads, "
-                    f"{t['physical_cores']} physical cores, {t['wall_s'] / 60:.0f} min including data loading and "
-                    f"warm-up): other processes used {t['other_cpu_pct_mean']:.1f}% of the machine's CPU on average "
-                    f"(at most {t['other_cpu_pct_max']:.1f}%; {t['other_cores_mean']:.2f} cores on average), "
-                    f"sampled every second ({t['n_samples']:,} samples).")
-        L += ["", line, ""]
+        tfs = (timing or {}).get(int(n)) or []
+        lines = [("* " if len(tfs) > 1 else "") + timing_line(json.loads(Path(tf).read_text(encoding="utf-8")), len(tfs) > 1)
+                 for tf in tfs]
+        L += [""] + (lines or [line]) + [""]
     return "\n".join(L)
+
+
+def timing_line(t: dict, parts: bool = False) -> str:
+    """One sentence on a run's conditions from its tools/timing_lock.py JSON (or a pinned run's JSON, lock false)."""
+    st = steps_of(t.get("cmd", ""))
+    what = f"Steps {st}: run" if parts and st else "Run"
+    how = ("under the machine-wide timing lock" if t.get("lock", True) else
+           "without the timing lock (it was refused three times), pinned to 16 cores while other work ran")
+    return (f"{what} {t['start']} {how} ({t['threads']} threads, {t['physical_cores']} physical cores, "
+            f"{t['wall_s'] / 60:.0f} min including data loading and warm-up): other processes used "
+            f"{t['other_cpu_pct_mean']:.1f}% of the machine's CPU on average (at most {t['other_cpu_pct_max']:.1f}%; "
+            f"{t['other_cores_mean']:.2f} cores on average), sampled every second ({t['n_samples']:,} samples).")
+
+
+def steps_of(cmd: str) -> str:
+    """The --steps of a paired_bench.py command line, readable (\"normalize, hvg, pca\"), or ''."""
+    parts = cmd.split()
+    return ", ".join(parts[parts.index("--steps") + 1].split(",")) if "--steps" in parts else ""
 
 
 def inject(path: Path, text: str) -> None:
@@ -114,6 +128,15 @@ def inject(path: Path, text: str) -> None:
     path.write_text(s, encoding="utf-8", newline="\n")
 
 
+def timings(specs: list[str]) -> dict:
+    """['N=path', ...] -> {N: [path, ...]}, each JSON tagged with its steps (from its command line)."""
+    out: dict = {}
+    for x in specs:
+        k, v = x.split("=", 1)
+        out.setdefault(int(k), []).append(v)
+    return out
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--sessions", default="")
@@ -123,7 +146,7 @@ if __name__ == "__main__":
     ap.add_argument("--dry-run", action="store_true", help="print the table only")
     a = ap.parse_args()
     t = table([s for s in a.sessions.split(",") if s] or None, a.note,
-              dict(x.split("=", 1) for x in a.label), {int(k): v for k, v in (x.split("=", 1) for x in a.timing)})
+              dict(x.split("=", 1) for x in a.label), timings(a.timing))
     print(t)
     for f in [] if a.dry_run else ("SCANPY_PARITY.md",):   # README.md: render_readme.py (compact tables)
         inject(ROOT / f, t)

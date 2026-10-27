@@ -218,10 +218,16 @@ The real-data rows (80,000 events) were not re-run: those data are not distribut
 
 ## 6. Timing against Seurat
 
-Seurat timing comparison pending. `benchmarks/seurat_timing.py` (R side `benchmarks/r_seurat_timing.R`) runs arsc's
-defaults against Seurat 4.3 step by step on a real store, reading the cells in R straight from the store's `.npy`
-files; first runs on 2026-10-26 shared the machine with other jobs (10-27% of its CPU on average) and are not
-published.
+`benchmarks/seurat_timing.py` (R side `benchmarks/r_seurat_timing.R`) runs arsc's defaults against Seurat 4.3 step
+by step on a real store, reading the cells in R straight from the store's `.npy` files. The two sides run apart:
+arsc under the machine-wide timing lock on all 16 cores (`--skip-r`, median of 3 warm runs), Seurat with its
+defaults on one thread as an ordinary job afterwards (`--r-only`; one run after an untimed warm-up on 2,000 cells),
+since a single-threaded run does not need the whole machine. The `--r-only` run also runs arsc's chain once, untimed,
+for the agreement below. The first runs on 2026-10-26 ran both sides together while other jobs used 10-27% of the
+CPU and are not published.
+
+<!-- SEURAT_TIMING:START -->
+<!-- SEURAT_TIMING:END -->
 
 Marker order on large data. Many p values underflow to 0 at 100,000 cells, so the order among tied rows decides the
 top of each marker list. Seurat 4.3's `FindMarkers` sorts by `order(p_val, -de.results[, 1])`, and column 1 is
