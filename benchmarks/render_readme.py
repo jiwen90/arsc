@@ -75,7 +75,8 @@ def imputed_note(se: dict) -> str:
         sc = [se["steps"][k]["scale_10k_to_100k"] for k in lin]
         names = " and ".join({"pseudobulk": "pseudobulk sums", "score_module": "gene-set score"}[k] for k in lin)
         parts.append(f"{names}: 10 times the 100,000-cell Seurat time; from 10,000 to 100,000 cells these grew "
-                     f"{min(sc):.1f}-{max(sc):.1f}x, so the linear guess is likely an overestimate")
+                     f"{min(sc):.1f}-{max(sc):.1f}x, while the measured steps grew 10-43x from 100,000 to 1,000,000, "
+                     f"so the true time may be lower or higher")
     if not parts:
         return ""
     return ("\\*Imputed, not measured: Seurat's one-thread run at this size was stopped during the markers step, so "
