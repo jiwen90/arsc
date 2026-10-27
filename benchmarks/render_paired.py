@@ -27,6 +27,7 @@ LABEL = {"normalize": "Log-normalize", "hvg": "Highly variable genes (2,000)", "
          "Markers, scanpy-style Wilcoxon (20k genes)", "pseudobulk": "Pseudobulk sums", "de_deseq2":
          "Pseudobulk DESeq2 (paired, 16 samples)", "score_genes": "scanpy gene-set score (5 sets)"}
 ORDER = list(LABEL)
+SIZES = (10_000, 100_000)   # cell counts shown in SCANPY_PARITY.md; other sizes stay in results/ but are not published
 
 
 def fmt(s):
@@ -40,6 +41,7 @@ def table(sessions=None, note=SYNTH_NOTE, labels=None, timing=None) -> str:
     label = {**LABEL, **(labels or {})}
     runs = pd.DataFrame([json.loads(l) for l in (P / "runs.jsonl").read_text().splitlines() if l.strip()])
     runs = runs[runs["ok"] == True]  # noqa: E712
+    runs = runs[runs["n"].isin(SIZES)]
     if sessions:
         runs = runs[runs["session"].isin(sessions)]
     last = runs.groupby(["n", "step"])["session"].max().rename("last").reset_index()

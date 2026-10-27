@@ -77,6 +77,8 @@ def complete_markers(r: dict) -> dict:
     return r
 
 
+SIZES = (10_000, 100_000)   # cell counts shown in the README; other sizes stay in results/ but are not published
+
 MAX_OTHER_LOAD = 5.0   # % of the machine's CPU used by other processes (mean) above which a run is not published
 
 
@@ -125,7 +127,7 @@ def table(n: int, pr: dict) -> list[str]:
 def render() -> str:
     pr = paired()
     out = []
-    for n in sorted({k[0] for k in pr if k != "_runs"}):
+    for n in sorted({k[0] for k in pr if k != "_runs"} & set(SIZES)):
         title = {10_000: "10,000 cells", 100_000: "100,000 cells", 1_000_000: "1,000,000 cells"}.get(n, f"{n:,} cells")
         sr = seurat(n)
         out += [f"#### {title}", ""] + table(n, pr) + [""]

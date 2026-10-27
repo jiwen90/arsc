@@ -82,29 +82,11 @@ Seurat timing comparison pending.
 | Gene-set score (3 sets) | 1.74 s | 3.43 s | 2.0x |
 
 16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded).
-
-#### 1,000,000 cells
-
-| Step | arsc | scanpy | speed-up |
-|---|---:|---:|---:|
-| Log-normalize | 1.67 s | 12 s | 7.2x |
-| Variable genes (2,000) | 12 s | 36 s | 3.1x |
-| Scale + PCA (30 PCs) | 19 s | 99 s | 5.3x |
-| Neighbor graph (k = 20) | 13 s | 24 s | 1.8x |
-| Clustering | 37 s | 104 s | 2.9x |
-| Markers, Wilcoxon, each cell type vs rest | 55 s | 78 min | 84.4x |
-| Pseudobulk sums | 0.96 s | 5.23 s | 5.4x |
-| Pseudobulk DESeq2 | 5.71 s | 6.87 s | 1.2x |
-| Gene-set score (3 sets) | 17 s | 34 s | 2.0x |
-
-16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded) (markers ran 1 time per tool).
 <!-- SPEED:END -->
 
 Rows: "Neighbor graph" is the k-NN graph (`sc.pp.neighbors`), "Clustering" k-NN plus Leiden
 (`sc.tl.leiden(flavor="igraph")`), markers `sc.tl.rank_genes_groups` (Wilcoxon) and "Gene-set score"
-`sc.tl.score_genes`. At 1,000,000 cells arsc clustered Seurat's shared-nearest-neighbor graph rather than scanpy's
-graph type, and its PCA and pseudobulk rows were timed before the current Gram-matrix PCA and pseudobulk code
-(not re-run).
+`sc.tl.score_genes`.
 
 ## Install
 
