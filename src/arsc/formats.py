@@ -238,10 +238,13 @@ def _uns_named(a: np.ndarray, x: dict, base):
     nm = _uns_axis_names(x, base, a.ndim)
     if not nm or all(v is None for v in nm):
         return a
+    def ix(v):  # object dtype: an NA name stays None (pandas 3 would make a str index with NaN)
+        return None if v is None else pd.Index(v, dtype=object)
+    dt = object if a.dtype == object else None  # text arrays keep None for NA (no inferred str dtype)
     if a.ndim == 1:
-        return pd.Series(a, index=nm[0], copy=False)
+        return pd.Series(a, index=ix(nm[0]), dtype=dt, copy=False)
     if a.ndim == 2 and len(nm) == 2:
-        df = pd.DataFrame(a, index=nm[0], columns=nm[1], copy=False)
+        df = pd.DataFrame(a, index=ix(nm[0]), columns=ix(nm[1]), dtype=dt, copy=False)
         if x.get("dimnames_names") is not None:
             df.index.name, df.columns.name = (_as_list(x["dimnames_names"]) + [None, None])[:2]
         return df
