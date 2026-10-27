@@ -55,7 +55,7 @@ random steps agree statistically.
   Windows, so R times below 0.1 s are rough. R ran as an ordinary job: the machine's other work used 26% of the CPU
   on average while it ran. The row "Clonotrace main" is the newer `graph_clone_nn` of commit eba2001 (2026-10-26,
   a distance cache), on the same input.
-- **arsc:** commit 5284f77, Python 3.11, numba 0.68, numpy 1.26, scipy 1.17, POT 0.9.7 (exact OT). One process
+- **arsc:** commit 993dadc (recorded as 5284f77 in the result files, the same code before a rebase), Python 3.11, numba 0.68, numpy 1.26, scipy 1.17, POT 0.9.7 (exact OT). One process
   per thread count, the thread variables set before import; every step first ran once untimed on the small subset
   (numba compilation excluded); a step under 20 s was timed 3 times (median). The 16-thread and 1-thread runs ran
   under a machine-wide lock (no other job admitted; other processes used 2.6% of the CPU on average).
