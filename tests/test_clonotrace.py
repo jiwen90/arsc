@@ -288,3 +288,28 @@ def test_cyclone_join():
     assert tab.set_index("clone").loc["c0", "cyclone_k"] == "1"
     assert tab.set_index("clone").loc["c3", "cyclone_k"] != tab.set_index("clone").loc["c3", "cyclone_k"]  # NaN
     assert C is not None
+
+
+def test_pava_and_isomds_regression():
+    # _pava (numba) vs a plain pool-adjacent-violators; isomds stress vs the value of the former np.add.at version
+    def pava_ref(y):
+        blocks = []
+        for v in y:
+            blocks.append([v, 1])
+            while len(blocks) > 1 and blocks[-2][0] > blocks[-1][0]:
+                v2, w2 = blocks.pop()
+                v1, w1 = blocks.pop()
+                blocks.append([(v1 * w1 + v2 * w2) / (w1 + w2), w1 + w2])
+        return np.concatenate([[v] * w for v, w in blocks])
+    rng = np.random.default_rng(4)
+    y = np.cumsum(rng.normal(size=500)) + rng.normal(scale=3, size=500)
+    np.testing.assert_allclose(ct._pava(y), pava_ref(y), rtol=1e-12, atol=1e-12)
+    from scipy.spatial.distance import pdist, squareform
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(60, 8))
+    D = squareform(pdist(X)) * (1 + 0.1 * rng.random((60, 60)))
+    D = (D + D.T) / 2
+    np.fill_diagonal(D, 0)
+    pts, stress = ct.isomds(D, 6)
+    assert stress == pytest.approx(6.120126444083615, rel=1e-6)
+    assert pts.shape == (60, 6)

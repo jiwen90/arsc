@@ -863,6 +863,9 @@ def _emd_solver():
             return float(ot.emd2(a, b, M, numItermax=10_000_000))
         return solve
     except ImportError:
+        import warnings
+        warnings.warn("POT is not installed: exact OT falls back to scipy's HiGHS linear program, about 40x slower "
+                      "(pip install pot, or arsc[clonotrace])", RuntimeWarning, stacklevel=3)
         return _emd_highs
 
 
@@ -1155,6 +1158,7 @@ def cmdscale(D, k: int = 2) -> pd.DataFrame:
     return pd.DataFrame(pts, index=names, columns=[f"mds_{i + 1}" for i in range(pts.shape[1])])
 
 
+@nb.njit(cache=True)
 def _pava(y: np.ndarray) -> np.ndarray:
     """Isotonic (non-decreasing) least-squares fit, pool-adjacent-violators."""
     n = y.size
@@ -1163,7 +1167,9 @@ def _pava(y: np.ndarray) -> np.ndarray:
     cnt = np.empty(n, dtype=np.int64)
     m = 0
     for i in range(n):
-        val[m], wt[m], cnt[m] = y[i], 1.0, 1
+        val[m] = y[i]
+        wt[m] = 1.0
+        cnt[m] = 1
         while m > 0 and val[m - 1] > val[m]:
             tw = wt[m - 1] + wt[m]
             val[m - 1] = (val[m - 1] * wt[m - 1] + val[m] * wt[m]) / tw
@@ -1171,7 +1177,13 @@ def _pava(y: np.ndarray) -> np.ndarray:
             cnt[m - 1] += cnt[m]
             m -= 1
         m += 1
-    return np.repeat(val[:m], cnt[:m])
+    out = np.empty(n)
+    p = 0
+    for b in range(m):
+        for _ in range(cnt[b]):
+            out[p] = val[b]
+            p += 1
+    return out
 
 
 def isomds(D, k: int = 2, *, maxit: int = 200, tol: float = 1e-6, init=None) -> tuple[pd.DataFrame, float]:
@@ -1211,7 +1223,7 @@ def isomds(D, k: int = 2, *, maxit: int = 200, tol: float = 1e-6, init=None) -> 
     (21, 2)
     """
     from scipy.optimize import minimize
-    from scipy.spatial.distance import pdist
+    from scipy.spatial.distance import pdist, squareform
     Dm, names = _square(D)
     n = Dm.shape[0]
     iu = np.triu_indices(n, 1)
@@ -1232,11 +1244,9 @@ def isomds(D, k: int = 2, *, maxit: int = 200, tol: float = 1e-6, init=None) -> 
         with np.errstate(invalid="ignore", divide="ignore"):
             g_d = ((d - fit) / den - num * d / den ** 2) / max(s, 1e-300)
             g_d = np.where(d > 0, g_d / d, 0.0)
-        G = np.zeros_like(X)
-        diff = X[iu[0]] - X[iu[1]]
-        contrib = diff * g_d[:, None]
-        np.add.at(G, iu[0], contrib)
-        np.add.at(G, iu[1], -contrib)
+        # G_i = sum_j w_ij (x_i - x_j) with W the symmetric matrix of g_d: a dense product, not np.add.at
+        W = squareform(g_d)
+        G = W.sum(1)[:, None] * X - W @ X
         return s, G.ravel()
 
     res = minimize(f, X0.ravel(), jac=True, method="L-BFGS-B", options={"maxiter": maxit, "gtol": tol})
