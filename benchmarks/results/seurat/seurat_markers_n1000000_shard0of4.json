@@ -1,0 +1,30 @@
+{
+ "n": 1000000,
+ "prep_s": 564.761775016785,
+ "markers": {
+  "unidentified": {
+   "seconds": 1441.83858299255,
+   "cells": 298467,
+   "rows": 536
+  }
+ },
+ "blas_threads": 1,
+ "future_workers": 1,
+ "r_version": "R version 4.3.1 (2023-06-16 ucrt)",
+ "seurat": "4.3.0",
+ "shard": 0,
+ "shards": 4,
+ "groups": [
+  "unidentified"
+ ],
+ "seed": 0,
+ "process_wall_s": 2028.2815417000093,
+ "time": "2026-10-27 15:45:17",
+ "machine_load_during_r": {
+  "cpu_pct_mean": 20.89306930693069,
+  "cpu_pct_max": 31.8,
+  "n_samples": 404,
+  "every_s": 5.0
+ },
+ "groups_total": 36
+}

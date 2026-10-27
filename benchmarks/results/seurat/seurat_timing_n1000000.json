@@ -1,0 +1,130 @@
+{
+ "n": 1000000,
+ "n_store": 1371548,
+ "seed": 0,
+ "repeats_arsc": 3,
+ "time": "2026-10-27 13:12:24",
+ "threads_arsc": 16,
+ "AR_THREADS": "16",
+ "arsc": {
+  "version": "0.3.0",
+  "import_s": 1.0037676999345422,
+  "read_subset_s": 15.213363899849355,
+  "warmup_s": 11.171571200015023,
+  "warm_times": {
+   "normalize": 0.23632550006732345,
+   "hvg": 0.26365719991736114,
+   "pca": 0.5868714998941869,
+   "neighbors": 0.1768048000521958,
+   "cluster": 0.4268728999886662,
+   "markers": 8.9138541999273,
+   "pseudobulk": 0.032541500171646476,
+   "score_module": 0.4647233998402953
+  },
+  "times": {
+   "normalize": [
+    2.107130200136453,
+    2.1737104000058025,
+    2.1377408001571894
+   ],
+   "hvg": [
+    11.734421100001782,
+    11.772771500051022,
+    11.86038239998743
+   ],
+   "pca": [
+    18.31405199994333,
+    18.26594870002009,
+    18.017723000142723
+   ],
+   "neighbors": [
+    13.114862099988386,
+    13.086646100040525,
+    13.060556099982932
+   ],
+   "cluster": [
+    299.23240899993107,
+    298.03401329996996,
+    290.45434970012866
+   ],
+   "markers": [
+    772.183156600222,
+    781.31857699994,
+    790.8292276998982
+   ],
+   "pseudobulk": [
+    0.9761216000188142,
+    0.8695197999477386,
+    0.8172059000935405
+   ],
+   "score_module": [
+    28.044791999971494,
+    28.05205569998361,
+    28.32966889999807
+   ]
+  }
+ },
+ "platform": {
+  "python": "3.11.5",
+  "machine": "AMD64 Family 25 Model 8 Stepping 2, AuthenticAMD",
+  "os": "Windows-10-10.0.26200-SP0"
+ },
+ "summary": [
+  {
+   "step": "normalize",
+   "label": "Log-normalize (NormalizeData)",
+   "arsc_median_s": 2.1377408001571894,
+   "arsc_min_s": 2.107130200136453,
+   "arsc_max_s": 2.1737104000058025
+  },
+  {
+   "step": "hvg",
+   "label": "Highly variable genes, vst (FindVariableFeatures)",
+   "arsc_median_s": 11.772771500051022,
+   "arsc_min_s": 11.734421100001782,
+   "arsc_max_s": 11.86038239998743
+  },
+  {
+   "step": "pca",
+   "label": "Scale + PCA, 30 PCs (ScaleData + RunPCA)",
+   "arsc_median_s": 18.26594870002009,
+   "arsc_min_s": 18.017723000142723,
+   "arsc_max_s": 18.31405199994333
+  },
+  {
+   "step": "neighbors",
+   "label": "SNN graph, k = 20 (FindNeighbors)",
+   "arsc_median_s": 13.086646100040525,
+   "arsc_min_s": 13.060556099982932,
+   "arsc_max_s": 13.114862099988386
+  },
+  {
+   "step": "cluster",
+   "label": "Louvain, resolution 0.6 (FindClusters)",
+   "arsc_median_s": 298.03401329996996,
+   "arsc_min_s": 290.45434970012866,
+   "arsc_max_s": 299.23240899993107
+  },
+  {
+   "step": "markers",
+   "label": "Markers, Wilcoxon, 36 cell types (FindAllMarkers)",
+   "arsc_median_s": 781.31857699994,
+   "arsc_min_s": 772.183156600222,
+   "arsc_max_s": 790.8292276998982
+  },
+  {
+   "step": "pseudobulk",
+   "label": "Pseudobulk sums, sample x cell type (AggregateExpression)",
+   "arsc_median_s": 0.8695197999477386,
+   "arsc_min_s": 0.8172059000935405,
+   "arsc_max_s": 0.9761216000188142
+  },
+  {
+   "step": "score_module",
+   "label": "Module score, 3 sets of 30 genes (AddModuleScore)",
+   "arsc_median_s": 28.05205569998361,
+   "arsc_min_s": 28.044791999971494,
+   "arsc_max_s": 28.32966889999807
+  }
+ ]
+}

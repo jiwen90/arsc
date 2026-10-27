@@ -1,0 +1,93 @@
+{
+ "n": 10000,
+ "n_store": 1371548,
+ "seed": 0,
+ "time": "2026-10-27 13:20:46",
+ "AR_THREADS": "8",
+ "platform": {
+  "python": "3.11.5",
+  "machine": "AMD64 Family 25 Model 8 Stepping 2, AuthenticAMD",
+  "os": "Windows-10-10.0.26200-SP0"
+ },
+ "arsc_reference": {
+  "version": "0.3.0",
+  "threads": 8,
+  "note": "one untimed run, for the agreement check only"
+ },
+ "machine_load_during_r": {
+  "cpu_pct_mean": 24.957630979498866,
+  "cpu_pct_max": 73.5,
+  "n_samples": 439,
+  "every_s": 5.0
+ },
+ "seurat": {
+  "tool": "seurat",
+  "n": 10000,
+  "times": {
+   "normalize": 0.708842992782593,
+   "hvg": 1.50678205490112,
+   "pca": 5.18193602561951,
+   "neighbors": 2.20303392410278,
+   "cluster": 1.06337904930115,
+   "markers": 1848.50847411156,
+   "pseudobulk": 0.82172703742981,
+   "score_module": 0.665802001953125
+  },
+  "warm_times": {
+   "normalize": 0.266422986984253,
+   "hvg": 0.798669099807739,
+   "pca": 1.32781386375427,
+   "neighbors": 0.588985919952393,
+   "cluster": 0.160547971725464,
+   "markers": 324.227437973022,
+   "pseudobulk": 0.122166156768799,
+   "score_module": 0.234305858612061
+  },
+  "warm_n": 2000,
+  "package_load_s": 2.20673799514771,
+  "read_store_s": 5.87703895568848,
+  "create_object_s": 1.60806608200073,
+  "warmup_s": 327.783357858658,
+  "threads": {
+   "blas_threads": 1,
+   "omp_max_threads": 8,
+   "future_plan": "FutureStrategy",
+   "future_workers": 1,
+   "blas_lib": ""
+  },
+  "r_version": "R version 4.3.1 (2023-06-16 ucrt)",
+  "versions": {
+   "Seurat": "4.3.0",
+   "SeuratObject": "5.0.2",
+   "Matrix": "1.6.5",
+   "limma": "3.58.1",
+   "irlba": "2.3.5.1",
+   "RcppAnnoy": "0.0.22"
+  },
+  "process_wall_s": 2202.0144827999175
+ },
+ "agreement": {
+  "hvg_shared": 2000,
+  "ari_arsc_seurat": 0.8149799220004438,
+  "ari_seurat_seed0_seed1": 0.9506548620569935,
+  "ari_arsc_seed0_seed1": 0.8836031459405772,
+  "ari_arsc_celltype": 0.12645158400884846,
+  "ari_seurat_celltype": 0.1224139921771924,
+  "n_clusters_arsc": 15,
+  "n_clusters_seurat": 13,
+  "n_clusters_seurat_seed1": 14,
+  "markers_rows_arsc": 24217,
+  "markers_rows_seurat": 24217,
+  "markers_rows_jaccard": 1.0,
+  "markers_log2fc_maxdiff": 5.773159728050814e-15,
+  "markers_p_max_rel_diff": 2.0448168907821468e-13,
+  "markers_top10_overlap_mean": 1.0,
+  "markers_top10_overlap_min": 1.0,
+  "pseudobulk_total_arsc": 46723106.0,
+  "pseudobulk_total_seurat": 46723106.0,
+  "pseudobulk_groups_arsc": 1367,
+  "pseudobulk_groups_seurat": 1367,
+  "score_module_maxdiff_first_cells": 4.649058915617843e-15,
+  "score_module_cells_compared": 5000
+ }
+}
