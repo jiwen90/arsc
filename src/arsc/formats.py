@@ -285,9 +285,18 @@ def _uns_from_json(x: Any, base: Path | None = None) -> Any:
                 if x.get("logical") and not (a.dtype.kind == "f" and np.isnan(a).any()):
                     a = a.astype(bool)  # a logical with NA stays float, NA as NaN
                 return _uns_named(a, x, base)
-            if "__csv__" in x:
-                df = pd.read_csv(Path(base) / x["__csv__"], keep_default_na=True, na_values=["NA"])
-                return df.set_index("_index") if "_index" in df.columns else df
+            if "__csv__" in x:  # column types and factor levels as R had them
+                types = x.get("types") or {}
+                text = {c: str for c, t in types.items() if t in ("character", "factor")}
+                df = pd.read_csv(Path(base) / x["__csv__"], keep_default_na=False, na_values=["NA"],
+                                 dtype={"_index": str, **text})
+                for c, lev in (x.get("levels") or {}).items():
+                    if c in df.columns:
+                        df[c] = pd.Categorical(df[c], categories=_as_list(lev))
+                if "_index" in df.columns:
+                    df = df.set_index("_index")
+                    df.index.name = None
+                return df
             if "__mtx__" in x:
                 import scipy.io
                 m = sp.csr_matrix(scipy.io.mmread(str(Path(base) / x["__mtx__"])))

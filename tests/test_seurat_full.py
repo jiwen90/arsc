@@ -143,7 +143,9 @@ bigv <- setNames(seq_len(120000) / 3, paste0("k", seq_len(120000)))
 bigc <- matrix(rep(c("u", NA, "w"), 40000), 1000, 120, dimnames = list(NULL, paste0("c", 1:120)))
 small <- matrix(1:6, 2, 3, dimnames = list(r = c("a", "b"), c = c("x", "y", "z")))
 o@misc <- list(note = "x", env = new.env(), big = big, bigv = bigv, bigc = bigc, small = small,
-               tab = table(c("p", "q", "q")), nonames = matrix(as.numeric(1:200000), 400, 500))
+               tab = table(c("p", "q", "q")), nonames = matrix(as.numeric(1:200000), 400, 500),
+               bigdf = data.frame(f = factor(rep(c("b", "a"), 30000), levels = c("b", "a", "z")), s = rep(c("01", "2"), 30000),
+                                  n = 1:60000, row.names = paste0("r", 1:60000), stringsAsFactors = FALSE))
 Idents(o) <- "grp"
 if (!inherits(o@assays$RNA, "Assay5")) o@assays$RNA <- as(o@assays$RNA, "Assay5")
 o@assays$RNA <- suppressWarnings(split(o@assays$RNA, f = rep(c("P1", "P2"), each = 30)))
@@ -198,6 +200,9 @@ def test_export_seurat_full(tmp_path):
     assert (u["small"].index.name, u["small"].columns.name) == ("r", "c") and u["small"].loc["b", "y"] == 4
     assert isinstance(u["tab"], pd.Series) and u["tab"].to_dict() == {"p": 1, "q": 2}
     assert isinstance(u["nonames"], np.ndarray) and u["nonames"].shape == (400, 500)
+    bd = u["bigdf"]  # a big data frame (.csv): row names, character text and factor levels as in R
+    assert list(bd.index[:2]) == ["r1", "r2"] and list(bd["f"].cat.categories) == ["b", "a", "z"]
+    assert bd["s"].iloc[0] == "01" and bd["n"].iloc[-1] == 60000
     assert [u["path"] for u in st.unconvertible] == ["misc/env"]
     assert st.manifest["export"]["mode"] == "full"
     # the R reader gives back the same R values (names, dimnames, dims, types)

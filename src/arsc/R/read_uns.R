@@ -95,7 +95,11 @@
     return(.arsc_set_names(x, j, base))
   }
   if (!is.null(j[["__csv__"]])) {
-    df <- as.data.frame(data.table::fread(file.path(base, j[["__csv__"]]), na.strings = "NA"), stringsAsFactors = FALSE)
+    tp <- unlist(j$types)
+    cc <- c(`_index` = "character", vapply(tp, function(t) switch(t, character = , factor = "character", integer = "integer",
+                                                                 logical = "logical", numeric = "double", NA_character_), ""))
+    df <- as.data.frame(data.table::fread(file.path(base, j[["__csv__"]]), na.strings = "NA", colClasses = cc[!is.na(cc)]),
+                        stringsAsFactors = FALSE)
     if ("_index" %in% names(df)) { rownames(df) <- as.character(df[["_index"]]); df[["_index"]] <- NULL }
     for (cn in names(j$levels)) if (cn %in% names(df)) df[[cn]] <- factor(df[[cn]], levels = unlist(j$levels[[cn]]))
     return(df)
