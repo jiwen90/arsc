@@ -109,6 +109,11 @@ Rows: "Neighbor graph" is the k-NN graph (`sc.pp.neighbors`), "Clustering" k-NN 
 (`sc.tl.leiden(flavor="igraph")`), markers `sc.tl.rank_genes_groups` (Wilcoxon) and "Gene-set score"
 `sc.tl.score_genes`.
 
+**arsc vs the Clonotrace R code** (clonal fate modeling, `arsc.clonotrace`), 7,524 cells and 150 clones of the
+public demo, each step on the same input: the pipeline takes 15 min in R (one thread, its default), 45 s in arsc on
+one thread and 5.9 s on 16 threads, with the deterministic steps equal to 1e-9 or better. Per-step table, memory and
+agreement: [CLONOTRACE_PARITY.md](CLONOTRACE_PARITY.md#speed-and-agreement-r-vs-arsc-step-by-step).
+
 ## Install
 
 ```bash no-run

@@ -68,11 +68,17 @@ class MemSampler:
         return tot
 
     def _run(self):
+        import psutil
+        self.cpu, last = [], 0.0
+        psutil.cpu_percent(None)
         while not self._stop.is_set():
             try:
                 self.samples.append((time.time(), self._rss()))
             except Exception:  # noqa: BLE001
                 break
+            if time.time() - last >= 1.0:   # machine-wide CPU use, percent of all logical CPUs
+                self.cpu.append(psutil.cpu_percent(None))
+                last = time.time()
             time.sleep(self.dt)
 
     def start(self):
@@ -129,6 +135,7 @@ def run_r(size: str, workers: int, n_boot: int, steps: str):
         ends = ends if isinstance(ends, list) else [ends]
         s["peak_mem_mb"] = round(max(ms.peak_delta(a, b) for a, b in zip(starts, ends)) / 2 ** 20, 1)
     info["process_peak_mb"] = round(max((b for _, b in ms.samples), default=0) / 2 ** 20, 1)
+    info["machine_cpu_percent_mean"] = round(sum(ms.cpu) / max(1, len(ms.cpu)), 1)
     info["machine"] = st
     info["wall_seconds"] = round(time.time() - t0, 1)
     info.pop("session", None)
@@ -397,8 +404,9 @@ def render():
             continue
         print(f"\n#### {size}: {rj['n_cells']:,} cells, {rj['n_clones']:,} clones "
               f"({rj['n_Q_cells']:,} cells x {rj['n_Q_clones']:,} clones after the deviance filter)\n")
-        print("| step | R | arsc 1 thread | arsc 16 threads | speed-up (16 t) | R peak mem | arsc peak mem (16 t) | agreement with R |")
-        print("|---|---:|---:|---:|---:|---:|---:|---|")
+        print("| step | R | arsc 1 thread | arsc 16 threads | speed-up, 1 thread | speed-up, 16 threads | R peak mem | "
+              "arsc peak mem (16 threads) | agreement with R |")
+        print("|---|---:|---:|---:|---:|---:|---:|---:|---|")
         tot = {"R": 0.0, "a1": 0.0, "a16": 0.0}
         flags = []
         for s in STEPS + ["nn_main"]:
@@ -410,8 +418,9 @@ def render():
             if s in extra:
                 rs, mark = extra[s]["seconds"], "~"
                 flags.append(f"{LABEL[s]}: {extra[s]['method']}")
-            x1 = a1.get("steps", {}).get(s) if a1 else None
-            x16 = a16["steps"].get(s)
+            sa = "nn" if s == "nn_main" else s   # Clonotrace main's NN distance vs the same arsc step
+            x1 = a1.get("steps", {}).get(sa) if a1 else None
+            x16 = a16["steps"].get(sa)
             t1 = x1["median"] if x1 else None
             t16 = x16["median"] if x16 else None
             if s in PIPELINE:
@@ -419,13 +428,15 @@ def render():
                 tot["a1"] += t1 or 0
                 tot["a16"] += t16 or 0
             sp_ = f"{mark}{rs / t16:.1f}x" if rs and t16 else "-"
+            sp1 = f"{mark}{rs / t1:.1f}x" if rs and t1 else "-"
             rm = f"{r['peak_mem_mb']:,.0f} MB" if r and "peak_mem_mb" in r else "-"
             am = f"{x16['peak_mem_mb']:,.0f} MB" if x16 else "-"
-            ag = _agree(x16["agreement"]) if x16 else ""
-            print(f"| {LABEL[s]} | {mark}{_fmt(rs)} | {_fmt(t1)} | {_fmt(t16)} | {sp_} | {rm} | {am} | {ag} |")
+            ag = _agree(x16["agreement"]) if x16 and s != "nn_main" else ("as the row above" if x16 else "")
+            print(f"| {LABEL[s]} | {mark}{_fmt(rs)} | {_fmt(t1)} | {_fmt(t16)} | {sp1} | {sp_} | {rm} | {am} | {ag} |")
         mk = "~" if any(s in extra for s in PIPELINE) else ""
-        print(f"| **pipeline** (sum of: {', '.join(PIPELINE)}) | **{mk}{_fmt(tot['R'])}** | **{_fmt(tot['a1'])}** | "
-              f"**{_fmt(tot['a16'])}** | **{mk}{tot['R'] / tot['a16']:.1f}x** | | | |")
+        print(f"| **pipeline** (sum of the steps {', '.join(PIPELINE)}) | **{mk}{_fmt(tot['R'])}** | **{_fmt(tot['a1'])}** | "
+              f"**{_fmt(tot['a16'])}** | **{mk}{tot['R'] / tot['a1']:.1f}x** | **{mk}{tot['R'] / tot['a16']:.1f}x** | "
+              f"{rj['process_peak_mb']:,.0f} MB (process) | {a16['process_peak_mb']:,.0f} MB (process) | |")
         if flags:
             print("\n~ not measured in full: " + " ".join(f"{f}." for f in flags))
     print("\n<!-- CLONOTRACE-SPEED:END -->")
