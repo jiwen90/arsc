@@ -66,29 +66,31 @@ CPU on average during the run (at most 27.9%).
 Agreement in the same run: k-NN recall against exact neighbors arsc 0.993, scanpy 0.949 (overlap arsc-scanpy
 0.943); Leiden ARI against the cell types arsc 0.995, scanpy 0.996, arsc-scanpy 0.997 (10 clusters each).
 
-**10,000 real cells, 16 cores** (2026-10-26, `--sizes 10000`, same settings): arsc was faster on 6 of 8 steps
-(1.2x-17x) and slower on two: Scale + PCA (0.9x: 1.30 s vs 1.24 s) and pseudobulk sums (0.8x: 0.27 s vs 0.23 s).
+**10,000 and 100,000 real cells, 16 cores** (2026-10-26 22:42 and 22:47; `benchmarks/paired_bench.py --sizes
+10000` and `--sizes 100000`, `--threads 16 --repeats 3 --quality`, each size under `tools/timing_lock.py run` with
+nothing else admitted). arsc was faster than scanpy on all 9 steps at both sizes: 1.1x-16x at 10,000 cells and
+1.3x-16x at 100,000 (median of 3 runs).
 
-**100,000 and 1,000,000 real cells, 16 cores** (2026-10-26; `benchmarks/paired_bench.py --sizes 100000` and
-`--sizes 1000000 --step-repeats rank_genes=1`, `--threads 16 --repeats 3 --quality`, each size under
-`tools/timing_lock.py run` with nothing else admitted). arsc was faster than scanpy on all 9 steps at both sizes:
-1.2x-16x at 100,000 cells and 1.2x-84x at 1,000,000 (median of 3 runs; scanpy's Wilcoxon markers took 78 min at
-1M cells, so that step ran once at 1M). Notes:
+**1,000,000 real cells, 16 cores** (2026-10-26 02:04; `--sizes 1000000 --step-repeats rank_genes=1`, same
+settings). arsc was faster on all 9 steps, 1.2x-84x (scanpy's Wilcoxon markers took 78 min, so that step ran once).
+This size was timed before the Gram-matrix PCA and pseudobulk changes of 2026-10-26 15:11 and was not re-run.
 
-* **Agreement.** k-NN recall against exact float64 neighbors of 2,000 query cells: arsc 0.990 / 0.988 (100k /
-  1M), scanpy 0.949 / 0.946; arsc's overlap with scanpy (0.940 / 0.937) equals scanpy's overlap with itself under
-  another seed (0.939 / 0.934). Clustering: in the first runs arsc clustered Seurat's shared-nearest-neighbor
-  graph, a different graph from scanpy's, so its partitions agreed less (ARI arsc-scanpy 0.54 / 0.62 against
-  scanpy seed 0-seed 1 0.65 / 0.66) and had more clusters (26 vs 20-21 at 100k, 33 vs 22-24 at 1M). With scanpy's
-  graph type the 100k step agrees within scanpy's own seed range (ARI 0.628 vs 0.647; 18 vs 20-21 clusters) and
-  is 3.9x faster than scanpy; the 1M row was not re-run. The factors are separated below ("Clustering agreement").
-  On these PBMC data, where 30% of cells carry the label "unidentified", both tools' ARI against the cell-type
-  labels is about 0.1.
-* **The slowest pair.** arsc's first DESeq2 run of each session was slower (5.8 s at 100k, 12.8 s at 1M, against
-  3.8-3.9 s and 5.7 s for the next two), so its slowest pair loses to scanpy (0.8x, 0.5x); the medians favor arsc
-  (1.2x at both sizes).
-* **Machine state.** At 100k another process briefly used up to 50% of the machine's CPU (4.1% on average); at
-  1M up to 27% (2.8% on average).
+Notes:
+
+* **Agreement.** k-NN recall against exact float64 neighbors of 2,000 query cells: arsc 0.996 / 0.990 / 0.988
+  (10k / 100k / 1M), scanpy 0.949 / 0.949 / 0.946; arsc's overlap with scanpy (0.946 / 0.940 / 0.937) equals
+  scanpy's overlap with itself under another seed (0.946 / 0.939 / 0.934). Clustering: at 10k and 100k arsc
+  clusters scanpy's graph type (UMAP connectivities, Leiden with igraph's refinement) and agrees with scanpy
+  within scanpy's own seed range (ARI arsc-scanpy 0.714 vs 0.667 at 10k, 0.628 vs 0.647 at 100k). The 1M run
+  clustered Seurat's shared-nearest-neighbor graph, a different graph from scanpy's, so its partition agreed less
+  (ARI 0.62 against scanpy seed 0-seed 1 0.66) and had more clusters (33 vs 22-24). The factors are separated
+  below ("Clustering agreement"). On these PBMC data, where 30% of cells carry the label "unidentified", both
+  tools' ARI against the cell-type labels is about 0.1.
+* **The slowest pair.** arsc's first DESeq2 run of each session was slower (2.5 s at 10k, 6.3 s at 100k, 12.8 s
+  at 1M, against 1.6-1.8 s, 4.0 s and 5.7 s for the next two), so its slowest pair loses to scanpy (0.9x, 0.8x,
+  0.5x); the medians favor arsc (1.1x, 1.3x, 1.2x).
+* **Machine state.** Other processes used 10.0% of the machine's CPU on average at 10k (at most 56%, briefly),
+  5.6% at 100k (at most 21%) and 2.8% at 1M (at most 27%).
 
 ### Clustering agreement: graph, Leiden engine, seed
 
@@ -154,37 +156,33 @@ Same session, interleaved (arsc and scanpy alternate first), the same thread cou
 
 | Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
 |---|---:|---:|---|---:|---:|---|---|
-| Log-normalize | 0.02 s (0.02 s-0.02 s) | 0.12 s (0.12 s-0.14 s) | **5.9x**; 5.4x | 3 | 16 | 5-5% |  |
-| Highly variable genes (2,000) | 0.20 s (0.19 s-0.20 s) | 0.41 s (0.41 s-0.41 s) | **2.0x**; 2.0x | 3 | 16 | 5-5% |  |
-| Scale + PCA (30 PCs) | 1.30 s (1.30 s-1.31 s) | 1.24 s (1.22 s-1.30 s) | **0.9x**; 0.9x | 3 | 16 | 5-5% |  |
-| k-NN graph (k = 20) | 0.07 s (0.07 s-0.08 s) | 1.25 s (1.25 s-1.29 s) | **16.7x**; 15.7x | 3 | 16 | 5-5% | recall vs exact: arsc 0.996, scanpy 0.949; overlap arsc-scanpy 0.946 vs scanpy seed 0-seed 1 0.946 |
-| k-NN + Leiden clustering | 0.14 s (0.13 s-0.14 s) | 1.46 s (1.45 s-1.46 s) | **10.8x**; 10.7x | 3 | 16 | 5-5% | ARI arsc-scanpy 0.714 vs scanpy seed 0-seed 1 0.667 (15 / 15 / 16 clusters); vs the cell-type labels arsc 0.128, scanpy 0.126 |
-| Pseudobulk sums (sample x cell type) | 0.27 s (0.27 s-0.28 s) | 0.23 s (0.22 s-0.24 s) | **0.8x**; 0.8x | 3 | 16 | 5-5% |  |
-| Pseudobulk DESeq2 (paired) | 1.65 s (1.65 s-1.93 s) | 1.96 s (1.92 s-2.15 s) | **1.2x**; 1.0x | 3 | 16 | 5-5% |  |
-| scanpy gene-set score (3 sets of 30 genes) | 0.23 s (0.23 s-0.23 s) | 0.40 s (0.39 s-0.40 s) | **1.7x**; 1.7x | 3 | 16 | 5-5% |  |
+| Log-normalize | 0.02 s (0.02 s-0.02 s) | 0.12 s (0.12 s-0.12 s) | **6.3x**; 5.5x | 3 | 16 | 6-6% |  |
+| Highly variable genes (2,000) | 0.20 s (0.20 s-0.20 s) | 0.41 s (0.40 s-0.41 s) | **2.1x**; 2.0x | 3 | 16 | 6-6% |  |
+| Scale + PCA (30 PCs) | 0.49 s (0.48 s-0.49 s) | 1.21 s (1.19 s-1.22 s) | **2.5x**; 2.4x | 3 | 16 | 6-6% |  |
+| k-NN graph (k = 20) | 0.08 s (0.07 s-0.08 s) | 1.22 s (1.19 s-1.22 s) | **15.8x**; 15.5x | 3 | 16 | 6-6% | recall vs exact: arsc 0.996, scanpy 0.949; overlap arsc-scanpy 0.946 vs scanpy seed 0-seed 1 0.946 |
+| k-NN + Leiden clustering | 0.14 s (0.13 s-0.14 s) | 1.50 s (1.43 s-1.99 s) | **10.9x**; 10.8x | 3 | 16 | 6-6% | ARI arsc-scanpy 0.714 vs scanpy seed 0-seed 1 0.667 (15 / 15 / 16 clusters); vs the cell-type labels arsc 0.128, scanpy 0.126 |
+| Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 0.87 s (0.86 s-1.03 s) | 5.51 s (5.34 s-6.20 s) | **6.3x**; 5.4x | 3 | 16 | 6-6% |  |
+| Pseudobulk sums (sample x cell type) | 0.10 s (0.10 s-0.11 s) | 0.27 s (0.25 s-0.29 s) | **2.6x**; 2.5x | 3 | 16 | 6-6% |  |
+| Pseudobulk DESeq2 (paired) | 1.80 s (1.65 s-2.46 s) | 2.05 s (1.92 s-2.19 s) | **1.1x**; 0.9x | 3 | 16 | 6-6% |  |
+| scanpy gene-set score (3 sets of 30 genes) | 0.23 s (0.23 s-0.24 s) | 0.39 s (0.39 s-0.40 s) | **1.7x**; 1.7x | 3 | 16 | 6-6% |  |
 
-Run 2026-10-26 11:34:11 under the machine-wide timing lock (16 threads, 16 physical cores, 4 min including data loading and warm-up): other processes used 8.3% of the machine's CPU on average (at most 32.8%; 2.66 cores on average), sampled every second (218 samples).
-
-Markers were not timed at 10,000 cells: this subset has a cell type with 1 cell, which stopped both tools' Wilcoxon.
-The benchmark now leaves out cell types with fewer than 3 cells (and arsc's `groups_subset` crash this exposed is
-fixed); the 10,000-cell marker row still needs a run under the timing lock.
-
+Run 2026-10-26 22:42:23 under the machine-wide timing lock (16 threads, 16 physical cores, 4 min including data loading and warm-up): other processes used 10.0% of the machine's CPU on average (at most 56.1%; 3.19 cores on average), sampled every second (228 samples).
 
 **100,000 cells**:
 
 | Step | arsc | scanpy | speed-up (median; slowest pair) | runs each | threads | CPU use before runs | agreement |
 |---|---:|---:|---|---:|---:|---|---|
-| Log-normalize | 0.17 s (0.16 s-0.21 s) | 1.20 s (1.20 s-1.23 s) | **7.1x**; 5.8x | 3 | 16 | 4-4% |  |
-| Highly variable genes (2,000) | 1.26 s (1.24 s-1.27 s) | 3.70 s (3.70 s-3.70 s) | **2.9x**; 2.9x | 3 | 16 | 4-4% |  |
-| Scale + PCA (30 PCs) | 2.83 s (2.80 s-2.86 s) | 9.57 s (9.56 s-9.78 s) | **3.4x**; 3.4x | 3 | 16 | 4-4% |  |
-| k-NN graph (k = 20) | 0.68 s (0.66 s-0.70 s) | 2.47 s (2.44 s-2.49 s) | **3.6x**; 3.5x | 3 | 16 | 4-4% | recall vs exact: arsc 0.990, scanpy 0.949; overlap arsc-scanpy 0.940 vs scanpy seed 0-seed 1 0.939 |
-| k-NN + Leiden clustering | 1.99 s (1.96 s-2.00 s) | 7.66 s (7.53 s-7.70 s) | **3.9x**; 3.8x | 3 | 16 | 3-3% | ARI arsc-scanpy 0.628 vs scanpy seed 0-seed 1 0.647 (18 / 20 / 21 clusters); vs the cell-type labels arsc 0.124, scanpy 0.120. Re-run 2026-10-26 05:00 under the timing lock (other processes 2.7% CPU on average), arsc on scanpy's graph type (UMAP connectivities, Leiden with igraph's refinement); the first run (2.28 s, ARI 0.544, 26 clusters) clustered Seurat's SNN graph |
-| Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 5.32 s (5.22 s-5.32 s) | 87 s (87 s-87 s) | **16.4x**; 16.3x | 3 | 16 | 4-4% |  |
-| Pseudobulk sums (sample x cell type) | 0.43 s (0.41 s-0.43 s) | 0.84 s (0.84 s-0.84 s) | **2.0x**; 1.9x | 3 | 16 | 4-4% |  |
-| Pseudobulk DESeq2 (paired, 25 patients x 2 timepoints) | 3.90 s (3.84 s-5.77 s) | 4.68 s (4.64 s-4.79 s) | **1.2x**; 0.8x | 3 | 16 | 4-4% |  |
-| scanpy gene-set score (3 sets of 30 genes) | 1.74 s (1.73 s-1.74 s) | 3.46 s (3.45 s-3.47 s) | **2.0x**; 2.0x | 3 | 16 | 4-4% |  |
+| Log-normalize | 0.19 s (0.16 s-0.22 s) | 1.23 s (1.23 s-1.24 s) | **6.5x**; 5.5x | 3 | 16 | 6-6% |  |
+| Highly variable genes (2,000) | 1.27 s (1.26 s-1.27 s) | 3.69 s (3.69 s-3.69 s) | **2.9x**; 2.9x | 3 | 16 | 6-6% |  |
+| Scale + PCA (30 PCs) | 1.73 s (1.72 s-1.76 s) | 9.67 s (9.66 s-9.73 s) | **5.6x**; 5.5x | 3 | 16 | 6-6% |  |
+| k-NN graph (k = 20) | 0.67 s (0.67 s-0.70 s) | 2.48 s (2.46 s-2.51 s) | **3.7x**; 3.5x | 3 | 16 | 6-6% | recall vs exact: arsc 0.990, scanpy 0.949; overlap arsc-scanpy 0.940 vs scanpy seed 0-seed 1 0.939 |
+| k-NN + Leiden clustering | 1.99 s (1.95 s-1.99 s) | 7.76 s (7.70 s-7.80 s) | **3.9x**; 3.9x | 3 | 16 | 6-6% | ARI arsc-scanpy 0.628 vs scanpy seed 0-seed 1 0.647 (18 / 20 / 21 clusters); vs the cell-type labels arsc 0.124, scanpy 0.120 |
+| Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 5.51 s (5.27 s-5.60 s) | 87 s (86 s-87 s) | **15.7x**; 15.3x | 3 | 16 | 6-6% |  |
+| Pseudobulk sums (sample x cell type) | 0.19 s (0.18 s-0.20 s) | 0.84 s (0.84 s-0.85 s) | **4.4x**; 4.2x | 3 | 16 | 6-6% |  |
+| Pseudobulk DESeq2 (paired) | 3.99 s (3.96 s-6.27 s) | 5.02 s (4.89 s-5.07 s) | **1.3x**; 0.8x | 3 | 16 | 6-6% |  |
+| scanpy gene-set score (3 sets of 30 genes) | 1.74 s (1.73 s-1.74 s) | 3.43 s (3.41 s-3.43 s) | **2.0x**; 2.0x | 3 | 16 | 6-6% |  |
 
-Run 2026-10-26 01:53:21 under the machine-wide timing lock (16 threads, 16 physical cores, 11 min including data loading and warm-up): other processes used 4.1% of the machine's CPU on average (at most 50.4%; 1.31 cores on average), sampled every second (650 samples).
+Run 2026-10-26 22:47:42 under the machine-wide timing lock (16 threads, 16 physical cores, 11 min including data loading and warm-up): other processes used 5.6% of the machine's CPU on average (at most 20.6%; 1.80 cores on average), sampled every second (645 samples).
 
 **1,000,000 cells**:
 
@@ -197,7 +195,7 @@ Run 2026-10-26 01:53:21 under the machine-wide timing lock (16 threads, 16 physi
 | k-NN + Leiden clustering | 37 s (36 s-37 s) | 104 s (104 s-105 s) | **2.9x**; 2.8x | 3 | 16 | 4-4% | ARI arsc-scanpy 0.619 vs scanpy seed 0-seed 1 0.660 (33 / 24 / 22 clusters); vs the cell-type labels arsc 0.107, scanpy 0.122. arsc clustered Seurat's SNN graph here (not re-run with scanpy's graph type) |
 | Markers, scanpy-style Wilcoxon (36,601 genes, 36 cell types) | 55 s (55 s-55 s) | 77.6 min (77.6 min-77.6 min) | **84.4x**; 84.4x | 1 | 16 | 4-4% |  |
 | Pseudobulk sums (sample x cell type) | 0.96 s (0.95 s-0.98 s) | 5.23 s (5.21 s-5.24 s) | **5.4x**; 5.3x | 3 | 16 | 4-4% |  |
-| Pseudobulk DESeq2 (paired, 25 patients x 2 timepoints) | 5.71 s (5.71 s-13 s) | 6.87 s (6.85 s-6.90 s) | **1.2x**; 0.5x | 3 | 16 | 4-4% |  |
+| Pseudobulk DESeq2 (paired) | 5.71 s (5.71 s-13 s) | 6.87 s (6.85 s-6.90 s) | **1.2x**; 0.5x | 3 | 16 | 4-4% |  |
 | scanpy gene-set score (3 sets of 30 genes) | 17 s (17 s-17 s) | 34 s (33 s-34 s) | **2.0x**; 2.0x | 3 | 16 | 4-4% |  |
 
 Run 2026-10-26 02:04:27 under the machine-wide timing lock (16 threads, 16 physical cores, 114 min including data loading and warm-up): other processes used 2.8% of the machine's CPU on average (at most 26.6%; 0.90 cores on average), sampled every second (6,752 samples).

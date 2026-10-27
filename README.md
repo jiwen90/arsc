@@ -44,7 +44,7 @@ arsc computes; it does not plot. Results are arrays and tidy `pandas` tables for
 
 Real data: deterministic subsets (seed 0) of a 1.37M-cell PBMC store (36,601 genes, 32 patients, 36 cell-type
 labels), read memory-mapped and held in memory. One machine with 16 cores (AMD Threadripper PRO 5955WX, 512 GB
-RAM, Windows 11), each run under a machine-wide lock that admits no new jobs (other processes still used 3-8% of the CPU on average). Every time is a warm run: numba
+RAM, Windows 11), each run under a machine-wide lock that admits no new jobs (other processes still used 3-10% of the CPU on average). Every time is a warm run: numba
 compilation is excluded. The arsc columns use arsc's scanpy-compatible calls. Ranges, machine load and agreement:
 [SCANPY_PARITY.md](SCANPY_PARITY.md#speed-paired-runs-same-session-same-threads).
 
@@ -55,31 +55,31 @@ Seurat timing comparison pending.
 
 | Step | arsc | scanpy | speed-up |
 |---|---:|---:|---:|
-| Log-normalize | 0.02 s | 0.12 s | 5.9x |
-| Variable genes (2,000) | 0.20 s | 0.41 s | 2.0x |
-| Scale + PCA (30 PCs) | 1.30 s | 1.24 s | 0.9x |
-| Neighbor graph (k = 20) | 0.07 s | 1.25 s | 16.7x |
-| Clustering | 0.14 s | 1.46 s | 10.8x |
-| Markers, Wilcoxon, each cell type vs rest | - | - | - |
-| Pseudobulk sums | 0.27 s | 0.23 s | 0.8x |
-| Pseudobulk DESeq2 | 1.65 s | 1.96 s | 1.2x |
-| Gene-set score (3 sets) | 0.23 s | 0.40 s | 1.7x |
+| Log-normalize | 0.02 s | 0.12 s | 6.3x |
+| Variable genes (2,000) | 0.20 s | 0.41 s | 2.1x |
+| Scale + PCA (30 PCs) | 0.49 s | 1.21 s | 2.5x |
+| Neighbor graph (k = 20) | 0.08 s | 1.22 s | 15.8x |
+| Clustering | 0.14 s | 1.50 s | 10.9x |
+| Markers, Wilcoxon, each cell type vs rest | 0.87 s | 5.51 s | 6.3x |
+| Pseudobulk sums | 0.10 s | 0.27 s | 2.6x |
+| Pseudobulk DESeq2 | 1.80 s | 2.05 s | 1.1x |
+| Gene-set score (3 sets) | 0.23 s | 0.39 s | 1.7x |
 
-16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded); not yet timed against scanpy at this size: markers.
+16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded).
 
 #### 100,000 cells
 
 | Step | arsc | scanpy | speed-up |
 |---|---:|---:|---:|
-| Log-normalize | 0.17 s | 1.20 s | 7.1x |
-| Variable genes (2,000) | 1.26 s | 3.70 s | 2.9x |
-| Scale + PCA (30 PCs) | 2.83 s | 9.57 s | 3.4x |
-| Neighbor graph (k = 20) | 0.68 s | 2.47 s | 3.6x |
-| Clustering | 1.99 s | 7.66 s | 3.9x |
-| Markers, Wilcoxon, each cell type vs rest | 5.32 s | 87 s | 16.4x |
-| Pseudobulk sums | 0.43 s | 0.84 s | 2.0x |
-| Pseudobulk DESeq2 | 3.90 s | 4.68 s | 1.2x |
-| Gene-set score (3 sets) | 1.74 s | 3.46 s | 2.0x |
+| Log-normalize | 0.19 s | 1.23 s | 6.5x |
+| Variable genes (2,000) | 1.27 s | 3.69 s | 2.9x |
+| Scale + PCA (30 PCs) | 1.73 s | 9.67 s | 5.6x |
+| Neighbor graph (k = 20) | 0.67 s | 2.48 s | 3.7x |
+| Clustering | 1.99 s | 7.76 s | 3.9x |
+| Markers, Wilcoxon, each cell type vs rest | 5.51 s | 87 s | 15.7x |
+| Pseudobulk sums | 0.19 s | 0.84 s | 4.4x |
+| Pseudobulk DESeq2 | 3.99 s | 5.02 s | 1.3x |
+| Gene-set score (3 sets) | 1.74 s | 3.43 s | 2.0x |
 
 16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded).
 
@@ -103,7 +103,8 @@ Seurat timing comparison pending.
 Rows: "Neighbor graph" is the k-NN graph (`sc.pp.neighbors`), "Clustering" k-NN plus Leiden
 (`sc.tl.leiden(flavor="igraph")`), markers `sc.tl.rank_genes_groups` (Wilcoxon) and "Gene-set score"
 `sc.tl.score_genes`. At 1,000,000 cells arsc clustered Seurat's shared-nearest-neighbor graph rather than scanpy's
-graph type (not re-run).
+graph type, and its PCA and pseudobulk rows were timed before the current Gram-matrix PCA and pseudobulk code
+(not re-run).
 
 ## Install
 
