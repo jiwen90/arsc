@@ -44,60 +44,65 @@ arsc computes; it does not plot. Results are arrays and tidy `pandas` tables for
 
 Real data: deterministic subsets (seed 0) of a 1.37M-cell PBMC store (36,601 genes, 32 patients, 36 cell-type
 labels), read memory-mapped and held in memory. One machine with 16 cores (AMD Threadripper PRO 5955WX, 512 GB
-RAM, Windows 11), each run under a machine-wide lock that admits no new jobs (other processes still used 3-11% of the CPU on average). Every time is a warm run: numba
-compilation is excluded. The arsc columns use arsc's scanpy-compatible calls. Ranges, machine load and agreement:
-[SCANPY_PARITY.md](SCANPY_PARITY.md#speed-paired-runs-same-session-same-threads).
+RAM, Windows 11). Every time is a warm run: numba compilation is excluded.
 
-Seurat timing comparison pending.
+* **arsc vs scanpy** (first three columns): both at 16 threads in one process, under a machine-wide lock that admits
+  no new jobs (other processes still used 3-11% of the CPU on average); arsc uses its scanpy-compatible calls.
+  Ranges, machine load and agreement: [SCANPY_PARITY.md](SCANPY_PARITY.md#speed-paired-runs-same-session-same-threads).
+* **arsc vs Seurat** (last three columns): arsc at 16 threads with its Seurat-path calls, under the same lock;
+  Seurat 4.3 with its defaults, which run on one thread, timed separately as an ordinary job. At 1,000,000 cells the
+  Seurat run was stopped before it finished, so three of its values are imputed, marked ~value\*, with the method
+  and range below that table. Calls, ranges and agreement:
+  [SEURAT_PARITY.md](SEURAT_PARITY.md).
 
 <!-- SPEED:START -->
 #### 10,000 cells
 
-| Step | arsc | scanpy | speed-up |
-|---|---:|---:|---:|
-| Log-normalize | 0.02 s | 0.12 s | 6.3x |
-| Variable genes (2,000) | 0.20 s | 0.41 s | 2.1x |
-| Scale + PCA (30 PCs) | 0.49 s | 1.21 s | 2.5x |
-| Neighbor graph (k = 20) | 0.08 s | 1.22 s | 15.8x |
-| Clustering | 0.14 s | 1.50 s | 10.9x |
-| Markers, Wilcoxon, each cell type vs rest | 0.87 s | 5.51 s | 6.3x |
-| Pseudobulk sums | 0.10 s | 0.27 s | 2.6x |
-| Pseudobulk DESeq2 | 1.80 s | 2.05 s | 1.1x |
-| Gene-set score (3 sets) | 0.23 s | 0.39 s | 1.7x |
+| Step | arsc | scanpy | speed-up | arsc | Seurat | speed-up |
+|---|---:|---:|---:|---:|---:|---:|
+| Log-normalize | 0.02 s | 0.12 s | 6.3x | 0.02 s | 0.71 s | 31.9x |
+| Variable genes (2,000) | 0.20 s | 0.41 s | 2.1x | 0.19 s | 1.51 s | 7.8x |
+| Scale + PCA (30 PCs) | 0.49 s | 1.21 s | 2.5x | 0.52 s | 5.18 s | 10.0x |
+| Neighbor graph (k = 20) | 0.08 s | 1.22 s | 15.8x | 0.07 s | 2.20 s | 30.3x |
+| Clustering | 0.14 s | 1.50 s | 10.9x | 0.21 s | 1.06 s | 5.0x |
+| Markers, Wilcoxon, each cell type vs rest | 0.87 s | 5.51 s | 6.3x | 7.44 s | 31 min | 248x |
+| Pseudobulk sums | 0.10 s | 0.27 s | 2.6x | 0.16 s | 0.82 s | 5.2x |
+| Pseudobulk DESeq2 | 1.80 s | 2.05 s | 1.1x | - | - | - |
+| Gene-set score (3 sets) | 0.23 s | 0.39 s | 1.7x | 0.40 s | 0.67 s | 1.7x |
 
-16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded).
+16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded). arsc vs Seurat: a separate session, arsc median of 3 warm runs at 16 threads; Seurat 4.3 one run after an untimed warm-up, on 1 thread (R's reference BLAS, `future` with 1 worker: Seurat's default), timed apart from arsc as an ordinary job beside other work (machine CPU use 25% on average while it ran).
 
 #### 100,000 cells
 
-| Step | arsc | scanpy | speed-up |
-|---|---:|---:|---:|
-| Log-normalize | 0.19 s | 1.23 s | 6.5x |
-| Variable genes (2,000) | 1.27 s | 3.69 s | 2.9x |
-| Scale + PCA (30 PCs) | 1.73 s | 9.67 s | 5.6x |
-| Neighbor graph (k = 20) | 0.67 s | 2.48 s | 3.7x |
-| Clustering | 1.99 s | 7.76 s | 3.9x |
-| Markers, Wilcoxon, each cell type vs rest | 5.51 s | 87 s | 15.7x |
-| Pseudobulk sums | 0.19 s | 0.84 s | 4.4x |
-| Pseudobulk DESeq2 | 3.99 s | 5.02 s | 1.3x |
-| Gene-set score (3 sets) | 1.74 s | 3.43 s | 2.0x |
+| Step | arsc | scanpy | speed-up | arsc | Seurat | speed-up |
+|---|---:|---:|---:|---:|---:|---:|
+| Log-normalize | 0.19 s | 1.23 s | 6.5x | 0.22 s | 6.97 s | 31.8x |
+| Variable genes (2,000) | 1.27 s | 3.69 s | 2.9x | 1.26 s | 8.08 s | 6.4x |
+| Scale + PCA (30 PCs) | 1.73 s | 9.67 s | 5.6x | 2.12 s | 38 s | 18.1x |
+| Neighbor graph (k = 20) | 0.67 s | 2.48 s | 3.7x | 0.69 s | 29 s | 42.6x |
+| Clustering | 1.99 s | 7.76 s | 3.9x | 8.56 s | 36 s | 4.2x |
+| Markers, Wilcoxon, each cell type vs rest | 5.51 s | 87 s | 15.7x | 74 s | 233 min | 189x |
+| Pseudobulk sums | 0.19 s | 0.84 s | 4.4x | 0.25 s | 4.72 s | 18.5x |
+| Pseudobulk DESeq2 | 3.99 s | 5.02 s | 1.3x | - | - | - |
+| Gene-set score (3 sets) | 1.74 s | 3.43 s | 2.0x | 2.87 s | 6.27 s | 2.2x |
 
-16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded).
+16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded). arsc vs Seurat: a separate session, arsc median of 3 warm runs at 16 threads; Seurat 4.3 one run after an untimed warm-up, on 1 thread (R's reference BLAS, `future` with 1 worker: Seurat's default), timed apart from arsc as an ordinary job beside other work (machine CPU use 21% on average while it ran).
 
 #### 1,000,000 cells
 
-| Step | arsc | scanpy | speed-up |
-|---|---:|---:|---:|
-| Log-normalize | 1.69 s | 12 s | 7.1x |
-| Variable genes (2,000) | 12 s | 36 s | 3.1x |
-| Scale + PCA (30 PCs) | 15 s | 101 s | 6.9x |
-| Neighbor graph (k = 20) | 13 s | 24 s | 1.8x |
-| Clustering | 41 s | 114 s | 2.8x |
-| Markers, Wilcoxon, each cell type vs rest | 58 s | 78 min | 80.7x |
-| Pseudobulk sums | 0.69 s | 5.21 s | 7.5x |
-| Pseudobulk DESeq2 | 5.86 s | 6.82 s | 1.2x |
-| Gene-set score (3 sets) | 17 s | 34 s | 2.0x |
+| Step | arsc | scanpy | speed-up | arsc | Seurat | speed-up |
+|---|---:|---:|---:|---:|---:|---:|
+| Log-normalize | 1.69 s | 12 s | 7.1x | 2.14 s | 71 s | 33.3x |
+| Variable genes (2,000) | 12 s | 36 s | 3.1x | 12 s | 75 s | 6.3x |
+| Scale + PCA (30 PCs) | 15 s | 101 s | 6.9x | 18 s | 401 s | 21.9x |
+| Neighbor graph (k = 20) | 13 s | 24 s | 1.8x | 13 s | 368 s | 28.1x |
+| Clustering | 41 s | 114 s | 2.8x | 298 s | 26 min | 5.2x |
+| Markers, Wilcoxon, each cell type vs rest | 58 s | 78 min | 80.7x | 13 min | ~14 h\* | ~64.6x |
+| Pseudobulk sums | 0.69 s | 5.21 s | 7.5x | 0.87 s | ~47 s\* | ~54.3x |
+| Pseudobulk DESeq2 | 5.86 s | 6.82 s | 1.2x | - | - | - |
+| Gene-set score (3 sets) | 17 s | 34 s | 2.0x | 28 s | ~63 s\* | ~2.2x |
 
-16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded) (markers ran 1 time per tool).
+16 cores; arsc and scanpy at 16 threads in one process, interleaved, median of 3 warm runs (numba compilation excluded) (markers ran 1 time per tool). arsc vs Seurat: a separate session, arsc median of 3 warm runs at 16 threads; Seurat 4.3 one run after an untimed warm-up, on 1 thread (R's reference BLAS, `future` with 1 worker: Seurat's default). \*Imputed, not measured: Seurat's one-thread run at this size was stopped during the markers step, so the pseudobulk and gene-set score steps never ran; its earlier steps are measured. Markers: `FindMarkers` (one thread) was timed for 16 of the 36 cell types, in that run and in separate one-thread R processes (6.2 h in all); the other 20 are counted at the mean measured time per type (23 min), giving 14.0 h (95% range 11.4-17.0 h, from resampling the measured per-type times). Time per type does not follow the number of cells in it: the slowest type (6,470 cells) took 71 min, the fastest (32,694 cells) 408 s. Pseudobulk sums and gene-set score: 10 times the 100,000-cell Seurat time; from 10,000 to 100,000 cells these grew 5.7-9.4x, so the linear guess is likely an overestimate.
 <!-- SPEED:END -->
 
 Rows: "Neighbor graph" is the k-NN graph (`sc.pp.neighbors`), "Clustering" k-NN plus Leiden

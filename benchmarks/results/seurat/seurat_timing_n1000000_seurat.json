@@ -1,0 +1,174 @@
+{
+  "n": 1000000,
+  "time": "2026-10-27 13:20:23",
+  "complete": false,
+  "note": "one-thread Seurat run stopped by the operator before it finished; measured steps copied from its log and the seurat_markers_shard.py logs, the rest imputed (see steps[*].status)",
+  "seurat": {
+    "tool": "seurat",
+    "n": 1000000,
+    "times": {
+      "normalize": 71.24,
+      "hvg": 74.53,
+      "pca": 400.74,
+      "neighbors": 368.06,
+      "cluster": 1558.13,
+      "markers": 50461.2,
+      "pseudobulk": 47.193961143493695,
+      "score_module": 62.696979045867906
+    },
+    "steps": {
+      "normalize": {
+        "seconds": 71.24,
+        "status": "measured"
+      },
+      "hvg": {
+        "seconds": 74.53,
+        "status": "measured"
+      },
+      "pca": {
+        "seconds": 400.74,
+        "status": "measured"
+      },
+      "neighbors": {
+        "seconds": 368.06,
+        "status": "measured"
+      },
+      "cluster": {
+        "seconds": 1558.13,
+        "status": "measured"
+      },
+      "markers": {
+        "seconds": 50461.2,
+        "status": "imputed",
+        "method": "sum of FindMarkers for the 16 measured cell types plus 20 unmeasured types at the mean measured per-type time",
+        "measured_types": 16,
+        "groups_total": 36,
+        "measured_sum_s": 22427.199999999997,
+        "mean_per_type_s": 1401.6999999999998,
+        "range_95_s": [
+          41095.43,
+          61021.16999999999
+        ],
+        "range_method": "2.5th-97.5th percentile of the measured sum plus 20 per-type times drawn with replacement from the 16 measured ones (10,000 draws, numpy default_rng seed 0)",
+        "per_type": {
+          "unidentified": {
+            "seconds": 1441.8,
+            "cells": 298467,
+            "source": "seurat_markers_n1000000_shard0of4.json"
+          },
+          "cd4_tfh": {
+            "seconds": 485.8,
+            "cells": 25689,
+            "source": "main run"
+          },
+          "b_memory": {
+            "seconds": 3765.4,
+            "cells": 2205,
+            "source": "main run"
+          },
+          "b_naive": {
+            "seconds": 4268.5,
+            "cells": 6470,
+            "source": "main run"
+          },
+          "innate_t": {
+            "seconds": 610.3,
+            "cells": 5407,
+            "source": "main run"
+          },
+          "cd4_t_naive": {
+            "seconds": 2101.6,
+            "cells": 133814,
+            "source": "shard 1"
+          },
+          "cd8_t_naive": {
+            "seconds": 1595.3,
+            "cells": 26954,
+            "source": "shard 1"
+          },
+          "cd4_t_memory": {
+            "seconds": 474.6,
+            "cells": 128555,
+            "source": "shard 2"
+          },
+          "cd8_tem": {
+            "seconds": 1248.1,
+            "cells": 31692,
+            "source": "shard 2"
+          },
+          "cd4_t_memory#isg": {
+            "seconds": 769.6,
+            "cells": 18651,
+            "source": "shard 2"
+          },
+          "cd4_th1": {
+            "seconds": 879.7,
+            "cells": 17062,
+            "source": "shard 2"
+          },
+          "cd4_th17": {
+            "seconds": 759.2,
+            "cells": 54779,
+            "source": "shard 3"
+          },
+          "cd8_tcm": {
+            "seconds": 408.2,
+            "cells": 32694,
+            "source": "shard 3"
+          },
+          "cd4_treg": {
+            "seconds": 674.6,
+            "cells": 32481,
+            "source": "shard 3"
+          },
+          "cd4_th2": {
+            "seconds": 552.8,
+            "cells": 31973,
+            "source": "shard 3"
+          },
+          "cd8_temra": {
+            "seconds": 2391.7,
+            "cells": 26067,
+            "source": "shard 3"
+          }
+        },
+        "note": "per-type time does not track the number of cells: b_memory (2,205 cells) took 3,765 s, cd8_tcm (32,694 cells) 408 s; cd4_tfh ran twice, 485.8 s alone and 481.2 s in a shard"
+      },
+      "pseudobulk": {
+        "seconds": 47.193961143493695,
+        "status": "imputed",
+        "method": "10 x the 100,000-cell Seurat time (linear in cells)",
+        "seurat_100k_s": 4.71939611434937,
+        "seurat_10k_s": 0.82172703742981,
+        "scale_10k_to_100k": 5.743264976543369
+      },
+      "score_module": {
+        "seconds": 62.696979045867906,
+        "status": "imputed",
+        "method": "10 x the 100,000-cell Seurat time (linear in cells)",
+        "seurat_100k_s": 6.26969790458679,
+        "seurat_10k_s": 0.665802001953125,
+        "scale_10k_to_100k": 9.416760367488653
+      }
+    },
+    "imputed": [
+      "markers",
+      "pseudobulk",
+      "score_module"
+    ],
+    "markers_groups_total": 36,
+    "warm_n": 2000,
+    "warmup_s": 209.57,
+    "package_load_s": 2.0,
+    "read_store_s": 135.8,
+    "threads": {
+      "blas_threads": 1,
+      "future_workers": 1
+    },
+    "r_version": "R version 4.3.1 (2023-06-16 ucrt)",
+    "versions": {
+      "Seurat": "4.3.0"
+    }
+  },
+  "agreement": null
+}

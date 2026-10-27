@@ -9,7 +9,8 @@ MAX_OTHER_LOAD; then the detailed tables also go between ``<!-- SEURAT_TIMING:ST
 One table per size, from the most recent real-store session of each (size, step) in results/paired/runs.jsonl and
 from results/seurat/seurat_timing_n<size>.json (arsc, timed under the lock), joined with
 results/seurat/seurat_timing_n<size>_seurat.json (Seurat timed apart on its one thread: seurat_timing.py --r-only)
-when that exists; written between ``<!-- SPEED:START -->`` and ``<!-- SPEED:END -->``
+when that exists (at 1M cells that file is written by seurat_impute_1m.py: measured steps plus imputed ones, each
+marked ~value\* in the tables with a footnote); written between ``<!-- SPEED:START -->`` and ``<!-- SPEED:END -->``
 in README.md. The full tables (ranges, machine state, agreement) are in SCANPY_PARITY.md and SEURAT_PARITY.md.
 """
 from __future__ import annotations
@@ -42,7 +43,43 @@ ROWS = [("Log-normalize", "normalize", "normalize"),
 def fmt(s):
     if s is None or not np.isfinite(s):
         return "-"
+    if s >= 36000:
+        return f"{s / 3600:.0f} h"
     return f"{s:.2f} s" if s < 10 else (f"{s:.0f} s" if s < 600 else f"{s / 60:.0f} min")
+
+
+def imputed(se: dict, step: str):
+    """The imputation record of a Seurat step that was not measured (seurat_impute_1m.py), else None."""
+    d = (se.get("steps") or {}).get(step) or {}
+    return d if d.get("status") == "imputed" else None
+
+
+def imputed_note(se: dict) -> str:
+    """One footnote for the imputed Seurat values of a run: what was measured, the method and the range."""
+    parts = []
+    mk = imputed(se, "markers")
+    if mk:
+        lo, hi = mk["range_95_s"]
+        per = mk["per_type"]
+        few, many = max(per.values(), key=lambda d: d["seconds"]), min(per.values(), key=lambda d: d["seconds"])
+        parts.append(f"markers: `FindMarkers` (one thread) was timed for {mk['measured_types']} of the "
+                     f"{mk['groups_total']} cell types, in that run and in separate one-thread R processes "
+                     f"({mk['measured_sum_s'] / 3600:.1f} h in all); the other "
+                     f"{mk['groups_total'] - mk['measured_types']} are counted at the mean measured time per type "
+                     f"({fmt(mk['mean_per_type_s'])}), giving {mk['seconds'] / 3600:.1f} h (95% range "
+                     f"{lo / 3600:.1f}-{hi / 3600:.1f} h, from resampling the measured per-type times). Time per type "
+                     f"does not follow the number of cells in it: the slowest type ({few['cells']:,} cells) took "
+                     f"{fmt(few['seconds'])}, the fastest ({many['cells']:,} cells) {fmt(many['seconds'])}")
+    lin = [k for k in ("pseudobulk", "score_module") if imputed(se, k)]
+    if lin:
+        sc = [se["steps"][k]["scale_10k_to_100k"] for k in lin]
+        names = " and ".join({"pseudobulk": "pseudobulk sums", "score_module": "gene-set score"}[k] for k in lin)
+        parts.append(f"{names}: 10 times the 100,000-cell Seurat time; from 10,000 to 100,000 cells these grew "
+                     f"{min(sc):.1f}-{max(sc):.1f}x, so the linear guess is likely an overestimate")
+    if not parts:
+        return ""
+    return ("\\*Imputed, not measured: Seurat's one-thread run at this size was stopped during the markers step, so "
+            "the pseudobulk and gene-set score steps never ran; its earlier steps are measured. " +". ".join(p[0].upper() + p[1:] for p in parts))
 
 
 def ratio(a, b):
@@ -106,7 +143,28 @@ def seurat(n: int):
         rs = json.loads(fs.read_text())
         r.update({"seurat": rs["seurat"], "agreement": rs["agreement"], "seurat_apart": True,
                   "seurat_time": rs["time"], "machine_load_during_r": rs.get("machine_load_during_r")})
-    return complete_markers(r)
+    r = complete_markers(r)
+    sh = sharded_markers(n)
+    if sh and "seurat" in r:   # FindAllMarkers split over single-threaded processes: the sum is the one-thread total
+        r["seurat"]["times"]["markers"] = sh["seconds"]
+        r["seurat"]["markers_sharded"] = sh
+    return r
+
+
+def sharded_markers(n: int):
+    """seurat_markers_shard.py results at this size, if one complete set of shards covers every cell type."""
+    for k in sorted({int(f.stem.rsplit("of", 1)[1]) for f in S.glob(f"seurat_markers_n{n}_shard*of*.json")}):
+        fs = sorted(S.glob(f"seurat_markers_n{n}_shard*of{k}.json"))
+        rs = [json.loads(f.read_text()) for f in fs]
+        groups = {g for x in rs for g in x["markers"]}
+        if len(rs) != k or len(groups) != rs[0]["groups_total"]:
+            continue
+        return {"shards": k, "seconds": float(sum(d["seconds"] for x in rs for d in x["markers"].values())),
+                "groups": len(groups), "wall_s": max(x["process_wall_s"] for x in rs),
+                "load_mean": float(np.mean([x["machine_load_during_r"]["cpu_pct_mean"] for x in rs])),
+                "rows": int(sum(d["rows"] for x in rs for d in x["markers"].values())),
+                "time": min(x["time"] for x in rs)}
+    return None
 
 
 def dnf(se: dict):
@@ -141,6 +199,8 @@ def table(n: int, pr: dict) -> list[str]:
                 d = dnf(sr["seurat"]) if ss == "markers" else None
                 if d:
                     row += f" {fmt(sa)} | did not finish (> {fmt(d[0])})\\* | > {ratio(sa, d[0])} |"
+                elif imputed(sr["seurat"], ss):
+                    row += f" {fmt(sa)} | ~{fmt(v)}\\* | ~{ratio(sa, v)} |"
                 else:
                     row += f" {fmt(sa)} | {fmt(v)} | {ratio(sa, v)} |"
         L.append(row)
@@ -181,11 +241,18 @@ def render() -> str:
             if sr["seurat"].get("markers_summed"):
                 cond += (f"; Seurat's markers ran as `FindMarkers` for each of the {sr['seurat']['markers_summed']} "
                          f"cell types, what `FindAllMarkers` runs, summed")
+            sh = sr["seurat"].get("markers_sharded")
+            if sh:
+                cond += (f"; Seurat's markers are the sum of `FindMarkers` for each of the {sh['groups']} cell types "
+                         f"(what `FindAllMarkers` runs), each on one thread, split over {sh['shards']} R processes "
+                         f"run side by side ({fmt(sh['wall_s'])} of wall time)")
             d = dnf(sr["seurat"])
             if d:
                 cond += (f". \\*Seurat's markers did not finish: `FindAllMarkers` runs `FindMarkers` for each cell "
                          f"type, and in {fmt(d[0])} it completed {d[1]} of {d[2]} cell types (seeded random order); "
                          f"no estimate of the total is given")
+            if imputed_note(sr["seurat"]):
+                cond += ". " + imputed_note(sr["seurat"])
 
         out += [cond + ".", ""]
     return "\n".join(out).rstrip() + "\n"
@@ -217,6 +284,8 @@ def seurat_detail() -> str:
             d = dnf(se) if step == "markers" else None
             if d:
                 sc_txt, sp_txt = f"did not finish (> {fmt(d[0])})\\*", f"> {ratio(float(np.median(v)), d[0])}"
+            elif imputed(se, step):
+                sc_txt, sp_txt = f"~{fmt(sv)}\\*", f"~{ratio(float(np.median(v)), sv)}"
             else:
                 sc_txt, sp_txt = fmt(sv), ratio(float(np.median(v)), sv)
             out.append(f"| {SEURAT_CALL[step]} | {ARSC_CALL[step]} | {fmt(float(np.median(v)))} "
@@ -231,25 +300,45 @@ def seurat_detail() -> str:
             out += [f"Seurat's markers ran as `FindMarkers` for each of the {se['markers_summed']} cell types in turn "
                     f"(what `FindAllMarkers` runs, here with a time budget that turned out not to bind); the time is "
                     f"the sum.", ""]
-        if dnf(se):
+        sh = se.get("markers_sharded")
+        if sh:
+            out += [f"Seurat's markers: `FindAllMarkers` is `FindMarkers` for each cell type in turn, which at this "
+                    f"size takes more than a day in one process, so `benchmarks/seurat_markers_shard.py` dealt the "
+                    f"{sh['groups']} cell types to {sh['shards']} single-threaded R processes run side by side "
+                    f"(started {sh['time']}; {fmt(sh['wall_s'])} of wall time; machine CPU use {sh['load_mean']:.0f}% "
+                    f"on average). The time in the table is the sum of the {sh['groups']} timed `FindMarkers` calls "
+                    f"({sh['rows']:,} rows at p < 0.01): the one-thread total, measured, not extrapolated. The "
+                    f"agreement below uses the budgeted single-process run.", ""]
+        if dnf(se) and not sh:
             part = se["markers_partial"]
             per = ", ".join(f"{g} ({d['cells']:,} cells) {fmt(d['seconds'])}" for g, d in part.items())
             out += [f"\\*`FindAllMarkers` did not finish within its time budget. It is `FindMarkers` for each cell "
                     f"type in turn, so the cell types were run one by one in a seeded random order until "
                     f"{fmt(se['times'].get('markers_partial_s'))} had passed: {per} ({len(part)} of "
                     f"{se.get('markers_groups_total')} cell types). No estimate of the total is given.", ""]
-        if r.get("seurat_apart"):
+        if imputed_note(se):
+            out += [imputed_note(se) + ". The measured and imputed values, the per-type marker times and the method "
+                    f"are in `benchmarks/results/seurat/seurat_timing_n{r['n']}_seurat.json` "
+                    f"(written by `benchmarks/seurat_impute_1m.py`).", ""]
+        if r.get("seurat_apart") and r.get("machine_load_during_r"):
             ml = r.get("machine_load_during_r") or {}
             out += [f"Seurat ran apart from arsc (started {r['seurat_time']}), as an ordinary job on its one thread "
                     f"beside other work: the machine's CPU use averaged {ml.get('cpu_pct_mean', float('nan')):.0f}% "
                     f"(at most {ml.get('cpu_pct_max', float('nan')):.0f}%) while it ran. arsc's times come from a "
                     f"separate run under the timing lock.", ""]
+        elif r.get("seurat_apart"):
+            out += [f"Seurat ran apart from arsc (started {r['seurat_time']}), as an ordinary job on its one thread "
+                    f"beside other work. arsc's times come from a separate run under the timing lock.", ""]
+        ct = f", `CreateSeuratObject` {fmt(se['create_object_s'])}" if "create_object_s" in se else ""
+        wu = f" {fmt(se['warmup_s'])}" if "warmup_s" in se else ""
         out += [f"Not timed: R package load {fmt(se['package_load_s'])}, reading the cells from the store "
-                f"{fmt(se['read_store_s'])}, `CreateSeuratObject` {fmt(se['create_object_s'])}, warm-up on "
-                f"{se['warm_n']:,} cells {fmt(se['warmup_s'])}; arsc import {fmt(r['arsc']['import_s'])}, warm-up "
+                f"{fmt(se['read_store_s'])}{ct}, warm-up on {se['warm_n']:,} cells{wu}; arsc import {fmt(r['arsc']['import_s'])}, warm-up "
                 f"(numba compilation) on {min(12000, r['n']):,} cells {fmt(r['arsc']['warmup_s'])}. Seurat threads: "
                 f"BLAS {th.get('blas_threads')} (R's reference BLAS), `future` workers {th.get('future_workers')}; "
                 f"arsc {r['threads_arsc']} threads.", ""]
+        if not ag:
+            out += ["Agreement: not computed at this size (Seurat's run did not finish).", ""]
+            continue
         mk = ag.get("markers_cell_types_compared")
         out += ["Agreement (each tool on its own chain):", "",
                 f"* Variable genes: {ag['hvg_shared']:,} of 2,000 shared.",

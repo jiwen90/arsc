@@ -227,6 +227,82 @@ for the agreement below. The first runs on 2026-10-26 ran both sides together wh
 CPU and are not published.
 
 <!-- SEURAT_TIMING:START -->
+**10,000 cells** (run 2026-10-27 12:02:37):
+
+| Seurat call | arsc call | arsc, median (min-max) | Seurat | speed-up |
+|---|---|---:|---:|---:|
+| `NormalizeData` | `pp.log_normalize` | 0.02 s (0.02 s-0.02 s) | 0.71 s | 31.9x |
+| `FindVariableFeatures` (vst, 2,000) | `pp.hvg_vst` | 0.19 s (0.19 s-0.20 s) | 1.51 s | 7.8x |
+| `ScaleData` + `RunPCA` (30) | `pp.scale` + `pp.pca` | 0.52 s (0.51 s-0.52 s) | 5.18 s | 10.0x |
+| `FindNeighbors` (k = 20) | `find_neighbors` | 0.07 s (0.07 s-0.07 s) | 2.20 s | 30.3x |
+| `FindClusters` (Louvain, resolution 0.6) | `cluster` | 0.21 s (0.21 s-0.22 s) | 1.06 s | 5.0x |
+| `FindAllMarkers` (Wilcoxon) | `find_all_markers` | 7.44 s (7.42 s-7.48 s) | 31 min | 248x |
+| `AggregateExpression` (sample x cell type) | `pseudobulk` | 0.16 s (0.10 s-0.17 s) | 0.82 s | 5.2x |
+| `AddModuleScore` (3 sets of 30 genes) | `add_module_score` | 0.40 s (0.40 s-0.40 s) | 0.67 s | 1.7x |
+
+arsc ran 2026-10-27 12:01:54 under the machine-wide timing lock (16 threads, 1 min including data loading and warm-up); other processes used 4.7% of the machine's CPU on average (at most 9%).
+
+Seurat ran apart from arsc (started 2026-10-27 13:20:46), as an ordinary job on its one thread beside other work: the machine's CPU use averaged 25% (at most 74%) while it ran. arsc's times come from a separate run under the timing lock.
+
+Not timed: R package load 2.21 s, reading the cells from the store 5.88 s, `CreateSeuratObject` 1.61 s, warm-up on 2,000 cells 328 s; arsc import 1.02 s, warm-up (numba compilation) on 10,000 cells 9.59 s. Seurat threads: BLAS 1 (R's reference BLAS), `future` workers 1; arsc 16 threads.
+
+Agreement (each tool on its own chain):
+
+* Variable genes: 2,000 of 2,000 shared.
+* Clusters: ARI arsc-Seurat 0.815; Seurat seed 0-seed 1 0.951; arsc seed 0-seed 1 0.884 (15 / 13 / 14 clusters: arsc / Seurat / Seurat seed 1); against the cell-type labels arsc 0.126, Seurat 0.122.
+* Markers: 24,217 Seurat rows, 24,217 arsc rows, Jaccard of (cell type, gene) 1.000; avg_log2FC max diff 5.8e-15, p max rel. diff 2.0e-13; top-10 positive markers per cell type shared 100% on average (min 100%).
+* Pseudobulk: 1,367 groups each, total counts identical.
+* Module scores: max diff 4.6e-15 on the first 5,000 cells.
+
+**100,000 cells** (run 2026-10-27 12:08:54):
+
+| Seurat call | arsc call | arsc, median (min-max) | Seurat | speed-up |
+|---|---|---:|---:|---:|
+| `NormalizeData` | `pp.log_normalize` | 0.22 s (0.21 s-0.22 s) | 6.97 s | 31.8x |
+| `FindVariableFeatures` (vst, 2,000) | `pp.hvg_vst` | 1.26 s (1.25 s-1.27 s) | 8.08 s | 6.4x |
+| `ScaleData` + `RunPCA` (30) | `pp.scale` + `pp.pca` | 2.12 s (2.10 s-2.13 s) | 38 s | 18.1x |
+| `FindNeighbors` (k = 20) | `find_neighbors` | 0.69 s (0.69 s-0.70 s) | 29 s | 42.6x |
+| `FindClusters` (Louvain, resolution 0.6) | `cluster` | 8.56 s (8.47 s-8.57 s) | 36 s | 4.2x |
+| `FindAllMarkers` (Wilcoxon) | `find_all_markers` | 74 s (74 s-74 s) | 233 min | 189x |
+| `AggregateExpression` (sample x cell type) | `pseudobulk` | 0.25 s (0.20 s-0.29 s) | 4.72 s | 18.5x |
+| `AddModuleScore` (3 sets of 30 genes) | `add_module_score` | 2.87 s (2.82 s-2.94 s) | 6.27 s | 2.2x |
+
+arsc ran 2026-10-27 12:03:59 under the machine-wide timing lock (16 threads, 5 min including data loading and warm-up); other processes used 5.1% of the machine's CPU on average (at most 15%).
+
+Seurat ran apart from arsc (started 2026-10-27 13:22:52), as an ordinary job on its one thread beside other work: the machine's CPU use averaged 21% (at most 78%) while it ran. arsc's times come from a separate run under the timing lock.
+
+Not timed: R package load 1.85 s, reading the cells from the store 18 s, `CreateSeuratObject` 9.43 s, warm-up on 2,000 cells 344 s; arsc import 0.99 s, warm-up (numba compilation) on 12,000 cells 11 s. Seurat threads: BLAS 1 (R's reference BLAS), `future` workers 1; arsc 16 threads.
+
+Agreement (each tool on its own chain):
+
+* Variable genes: 1,998 of 2,000 shared.
+* Clusters: ARI arsc-Seurat 0.819; Seurat seed 0-seed 1 0.809; arsc seed 0-seed 1 0.780 (24 / 25 / 25 clusters: arsc / Seurat / Seurat seed 1); against the cell-type labels arsc 0.100, Seurat 0.111.
+* Markers: 30,404 Seurat rows, 30,404 arsc rows, Jaccard of (cell type, gene) 1.000; avg_log2FC max diff 6.4e-15, p max rel. diff 3.6e-11; top-10 positive markers per cell type shared 100% on average (min 100%).
+* Pseudobulk: 2,030 groups each, total counts identical.
+* Module scores: max diff 4.7e-15 on the first 5,000 cells.
+
+**1,000,000 cells** (run 2026-10-27 13:12:24):
+
+| Seurat call | arsc call | arsc, median (min-max) | Seurat | speed-up |
+|---|---|---:|---:|---:|
+| `NormalizeData` | `pp.log_normalize` | 2.14 s (2.11 s-2.17 s) | 71 s | 33.3x |
+| `FindVariableFeatures` (vst, 2,000) | `pp.hvg_vst` | 12 s (12 s-12 s) | 75 s | 6.3x |
+| `ScaleData` + `RunPCA` (30) | `pp.scale` + `pp.pca` | 18 s (18 s-18 s) | 401 s | 21.9x |
+| `FindNeighbors` (k = 20) | `find_neighbors` | 13 s (13 s-13 s) | 368 s | 28.1x |
+| `FindClusters` (Louvain, resolution 0.6) | `cluster` | 298 s (290 s-299 s) | 26 min | 5.2x |
+| `FindAllMarkers` (Wilcoxon) | `find_all_markers` | 13 min (13 min-13 min) | ~14 h\* | ~64.6x |
+| `AggregateExpression` (sample x cell type) | `pseudobulk` | 0.87 s (0.82 s-0.98 s) | ~47 s\* | ~54.3x |
+| `AddModuleScore` (3 sets of 30 genes) | `add_module_score` | 28 s (28 s-28 s) | ~63 s\* | ~2.2x |
+
+arsc ran 2026-10-27 12:09:08 under the machine-wide timing lock (16 threads, 63 min including data loading and warm-up); other processes used 8.2% of the machine's CPU on average (at most 45%).
+
+\*Imputed, not measured: Seurat's one-thread run at this size was stopped during the markers step, so the pseudobulk and gene-set score steps never ran; its earlier steps are measured. Markers: `FindMarkers` (one thread) was timed for 16 of the 36 cell types, in that run and in separate one-thread R processes (6.2 h in all); the other 20 are counted at the mean measured time per type (23 min), giving 14.0 h (95% range 11.4-17.0 h, from resampling the measured per-type times). Time per type does not follow the number of cells in it: the slowest type (6,470 cells) took 71 min, the fastest (32,694 cells) 408 s. Pseudobulk sums and gene-set score: 10 times the 100,000-cell Seurat time; from 10,000 to 100,000 cells these grew 5.7-9.4x, so the linear guess is likely an overestimate. The measured and imputed values, the per-type marker times and the method are in `benchmarks/results/seurat/seurat_timing_n1000000_seurat.json` (written by `benchmarks/seurat_impute_1m.py`).
+
+Seurat ran apart from arsc (started 2026-10-27 13:20:23), as an ordinary job on its one thread beside other work. arsc's times come from a separate run under the timing lock.
+
+Not timed: R package load 2.00 s, reading the cells from the store 136 s, warm-up on 2,000 cells 210 s; arsc import 1.00 s, warm-up (numba compilation) on 12,000 cells 11 s. Seurat threads: BLAS 1 (R's reference BLAS), `future` workers 1; arsc 16 threads.
+
+Agreement: not computed at this size (Seurat's run did not finish).
 <!-- SEURAT_TIMING:END -->
 
 Marker order on large data. Many p values underflow to 0 at 100,000 cells, so the order among tied rows decides the
