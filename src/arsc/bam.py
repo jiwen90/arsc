@@ -421,6 +421,17 @@ def _parse_tags(buf, offs, keep, lname, ncig, lseq, tags1, tags2):
 
 
 @nb.njit(cache=True, nogil=True)
+def _gather(buf, off, ln):
+    out = np.empty(ln.sum(), np.uint8)
+    p = 0
+    for i in range(off.shape[0]):
+        for j in range(ln[i]):
+            out[p + j] = buf[off[i] + j]
+        p += ln[i]
+    return out
+
+
+@nb.njit(cache=True, nogil=True)
 def _count_kernel(buf, offs, excl, min_mapq, ref_counts):
     n = 0
     for k in range(offs.shape[0]):
@@ -944,13 +955,18 @@ def _tag_values(buf, kind, ival, soff, slen, t):
     if n and np.all(k == 3):
         return ival[:, t].copy()
     out = np.empty(n, object)
-    mv = memoryview(buf)
-    for i in range(n):
+    isstr = (k == 1) | (k == 2)
+    if isstr.any():  # strings: one gather + one decode, then slices
+        idx = np.flatnonzero(isstr)
+        ln = slen[idx, t]
+        flat = _gather(buf, soff[idx, t], ln)
+        text = flat.tobytes().decode("ascii", "replace")
+        o = np.concatenate([[0], np.cumsum(ln)]).tolist()
+        out[idx] = [text[o[j]:o[j + 1]] for j in range(len(idx))]
+    for i in np.flatnonzero(~isstr):
         ki = k[i]
         if ki == 0:
             out[i] = None
-        elif ki == 1 or ki == 2:
-            out[i] = bytes(mv[soff[i, t]:soff[i, t] + slen[i, t]]).decode("ascii", "replace")
         elif ki == 3:
             out[i] = int(ival[i, t])
         elif ki == 4:
@@ -972,9 +988,10 @@ def _records_from(buf, offs, keep_mask, tags) -> Records:
     seq_off = np.concatenate([[0], np.cumsum(np.maximum(lseq[keep], 0))]).astype(np.int64)
     name_b, cig, seq, qual = _parse_var(buf, offs, keep, lname, ncig, lseq, name_off, cig_off, seq_off,
                                         _SEQ_ALPHABET)
-    nb_ = name_b.tobytes()
-    names = np.array([nb_[name_off[i]:name_off[i + 1]].decode("ascii", "replace") for i in range(len(keep))],
-                     dtype=object)
+    text = name_b.tobytes().decode("ascii", "replace")
+    no = name_off.tolist()
+    names = np.empty(len(keep), object)
+    names[:] = [text[no[i]:no[i + 1]] for i in range(len(keep))]
     tg = {}
     if tags:
         t1 = np.array([ord(t[0]) for t in tags], np.uint8)
