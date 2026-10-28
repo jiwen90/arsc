@@ -901,7 +901,7 @@ class Records:
             "qual": [self.qual[so[i]:so[i + 1]].tolist() for i in range(n)],
         })
         for t, v in self.tags.items():
-            df[t] = v
+            df[t] = pd.Series(v, dtype=v.dtype if v.dtype != object else object)  # None stays None (pandas 3)
         return df
 
 

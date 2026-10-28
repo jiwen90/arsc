@@ -68,11 +68,11 @@ def _ref_pileup(frame, sites, barcodes, *, excl=0x304, min_mapq=20, min_baseq=20
             bq = _base_at(row, p0)
             if bq is None or bq[1] < min_baseq:
                 continue
-            if cell and row.CB is None:
+            if cell and not isinstance(row.CB, str):
                 continue
             if bcs is not None and row.CB not in bcs:
                 continue
-            if umi and row.UB is None:
+            if umi and not isinstance(row.UB, str):
                 continue
             ci = bcs[row.CB] if bcs is not None else 0
             key = (row.CB if bcs is None and cell else None, row.UB if umi else k)
