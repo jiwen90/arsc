@@ -103,6 +103,12 @@ Clonal analysis (arsc.clones, arsc.clonotrace).
     Lineage Modeling. bioRxiv 2025.09.01.673503. arsc.clonotrace ports the Clonotrace R package
     v1.2.1 (MIT; LICENSES/Clonotrace-MIT.txt).
 
+BAM reading and allele counting (arsc.bam). Written from the SAM/BAM format specification (SAMv1, hts-specs,
+https://samtools.github.io/hts-specs/); no htslib, pysam or cellsnp-lite code is used. The pileup filters and the
+AD / DP / OTH output follow cellsnp-lite's mode 1 / mode 2 design (Huang X, Huang Y. Cellsnp-lite: an efficient tool
+for genotyping single cells. Bioinformatics (2021); Apache-2.0). Optional "bam" extra: deflate (libdeflate
+bindings, MIT).
+
 UMAP engine (arsc._umap, arsc.umap(engine="arsc"), arsc.fuzzy_simplicial_set). The fuzzy simplicial set,
 the a/b curve fit, the epoch sampling and the initialization follow umap-learn 0.5 (BSD-3-Clause;
 LICENSES/umap-learn-BSD-3-Clause.txt); the parallel, thread-count-independent layout optimizer is arsc's own.

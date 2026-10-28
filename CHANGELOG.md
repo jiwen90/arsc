@@ -7,6 +7,13 @@ All notable changes to arsc are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- `arsc.bam`: native BAM reading and per-cell allele counting, so genotype checks no longer need pysam / htslib
+  (no Windows build) or a Linux container. `BamFile` (header, `.bai` region queries, `fetch` / `iter_records` /
+  `count` into columnar `Records` with CB / UB / any tags; BGZF inflated in parallel threads with libdeflate, isal or
+  zlib), `pileup_cells` (REF / ALT UMIs per cell at SNPs, cellsnp-lite AD / DP / OTH layout; CIGAR N / D / I / S
+  handled as htslib's pileup), `discover_snps` (pooled de-novo SNP candidates), `sample_allele_fractions` /
+  `genotype_concordance` (sample mix-up checks), `write_bam` and `arsc.datasets.toy_bam`. Parity with pysam 0.22.1
+  on a real 10x BAM: BAM_PARITY.md. New optional extra `bam` (deflate).
 - `arsc.cluster(..., refinement="igraph")` and `arsc._leiden.leiden(..., refinement="igraph", beta=0.01)`: arsc's
   Leiden with the refinement step of igraph's `community_leiden` (the engine of scanpy's `flavor="igraph"`).
   `scanpy_extra.leiden(..., flavor="igraph", engine="arsc")` runs it on scanpy connectivities: on 100,000 PBMCs its

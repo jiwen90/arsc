@@ -31,6 +31,7 @@ License: GPL-3.0-or-later (LICENSE); NOTICE credits each ported original with it
 - [HARMONY_PARITY.md](HARMONY_PARITY.md): run_harmony vs R harmony 2.0.5 (CRAN), 2.1.0 (GitHub) and 1.2, one to three batch variables
 - [SYMPHONY_PARITY.md](SYMPHONY_PARITY.md): Symphony reference mapping (build reference, map query, kNN labels) vs R symphony 0.1.1
 - [CLONOTRACE_PARITY.md](CLONOTRACE_PARITY.md): CloneTrace port
+- [BAM_PARITY.md](BAM_PARITY.md): arsc.bam (BAM reader, per-cell SNP pileup, de-novo SNPs) vs pysam 0.22.1 / htslib
 - [SEEDS.md](SEEDS.md): seeds and determinism of every stochastic function
 - [benchmarks/README.md](benchmarks/README.md): reproducible speed / memory / agreement benchmarks vs scanpy and Seurat
 

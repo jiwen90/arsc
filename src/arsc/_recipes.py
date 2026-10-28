@@ -75,6 +75,10 @@ TASKS = [
     ("Clones", "clone trajectories over >= 3 timepoints (Cyclone, exact)", "arsc.clones.cyclone(obs, clone_col=..., patient_col=..., time_col=...)"),
     ("Clones", "STARTRAC expansion / transition indices", "arsc.clones.startrac(obs, clone_col=..., state_col=..., group_cols=...)"),
     ("Clones", "clonal fate (CloneTrace port)", "arsc.clonotrace.run(embedding, clones, ...)"),
+    ("Genotype", "read a BAM (header, region records, CB/UB tags) without pysam", "arsc.bam.BamFile(path).fetch('chr1:1-1000', tags=('CB', 'UB'))"),
+    ("Genotype", "REF/ALT UMIs per cell at SNPs (cellsnp-lite AD/DP)", "arsc.bam.pileup_cells(bam, sites, barcodes)"),
+    ("Genotype", "find candidate SNPs de novo (pooled pileup)", "arsc.bam.discover_snps(bam, min_depth=20, min_maf=0.1)"),
+    ("Genotype", "do two samples come from the same donor (sample mix-up check)", "arsc.bam.genotype_concordance(ac.aggregate(cell_to_sample))"),
     ("Trajectory", "diffusion map / DPT / Palantir diffusion / MAGIC", "arsc.diffmap, arsc.dpt, arsc.scanpy_extra.palantir_diffusion_maps, arsc.magic_impute"),
     ("Utility", "threads", "arsc.set_threads(n); env AR_THREADS (default 4)"),
 ]

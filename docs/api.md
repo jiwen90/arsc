@@ -18,6 +18,7 @@ Generated from the docstrings by `docs/build_docs.py`; do not edit by hand. Star
 * [arsc.clones](#arscclones): TCR clones
 * [arsc.clonotrace](#arscclonotrace): CloneTrace (clonal fate)
 * [arsc.genesets](#arscgenesets): Gene sets
+* [arsc.bam](#arscbam): BAM reading, per-cell allele counts, genotype checks
 * [arsc.seurat_extra](#arscseurat_extra): Seurat parity
 * [arsc.scanpy_extra](#arscscanpy_extra): scanpy parity
 
@@ -750,6 +751,39 @@ Examples
 ['B', 'CD4 T', 'CD8 T', 'Mono', 'NK']
 >>> ds.X("RNA", "counts").shape
 (1200, 300)
+```
+
+### `arsc.datasets.toy_bam(path, *, n_cells_per_donor: 'int' = 40, n_sites: 'int' = 30, seed: 'int' = 0) -> 'dict'`
+
+```text
+Write a small synthetic 10x-style BAM (with ``.bai``) of 3 donors' cells, for :mod:`arsc.bam`.
+
+Two references (``chr1`` 60 kb, ``chr2`` 30 kb, random sequence); ``n_sites`` SNPs with a known genotype per
+donor (``D1``-``D3``, 0 / 1 / 2 ALT copies). Each cell has ``CB`` (16 bases + ``-1``) and its reads ``UB``;
+a UMI has 1-3 reads (all but the first flagged duplicate) with a rare sequencing error. Reads are 60-90 bp
+with spliced (``N``), deleted (``D``), inserted (``I``) and soft-clipped (``S``) CIGARs, so some reads skip a
+site. Filter traps: MAPQ 3 reads, secondary and QC-fail reads, low base quality at a site, a barcode not in
+the list, reads without ``UB``, and unplaced unmapped reads at the end.
+
+Parameters
+----------
+path : output ``.bam`` path (the index is written to ``path + ".bai"``).
+n_cells_per_donor : cells per donor.
+n_sites : SNPs (spread over both references).
+seed : random seed (integer).
+
+Returns
+-------
+dict with ``path``, ``sites`` (DataFrame chrom, pos (1-based), ref, alt), ``genotypes`` (sites x donors ALT
+copies), ``barcodes`` (list), ``donor`` and ``half`` (Series indexed by barcode: donor, and an ``A`` / ``B``
+split of each donor's cells), ``n_records``.
+
+Examples
+--------
+>>> import arsc, tempfile, os
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> len(toy["barcodes"]), len(toy["sites"])
+(120, 30)
 ```
 
 ### `arsc.datasets.toy_h5ad(path, n_cells: 'int' = 3000, n_genes: 'int' = 300, *, seed: 'int' = 0) -> 'Path'`
@@ -5477,6 +5511,318 @@ Examples
 >>> pd.DataFrame({"gene": ["CD3E", "CD8A", "LYZ"], "module": [1, 1, -1]}).to_csv(f, index=False)
 >>> genesets.read_module_csv(f)
 {'module1': ['CD3E', 'CD8A']}
+```
+
+## arsc.bam
+
+BAM reading, per-cell allele counts, genotype checks.
+
+### `arsc.bam.AlleleCounts(sites: 'pd.DataFrame', barcodes: 'list', counts: 'dict', AD: 'sp.csr_matrix | None', DP: 'sp.csr_matrix | None', OTH: 'sp.csr_matrix | None', stats: 'dict') -> None`
+
+```text
+Per-cell allele counts at SNPs (the output of :func:`pileup_cells`).
+
+Attributes
+----------
+sites : the input sites (rows in input order), with columns chrom, pos (1-based), ref, alt when given.
+barcodes : list of cell barcodes (columns of the matrices; ``["pooled"]`` in pooled mode).
+counts : dict base -> sparse CSR ``sites x cells`` matrix of UMI counts for ``"A"``, ``"C"``, ``"G"``, ``"T"``,
+    ``"N"`` (N = any non-ACGT base).
+AD, DP, OTH : CSR ``sites x cells`` (cellsnp-lite layout): ALT UMIs, REF + ALT UMIs, other-allele UMIs; ``None``
+    when the sites have no ref / alt columns.
+stats : dict of read counters (reads overlapping a site before filters, missing cell tag, barcode not in the
+    list, missing UMI tag, bases below the quality cut, UMIs dropped for an allele tie).
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> ac = arsc.bam.pileup_cells(toy["path"], toy["sites"], toy["barcodes"])
+>>> int(ac.DP.sum()) == ac.stats["umis"] - int(ac.OTH.sum())
+True
+```
+
+### `arsc.bam.BamFile(path, index=None, threads: 'int | None' = None, inflater: 'str | None' = None, chunk_mb: 'float' = 32)`
+
+```text
+A coordinate-sorted BAM file, read natively (the parts of ``pysam.AlignmentFile`` genotype checks use).
+
+Parameters
+----------
+path : the ``.bam`` file.
+index : the ``.bai`` path (default: ``path + ".bai"``, else ``path`` with ``.bai`` replacing ``.bam``); needed
+    only for region queries.
+threads : inflating threads (default: arsc's thread setting, ``AR_THREADS``).
+inflater : ``None`` (fastest installed) or ``"libdeflate"``, ``"isal"``, ``"zlib"``.
+chunk_mb : compressed bytes read per sequential read (default 32 MB; large reads suit hard disks).
+
+Attributes
+----------
+header_text : the SAM header text.
+references, lengths : reference names and lengths.
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> with arsc.bam.BamFile(toy["path"]) as bam:
+...     n = bam.count()
+>>> n > 0
+True
+```
+
+### `arsc.bam.discover_snps(bam, *, regions=None, barcodes=None, cell_tag: 'str' = 'CB', min_depth: 'int' = 20, min_alt: 'int' = 4, min_maf: 'float' = 0.1, min_top2: 'float' = 0.0, min_mapq: 'int' = 20, min_baseq: 'int' = 20, min_len: 'int' = 30, exclude_flags: 'int' = 1796, threads: 'int | None' = None, window: 'int' = 8388608, inflater: 'str | None' = None) -> 'pd.DataFrame'`
+
+```text
+Find candidate SNPs de novo: pooled pileup of every covered position (cellsnp-lite mode 2 style).
+
+Counts reads (not UMIs: duplicates are excluded by flag, which in Cell Ranger BAMs leaves one read per UMI)
+with A / C / G / T / N at every position, over all reads or only those of listed barcodes, and keeps
+positions with depth (A + C + G + T) >= ``min_depth`` whose second most frequent base has >= ``min_alt`` reads
+and >= ``min_maf`` of the depth. Without a reference genome the alleles are the pooled major (``ref``) and
+minor (``alt``) bases, not the genome's reference allele. Feed the result to :func:`pileup_cells`.
+
+Parameters
+----------
+bam : path of a coordinate-sorted BAM (or an open :class:`BamFile`).
+regions : ``None`` (the whole file) or a list of reference names / ``(contig, start, stop)`` regions.
+barcodes : count only reads whose ``cell_tag`` is in this list (``None``: all reads).
+cell_tag : the cell barcode tag used with ``barcodes``.
+min_depth, min_alt, min_maf : site thresholds (defaults 20, 4, 0.1).
+min_top2 : the two top bases must hold at least this fraction of the depth (e.g. 0.95; default 0, off).
+min_mapq, min_baseq, min_len, exclude_flags : read and base filters as in :func:`pileup_cells`.
+threads : inflating threads.
+window : positions held in the pileup ring buffer (default 8.4 Mb); bases of a read more than this beyond the
+    read start (very long introns) are dropped and counted in ``df.attrs["dropped_bases"]``.
+inflater : DEFLATE engine.
+
+Returns
+-------
+pandas.DataFrame: chrom, pos (1-based), ref (major), alt (minor), A, C, G, T, N, depth, maf.
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> snps = arsc.bam.discover_snps(toy["path"], min_depth=10)
+>>> len(snps) > 0
+True
+```
+
+### `arsc.bam.genotype_concordance(table: 'pd.DataFrame', *, group: 'str' = 'group', min_depth: 'int' = 10, het: 'tuple' = (0.1, 0.9)) -> 'pd.DataFrame'`
+
+```text
+Pairwise genotype agreement between samples at shared sites (same donor or not).
+
+Each sample's ALT fraction at a site with depth >= ``min_depth`` is called 0 (< ``het[0]``), 1 (het) or 2
+(> ``het[1]``). For each pair: the sites both samples cover, the informative ones among them (at least one
+sample not homozygous REF: 0 / 0 sites agree for any two people), the fraction of identical calls on both, the
+opposite-homozygous sites (0 vs 2: impossible for one donor short of errors) and the Pearson correlation of
+the fractions. Same donor: concordance near 1, no opposite homozygotes, correlation near 1; two unrelated
+donors: informative concordance around 0.3-0.5 and correlation near 0.2-0.4.
+
+Parameters
+----------
+table : long table with ``group``, chrom, pos, AD, DP (see :func:`sample_allele_fractions`).
+group : the sample column.
+min_depth : minimum REF + ALT UMIs per sample and site.
+het : allele-fraction bounds of a heterozygous call.
+
+Returns
+-------
+pandas.DataFrame, one row per sample pair: sample_a, sample_b, n_shared, n_informative, concordance (all shared
+sites), concordance_informative, n_opposite_hom, af_pearson.
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> ac = arsc.bam.pileup_cells(toy["path"], toy["sites"], toy["barcodes"])
+>>> agg = ac.aggregate(toy["donor"].str.cat(toy["half"], sep="_"))
+>>> pairs = arsc.bam.genotype_concordance(agg, min_depth=5)
+>>> same = pairs[pairs.sample_a.str[:2] == pairs.sample_b.str[:2]]
+>>> bool((same.concordance_informative > 0.9).all())
+True
+```
+
+### `arsc.bam.inflater(name: 'str | None' = None) -> 'str'`
+
+```text
+Name of the raw-DEFLATE engine BGZF blocks are inflated with.
+
+Parameters
+----------
+name : ``None`` (the fastest installed: ``"libdeflate"`` from the ``deflate`` wheel, else ``"isal"``, else the
+    standard library ``"zlib"``) or one of those names (``KeyError`` if it is not installed).
+
+Returns
+-------
+str, the engine name.
+
+Examples
+--------
+>>> import arsc
+>>> arsc.bam.inflater("zlib")
+'zlib'
+```
+
+### `arsc.bam.pileup_cells(bam, sites: 'pd.DataFrame', barcodes=None, *, cell_tag: 'str | None' = 'CB', umi_tag: 'str | None' = 'UB', min_mapq: 'int' = 20, min_baseq: 'int' = 20, min_len: 'int' = 30, exclude_flags: 'int | None' = None, umi_rule: 'str' = 'majority', threads: 'int | None' = None, gap_kb: 'float' = 1024, inflater: 'str | None' = None) -> 'AlleleCounts'`
+
+```text
+Count alleles per cell barcode at SNP positions, one count per UMI (cellsnp-lite mode 1 style).
+
+For every read covering a site: the read must pass the flag / MAPQ / aligned-length filters, the base at the
+site must have quality >= ``min_baseq``, the site must fall in an M / = / X block of the CIGAR (a site in a
+deletion ``D`` or intron ``N`` is not covered; insertions and soft clips shift the read position), the read
+must carry ``cell_tag`` with a barcode in ``barcodes`` and ``umi_tag``. Reads are then collapsed per
+(site, cell, UMI): ``umi_rule="majority"`` keeps the most frequent base of the UMI's reads (a UMI whose reads
+tie between bases is dropped and counted in ``stats["umi_ties"]``), ``"first"`` keeps the first read's base.
+
+Parameters
+----------
+bam : path of a coordinate-sorted, indexed BAM, or an open :class:`BamFile`.
+sites : DataFrame with ``chrom`` and 1-based ``pos`` (VCF convention); optional ``ref`` and ``alt`` give
+    AD / DP / OTH. Sites on references absent from the BAM get zero counts.
+barcodes : cell barcodes to count (e.g. the filtered barcodes of Cell Ranger). ``None`` pools all reads that
+    carry ``cell_tag`` into one column (``"pooled"``), UMIs then keyed by cell barcode + UMI.
+cell_tag : cell barcode tag (``None``: ignore barcodes, pool all reads).
+umi_tag : UMI tag (``None``: count reads, no UMI collapsing).
+min_mapq : minimum MAPQ (default 20, as cellsnp-lite; STAR / Cell Ranger unique reads have 255).
+min_baseq : minimum base quality at the site (default 20).
+min_len : minimum aligned length (bases in M / = / X; default 30, as cellsnp-lite).
+exclude_flags : reads with any of these flag bits are skipped. Default: unmapped, secondary, QC-fail
+    (``0x304``) with a UMI tag (duplicates are collapsed by UMI, as cellsnp-lite) and also duplicates
+    (``0x704``) without one.
+umi_rule : ``"majority"`` (default) or ``"first"``.
+threads : inflating threads (default ``AR_THREADS``).
+gap_kb : index chunks closer than this many compressed kilobytes are read in one go (default 1 MB: on a hard
+    disk reading 1 MB is cheaper than a seek). Dense site lists end up reading the BAM front to back.
+inflater : DEFLATE engine (see :func:`inflater`).
+
+Returns
+-------
+:class:`AlleleCounts` (sparse ``sites x cells`` matrices AD / DP / OTH and per-base counts; ``.long()``,
+``.aggregate(groups)``).
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> ac = arsc.bam.pileup_cells(toy["path"], toy["sites"], toy["barcodes"])
+>>> ac.AD.shape == (len(toy["sites"]), len(toy["barcodes"]))
+True
+```
+
+### `arsc.bam.read_bai(path) -> 'list'`
+
+```text
+Read a BAM index (``.bai``).
+
+Parameters
+----------
+path : the ``.bai`` file.
+
+Returns
+-------
+list with one entry per reference: an object with ``bins`` (dict bin number -> ``(n, 2)`` uint64 array of
+chunk virtual offsets ``[begin, end)``, the pseudo-bin 37450 removed) and ``ioffsets`` (linear index, uint64
+virtual offset of the first record overlapping each 16 kb window).
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> idx = arsc.bam.read_bai(toy["path"] + ".bai")
+>>> len(idx)
+2
+```
+
+### `arsc.bam.Records(ref_id: 'np.ndarray', pos: 'np.ndarray', end: 'np.ndarray', mapq: 'np.ndarray', flag: 'np.ndarray', next_ref_id: 'np.ndarray', next_pos: 'np.ndarray', tlen: 'np.ndarray', name: 'np.ndarray', cigar_ops: 'np.ndarray', cigar_lens: 'np.ndarray', cigar_off: 'np.ndarray', seq: 'np.ndarray', qual: 'np.ndarray', seq_off: 'np.ndarray', tags: 'dict' = <factory>) -> None`
+
+```text
+Columnar BAM records (what pysam's ``AlignedSegment`` fields hold, for many reads at once).
+
+Attributes
+----------
+ref_id, pos, end : int32 arrays: reference index (-1 unplaced), 0-based leftmost position, 0-based exclusive
+    end on the reference (``pos + 1`` for unmapped reads or reads without reference-consuming CIGAR, as htslib's
+    ``bam_endpos``).
+mapq, flag : uint8 / uint16 arrays.
+next_ref_id, next_pos, tlen : int32 arrays (mate reference, mate position, template length).
+name : object array of read names.
+cigar_ops, cigar_lens, cigar_off : flat CIGAR (op codes 0-8 = ``MIDNSHP=X``, lengths) and per-record offsets
+    (record i owns ``[cigar_off[i], cigar_off[i+1])``).
+seq, qual, seq_off : flat ASCII sequence and base qualities (uint8, Phred; 255 = absent) with per-record offsets.
+tags : dict tag -> array: int64 when every record has the tag as an integer, else an object array (str for
+    Z / H / A tags, int, float, list for B arrays; ``None`` where the tag is absent).
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> recs = arsc.bam.BamFile(toy["path"]).fetch("chr2", tags=("CB",))
+>>> len(recs) == len(recs.tags["CB"])
+True
+```
+
+### `arsc.bam.sample_allele_fractions(table: 'pd.DataFrame', *, group: 'str' = 'group', min_depth: 'int' = 10) -> 'pd.DataFrame'`
+
+```text
+Wide table of ALT allele fractions (sites x samples), NaN where a sample's depth is below ``min_depth``.
+
+Parameters
+----------
+table : long table with columns ``group`` (sample), chrom, pos, AD, DP (e.g. :meth:`AlleleCounts.aggregate`,
+    or several samples' pooled :func:`pileup_cells` results concatenated with a group column).
+group : the sample column.
+min_depth : minimum REF + ALT UMIs for a sample's fraction to count.
+
+Returns
+-------
+pandas.DataFrame indexed by ``chrom:pos``, one column per sample.
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+>>> ac = arsc.bam.pileup_cells(toy["path"], toy["sites"], toy["barcodes"])
+>>> af = arsc.bam.sample_allele_fractions(ac.aggregate(toy["donor"]), min_depth=5)
+>>> list(af.columns)
+['D1', 'D2', 'D3']
+```
+
+### `arsc.bam.write_bam(path, references, records, *, header_text: 'str | None' = None, level: 'int' = 6, block_bytes: 'int' = 4096, index: 'bool' = True) -> 'str'`
+
+```text
+Write a small coordinate-sorted BAM (and its ``.bai``) from Python dictionaries.
+
+Meant for tests, documentation and synthetic data, not for large outputs.
+
+Parameters
+----------
+path : output ``.bam`` path.
+references : list of ``(name, length)``.
+records : iterable of dicts sorted by (reference, pos) with keys name, flag, chrom, pos (0-based), mapq,
+    cigar (SAM string), seq, qual (list of Phred values, optional), next_chrom, next_pos, tlen and tags (dict
+    tag -> str / int / float; a one-letter ``RE`` value is written as type ``A``). Unplaced records
+    (``chrom=None``) go last.
+header_text : SAM header text (default: ``@HD`` + one ``@SQ`` line per reference).
+level : zlib compression level.
+block_bytes : uncompressed bytes per BGZF block (small blocks exercise multi-block reading).
+index : also write ``path + ".bai"``.
+
+Returns
+-------
+str, the BAM path.
+
+Examples
+--------
+>>> import os, tempfile, arsc
+>>> p = os.path.join(tempfile.mkdtemp(), "one.bam")
+>>> rec = dict(name="r1", chrom="chr1", pos=99, mapq=255, cigar="10M", seq="ACGTACGTAC", tags={"CB": "AAAC-1"})
+>>> _ = arsc.bam.write_bam(p, [("chr1", 1000)], [rec])
+>>> arsc.bam.BamFile(p).fetch("chr1", 100, 101).tags["CB"].tolist()
+['AAAC-1']
 ```
 
 ## arsc.seurat_extra

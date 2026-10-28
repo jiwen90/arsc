@@ -44,8 +44,10 @@ graph = ["igraph>=0.10", "leidenalg>=0.10", "umap-learn>=0.5"]
 stats = ["statsmodels>=0.14", "patsy>=0.5", "pydeseq2>=0.4"]
 # optimal-transport clone distance in arsc.clonotrace
 clonotrace = ["pot>=0.9"]
-all = ["arsc[h5ad,graph,stats,clonotrace]"]
-dev = ["arsc[h5ad,graph,stats]", "pytest>=7", "scanpy>=1.10", "harmonypy==0.0.10", "psutil", "build", "twine"]
+# fast BGZF inflating in arsc.bam (libdeflate; arsc.bam falls back to isal or the standard zlib without it)
+bam = ["deflate>=0.7"]
+all = ["arsc[h5ad,graph,stats,clonotrace,bam]"]
+dev = ["arsc[h5ad,graph,stats,bam]", "pytest>=7", "scanpy>=1.10", "harmonypy==0.0.10", "psutil", "build", "twine"]
 
 [project.urls]
 Repository = "https://github.com/jiwen90/arsc"

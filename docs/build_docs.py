@@ -38,6 +38,7 @@ API_MODULES = [
     ("arsc.clones", "TCR clones"),
     ("arsc.clonotrace", "CloneTrace (clonal fate)"),
     ("arsc.genesets", "Gene sets"),
+    ("arsc.bam", "BAM reading, per-cell allele counts, genotype checks"),
     ("arsc.seurat_extra", "Seurat parity"),
     ("arsc.scanpy_extra", "scanpy parity"),
 ]

@@ -21,7 +21,7 @@ After a change, push and check the run (in the autoresearch framework: `python t
 fix a failure before relying on the change.
 
 Locally, run nothing by default. To iterate, run only the test files your change can break, named explicitly:
-`python -m pytest -q tests/test_x.py[::test_name]`, or a group by area: `python tests/run.py knn` (areas: knn,
+`python -m pytest -q tests/test_x.py[::test_name]`, or a group by area: `python tests/run.py knn` (areas: knn, bam,
 pp, de, stats, clones, harmony, io, docs, setup; `python tests/run.py` lists their files). Say which you ran. Never a whole
 directory: `tests/conftest.py` refuses `pytest tests`, bare `pytest` and `tests/run.py everything` unless `ARSC_FULL=1`
 (CI sets it; locally only when the maintainer asks: `ARSC_FULL=1 python -m pytest -q tests`).

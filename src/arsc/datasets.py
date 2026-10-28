@@ -30,7 +30,7 @@ import scipy.sparse as sp
 
 from ._utils import check_seed
 
-__all__ = ["toy", "toy_h5ad", "toy_view", "TOY_EFFECT_GENES", "TOY_MARKERS"]
+__all__ = ["toy", "toy_h5ad", "toy_view", "toy_bam", "TOY_EFFECT_GENES", "TOY_MARKERS"]
 
 #: marker genes per cell type in :func:`toy` (up-regulated about 8x in that type)
 TOY_MARKERS = {
@@ -250,3 +250,136 @@ def toy_view(path, n_cells: int = 600, *, seed: int = 0) -> dict:
     F = Store(out["full"])
     views.build(F, [out["parent"]], out["view"], {0: (np.arange(rows.size), rows)}, log=lambda *a: None)
     return out
+
+
+def toy_bam(path, *, n_cells_per_donor: int = 40, n_sites: int = 30, seed: int = 0) -> dict:
+    """Write a small synthetic 10x-style BAM (with ``.bai``) of 3 donors' cells, for :mod:`arsc.bam`.
+
+    Two references (``chr1`` 60 kb, ``chr2`` 30 kb, random sequence); ``n_sites`` SNPs with a known genotype per
+    donor (``D1``-``D3``, 0 / 1 / 2 ALT copies). Each cell has ``CB`` (16 bases + ``-1``) and its reads ``UB``;
+    a UMI has 1-3 reads (all but the first flagged duplicate) with a rare sequencing error. Reads are 60-90 bp
+    with spliced (``N``), deleted (``D``), inserted (``I``) and soft-clipped (``S``) CIGARs, so some reads skip a
+    site. Filter traps: MAPQ 3 reads, secondary and QC-fail reads, low base quality at a site, a barcode not in
+    the list, reads without ``UB``, and unplaced unmapped reads at the end.
+
+    Parameters
+    ----------
+    path : output ``.bam`` path (the index is written to ``path + ".bai"``).
+    n_cells_per_donor : cells per donor.
+    n_sites : SNPs (spread over both references).
+    seed : random seed (integer).
+
+    Returns
+    -------
+    dict with ``path``, ``sites`` (DataFrame chrom, pos (1-based), ref, alt), ``genotypes`` (sites x donors ALT
+    copies), ``barcodes`` (list), ``donor`` and ``half`` (Series indexed by barcode: donor, and an ``A`` / ``B``
+    split of each donor's cells), ``n_records``.
+
+    Examples
+    --------
+    >>> import arsc, tempfile, os
+    >>> toy = arsc.datasets.toy_bam(os.path.join(tempfile.mkdtemp(), "toy.bam"))
+    >>> len(toy["barcodes"]), len(toy["sites"])
+    (120, 30)
+    """
+    import re as _re
+
+    from .bam import write_bam
+    seed = check_seed(seed)
+    rng = np.random.default_rng(seed)
+    acgt = np.array(list("ACGT"))
+    refs = [("chr1", 60000), ("chr2", 30000)]
+    genome = {n: "".join(rng.choice(acgt, ln)) for n, ln in refs}
+    n1 = n_sites * 2 // 3
+    site_ref = ["chr1"] * n1 + ["chr2"] * (n_sites - n1)
+    site_pos0 = np.concatenate([np.sort(rng.choice(np.arange(1000, 58000, 150), n1, replace=False)),
+                                np.sort(rng.choice(np.arange(1000, 28000, 150), n_sites - n1, replace=False))])
+    ref_b = np.array([genome[c][p] for c, p in zip(site_ref, site_pos0)])
+    alt_b = np.array([rng.choice([b for b in "ACGT" if b != r]) for r in ref_b])
+    donors = ["D1", "D2", "D3"]
+    geno = rng.choice([0, 1, 2], size=(n_sites, 3), p=[0.35, 0.4, 0.25])
+    sites = pd.DataFrame({"chrom": site_ref, "pos": site_pos0 + 1, "ref": ref_b, "alt": alt_b})
+
+    def bc():
+        return "".join(rng.choice(acgt, 16)) + "-1"
+
+    barcodes = [bc() for _ in range(3 * n_cells_per_donor)]
+    donor = pd.Series(np.repeat(donors, n_cells_per_donor), index=barcodes)
+    half = pd.Series(np.tile(np.repeat(["A", "B"], [n_cells_per_donor // 2, n_cells_per_donor - n_cells_per_donor // 2]),
+                             3), index=barcodes)
+    stranger = bc()
+    cigars = ["{L}M", "5S{Lm5}M", "{a}M2D{b}M", "{a}M3I{b3}M", "{a}M400N{b}M", "{a}M{gap}N{b}M"]
+    recs = []
+    rid = 0
+    for s in range(n_sites):
+        chrom, p0 = site_ref[s], int(site_pos0[s])
+        for ci, cb in enumerate(barcodes + [stranger]):
+            d = donors.index(donor[cb]) if cb in donor.index else 0
+            if rng.random() < 0.45:
+                continue
+            for _u in range(rng.integers(1, 3)):
+                ub = "".join(rng.choice(acgt, 12))
+                g = geno[s, d]
+                allele = alt_b[s] if (g == 2 or (g == 1 and rng.random() < 0.5)) else ref_b[s]
+                for rr in range(rng.integers(1, 4)):
+                    L = int(rng.integers(60, 91))
+                    a = int(rng.integers(10, L - 10))
+                    tmpl = cigars[rng.integers(len(cigars))]
+                    cig = tmpl.format(L=L, Lm5=L - 5, a=a, b=L - a, b3=L - a - 3, gap=int(rng.integers(50, 3000)))
+                    ops = [(int(n), o) for n, o in _re.findall(r"(\d+)([MIDNS])", cig)]
+                    ref_span = sum(n for n, o in ops if o in "MDN")
+                    # place the read so the site falls inside its reference span
+                    start = p0 - int(rng.integers(0, ref_span))
+                    start = max(start, 0)
+                    seq, rp = [], start
+                    for n, o in ops:
+                        if o == "M":
+                            seq.append(genome[chrom][rp:rp + n])
+                            rp += n
+                        elif o in "DN":
+                            rp += n
+                        else:
+                            seq.append("".join(rng.choice(acgt, n)))
+                    seq = list("".join(seq))
+                    qual = [int(q) for q in rng.integers(25, 41, len(seq))]
+                    # the base at the site, if the site is in an M block
+                    rp, qp = start, 0
+                    for n, o in ops:
+                        if o == "M":
+                            if rp <= p0 < rp + n:
+                                q = qp + p0 - rp
+                                seq[q] = allele if rng.random() > 0.02 else rng.choice(acgt)
+                                if rng.random() < 0.05:
+                                    qual[q] = 10
+                            rp += n
+                            qp += n
+                        elif o in "DN":
+                            rp += n
+                        else:
+                            qp += n
+                    flag = 0x400 if rr > 0 else 0
+                    u = rng.random()
+                    mapq = 3 if u < 0.03 else 255
+                    if 0.03 <= u < 0.05:
+                        flag |= 0x100
+                    elif 0.05 <= u < 0.06:
+                        flag |= 0x200
+                    if rng.random() < 0.3:
+                        flag |= 0x10
+                    tags = {"CB": cb}
+                    if rng.random() > 0.02:
+                        tags["UB"] = ub
+                    tags["xf"] = 25 if rr == 0 else 17
+                    tags["RE"] = "E"
+                    recs.append(dict(name=f"read{rid}", flag=flag, chrom=chrom, pos=start, mapq=mapq, cigar=cig,
+                                     seq="".join(seq), qual=qual, tags=tags))
+                    rid += 1
+    order = sorted(range(len(recs)), key=lambda i: (recs[i]["chrom"], recs[i]["pos"]))
+    recs = [recs[i] for i in order]
+    for k in range(5):
+        recs.append(dict(name=f"unmapped{k}", flag=0x4, chrom=None, pos=-1, mapq=0, cigar="*",
+                         seq="".join(rng.choice(acgt, 50)), tags={"CB": barcodes[k]}))
+    write_bam(path, refs, recs, block_bytes=8192)
+    gt = pd.DataFrame(geno, columns=donors)
+    return {"path": str(path), "sites": sites, "genotypes": gt, "barcodes": barcodes, "donor": donor, "half": half,
+            "n_records": len(recs)}
