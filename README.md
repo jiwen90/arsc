@@ -182,10 +182,11 @@ reference outputs are available):
 | `de.fgsea` | fgsea 1.28 | ES exact; NES r 0.99995 |
 | `stats.wilcoxon_signed_rank`, `perm_test`, `glmm_prop` | `wilcox.test`, exact enumeration, `lme4::glmer` | 6e-16, identical, fixed effects 2.2e-4 |
 | `clones.cyclone`, `startrac`, `clone_dynamics` | published Cyclone, STARTRAC formulas | published Cyclone assignment reproduced (32,080 clones, ARI 1.0); 3e-14 |
+| `bam.BamFile`, `bam.pileup_cells`, `bam.discover_snps` | pysam 0.22.1 / htslib (`fetch`, `pileup`, `count_coverage`) | 10x BAM, 147M records: record counts, every field of a region's 86,537 records and per-cell UMI counts at 28,454 SNPs (419,418 cell-site pairs) identical; 55x faster than a pysam pileup ([BAM_PARITY.md](BAM_PARITY.md)) |
 
 Details, datasets and caveats: [SEURAT_PARITY.md](SEURAT_PARITY.md), [SCANPY_PARITY.md](SCANPY_PARITY.md),
 [STATS_PARITY.md](STATS_PARITY.md), [CLONES_PARITY.md](CLONES_PARITY.md), [CLONOTRACE_PARITY.md](CLONOTRACE_PARITY.md),
-[HARMONY_PARITY.md](HARMONY_PARITY.md).
+[HARMONY_PARITY.md](HARMONY_PARITY.md), [BAM_PARITY.md](BAM_PARITY.md).
 Every stochastic function takes an integer seed and never touches the global RNG ([SEEDS.md](SEEDS.md)).
 
 ## Formats
@@ -197,6 +198,7 @@ Every stochastic function takes an integer seed and never touches the global RNG
 | 10x `.h5` (v2, v3) | `arsc.read_10x_h5` | split by feature type: Gene Expression -> `RNA`, Antibody Capture -> `ADT` |
 | 10x `mtx` directory | `arsc.read_10x_mtx` | `matrix.mtx[.gz]`, `features.tsv[.gz]`, `barcodes.tsv[.gz]` |
 | Seurat `.qs` / `.rds` | `arsc.read_seurat` | needs R + SeuratObject (+ qs) |
+| BAM (+ `.bai`) | `arsc.bam.BamFile` | records, region queries, CB / UB tags; per-cell allele counts with `arsc.bam.pileup_cells` (no pysam) |
 
 Write with `arsc.write_h5ad` / `Store.write_h5ad`; the output reads back identically in anndata and scanpy.
 

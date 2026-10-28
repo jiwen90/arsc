@@ -5666,7 +5666,7 @@ Examples
 'zlib'
 ```
 
-### `arsc.bam.pileup_cells(bam, sites: 'pd.DataFrame', barcodes=None, *, cell_tag: 'str | None' = 'CB', umi_tag: 'str | None' = 'UB', min_mapq: 'int' = 20, min_baseq: 'int' = 20, min_len: 'int' = 30, exclude_flags: 'int | None' = None, umi_rule: 'str' = 'majority', threads: 'int | None' = None, gap_kb: 'float' = 1024, inflater: 'str | None' = None) -> 'AlleleCounts'`
+### `arsc.bam.pileup_cells(bam, sites: 'pd.DataFrame', barcodes=None, *, cell_tag: 'str | None' = 'CB', umi_tag: 'str | None' = 'UB', min_mapq: 'int' = 20, min_baseq: 'int' = 20, min_len: 'int' = 30, exclude_flags: 'int | None' = None, umi_rule: 'str' = 'majority', threads: 'int | None' = None, gap_kb: 'float' = 256, inflater: 'str | None' = None) -> 'AlleleCounts'`
 
 ```text
 Count alleles per cell barcode at SNP positions, one count per UMI (cellsnp-lite mode 1 style).
@@ -5695,8 +5695,8 @@ exclude_flags : reads with any of these flag bits are skipped. Default: unmapped
     (``0x704``) without one.
 umi_rule : ``"majority"`` (default) or ``"first"``.
 threads : inflating threads (default ``AR_THREADS``).
-gap_kb : index chunks closer than this many compressed kilobytes are read in one go (default 1 MB: on a hard
-    disk reading 1 MB is cheaper than a seek). Dense site lists end up reading the BAM front to back.
+gap_kb : index chunks closer than this many compressed kilobytes are read in one go (default 256: on a hard
+    disk reading a few hundred kB is cheaper than a seek). Dense site lists end up reading the BAM front to back.
 inflater : DEFLATE engine (see :func:`inflater`).
 
 Returns

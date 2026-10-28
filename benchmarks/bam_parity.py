@@ -4,6 +4,7 @@
     python bam_parity.py region   <bam> <region> <out.tsv> [ref.tsv]    fetch, field by field vs pysam
     python bam_parity.py pileup   <bam> <sites.tsv> <barcodes> <out.tsv> [ref.tsv]   per-cell counts vs pysam
     python bam_parity.py coverage <bam> <region> <out.tsv> [ref.tsv]    pooled base counts vs pysam count_coverage
+    python bam_parity.py discover <bam> <out.tsv>                       de-novo SNP candidates over the whole file, timed
     python bam_parity.py input    <sites.tsv> <barcodes> <out>          the stdin file of bam_pysam_ref.py pileup
 
 sites.tsv: columns chrom, pos (1-based). barcodes: a text file, one barcode per line (a Cell Ranger
@@ -93,6 +94,14 @@ def coverage(bam, reg, out, ref=None):
               f"bases arsc {int(d[list('ACGT')].to_numpy().sum())}, pysam {int(b[list('ACGT')].to_numpy().sum())}")
 
 
+def discover(bam, out):
+    t = time.time()
+    d = arsc.bam.discover_snps(bam)
+    print(f"arsc discover {time.time() - t:.1f} s: {len(d)} candidate SNPs (depth >= 20, minor >= 4 reads and "
+          f">= 10%), dropped bases {d.attrs['dropped_bases']}", file=sys.stderr)
+    d.to_csv(out, sep="	", index=False)
+
+
 def make_input(sites, barcodes, out):
     s = pd.read_csv(sites, sep="\t")
     with open(out, "w", newline="\n") as fh:
@@ -101,5 +110,6 @@ def make_input(sites, barcodes, out):
 
 
 if __name__ == "__main__":
-    {"count": count, "region": region, "pileup": pileup, "coverage": coverage, "input": make_input}[sys.argv[1]](
+    {"count": count, "region": region, "pileup": pileup, "coverage": coverage, "discover": discover,
+     "input": make_input}[sys.argv[1]](
         *sys.argv[2:])
