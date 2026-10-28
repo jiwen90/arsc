@@ -5618,8 +5618,10 @@ Each sample's ALT fraction at a site with depth >= ``min_depth`` is called 0 (< 
 (> ``het[1]``). For each pair: the sites both samples cover, the informative ones among them (at least one
 sample not homozygous REF: 0 / 0 sites agree for any two people), the fraction of identical calls on both, the
 opposite-homozygous sites (0 vs 2: impossible for one donor short of errors) and the Pearson correlation of
-the fractions. Same donor: concordance near 1, no opposite homozygotes, correlation near 1; two unrelated
-donors: informative concordance around 0.3-0.5 and correlation near 0.2-0.4.
+the fractions. Same donor: concordance near 1, no opposite homozygotes, correlation near 1 (lower at shallow
+depth: compare against pairs known to be the same donor and pairs known to differ in the same data). Different
+donors: lower concordance, opposite homozygotes, low or (at sites chosen as polymorphic in the pool) negative
+correlation.
 
 Parameters
 ----------
