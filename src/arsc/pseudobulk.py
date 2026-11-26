@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from ._utils import as_csr, factorize_groups
+from ._threads import heavy_op as _heavy_op
 
 __all__ = ["Pseudobulk", "pseudobulk"]
 
@@ -126,6 +127,7 @@ class Pseudobulk:
         return d
 
 
+@_heavy_op("pseudobulk")
 def pseudobulk(X, obs: pd.DataFrame | None, by, *, features=None, min_cells: int = 0,
                method: str = "sum", expm1: bool = False) -> Pseudobulk:
     """Aggregate cells into groups (pseudobulk; Seurat ``AggregateExpression``), exact integer sums.

@@ -35,6 +35,7 @@ from scipy.special import ndtr
 
 from ._cc_genes import CC_GENES, CC_GENES_UPDATED_2019
 from ._rrng import RRandom
+from ._threads import heavy_op as _heavy_op
 from ._utils import as_csr, check_seed, factorize_groups
 from ._seedlog import records_seed
 from .markers import _rank_stats
@@ -465,6 +466,7 @@ def find_markers(X, groups=None, ident_1=None, ident_2=None, *, features=None, c
     return res[["p_val", fcname, "pct.1", "pct.2", "p_val_adj"]]
 
 
+@_heavy_op("find_all_markers")
 @records_seed("random_seed")
 def find_all_markers(X, groups, *, features=None, test_use: str = "wilcox", logfc_threshold: float = 0.25,
                      min_pct: float = 0.1, min_diff_pct: float = -np.inf, only_pos: bool = False,
@@ -721,6 +723,7 @@ def _scale_dense_inplace(Z, center, do_scale, scale_max):
             Z[i, j] = x
 
 
+@_heavy_op("scale_data")
 def scale_data(X, features=None, *, select=None, vars_to_regress=None, latent_data: pd.DataFrame | None = None,
                split_by=None, model_use: str = "linear", do_scale: bool = True, do_center: bool = True,
                scale_max: float = 10.0, block_size: int = 1000, dtype=np.float64):
@@ -810,6 +813,7 @@ def scale_data(X, features=None, *, select=None, vars_to_regress=None, latent_da
 
 
 # ============================================================================ NormalizeData
+@_heavy_op("normalize_data")
 def normalize_data(X, method: str = "LogNormalize", scale_factor: float = 1e4, margin: int = 1):
     """Seurat ``NormalizeData``: ``LogNormalize``, ``CLR`` or ``RC`` (relative counts * ``scale_factor``).
 

@@ -36,6 +36,7 @@ import scipy.sparse as sp
 from scipy import stats as _st
 
 from ._utils import as_csr, check_seed, p_adjust_bh
+from ._threads import heavy_op as _heavy_op
 from ._seedlog import records_seed
 from .markers import _rank_stats
 from .preprocessing import _col_mean_var, hvg_vst
@@ -79,6 +80,7 @@ def _scanpy_norm_kernel(indptr, data, out, target):
                 out[p] = np.log1p(data[p] / f)
 
 
+@_heavy_op("normalize_total_log1p")
 def normalize_total_log1p(counts, target_sum: float = 1e4, dtype=np.float64) -> sp.csr_matrix:
     """``sc.pp.normalize_total(target_sum)`` followed by ``sc.pp.log1p`` (bitwise equal to scanpy).
 
@@ -114,6 +116,7 @@ def normalize_total_log1p(counts, target_sum: float = 1e4, dtype=np.float64) -> 
 
 
 # --------------------------------------------------------------------------- score_genes
+@_heavy_op("score_genes")
 @records_seed("random_state")
 def score_genes(X, features, gene_list, *, ctrl_size: int = 50, gene_pool=None, n_bins: int = 25,
                 random_state: int = 0, ctrl_as_ref: bool = True, return_controls: bool = False):
@@ -259,6 +262,7 @@ def _wilcox_scores_rest(X, codes, G, tie_correct):
     return z
 
 
+@_heavy_op("rank_genes_groups")
 def rank_genes_groups(X, groups, features=None, *, method: str = "wilcoxon", reference: str = "rest",
                       groups_subset=None, tie_correct: bool = False, corr_method: str = "benjamini-hochberg",
                       pts: bool = False, n_genes: int | None = None, rankby_abs: bool = False,
@@ -407,6 +411,7 @@ def rank_genes_groups(X, groups, features=None, *, method: str = "wilcoxon", ref
 
 
 # --------------------------------------------------------------------------- highly_variable_genes
+@_heavy_op("highly_variable_genes")
 def highly_variable_genes(X, features=None, *, flavor: str = "seurat", n_top_genes: int | None = None,
                           min_mean: float = 0.0125, max_mean: float = 3.0, min_disp: float = 0.5,
                           max_disp: float = np.inf, n_bins: int = 20, span: float = 0.3,
@@ -703,6 +708,7 @@ def qc_metrics(counts, features=None, qc_vars: dict | None = None, percent_top=(
 
 
 # --------------------------------------------------------------------------- neighbors / leiden / umap
+@_heavy_op("neighbors")
 @records_seed("random_state")
 def neighbors(emb, n_neighbors: int = 15, *, metric: str = "euclidean", method: str = "auto",
               random_state: int = 0) -> dict:
@@ -869,6 +875,7 @@ def leiden(connectivities, resolution: float = 1.0, *, random_state: int = 0, n_
     return np.asarray(part.membership)
 
 
+@_heavy_op("umap_from_connectivities")
 @records_seed("random_state")
 def umap_from_connectivities(connectivities, *, min_dist: float = 0.5, spread: float = 1.0, n_components: int = 2,
                              maxiter: int | None = None, alpha: float = 1.0, gamma: float = 1.0,

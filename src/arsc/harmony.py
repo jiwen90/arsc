@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 
 from ._utils import check_seed
+from ._threads import heavy_op as _heavy_op
 from ._detla import matmul, single_thread
 from ._seedlog import records_seed
 
@@ -640,6 +641,7 @@ def _r_factor_levels(values) -> tuple[np.ndarray, np.ndarray]:
     return np.asarray(cat.codes, dtype=np.int64), np.asarray(cat.categories)
 
 
+@_heavy_op("run_harmony")
 @records_seed("seed")
 def run_harmony(Z, meta, vars_use, *, theta=None, sigma=0.1, lambda_="default", nclust=None, max_iter=10,
                 early_stop=True, alpha=0.2, tau=0.0, block_size=0.05, max_iter_cluster=None,

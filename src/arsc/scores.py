@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from ._rrng import RRandom
+from ._threads import heavy_op as _heavy_op
 from ._utils import as_csr, check_seed
 from ._seedlog import records_seed
 
@@ -207,6 +208,7 @@ def _cut_number(x: np.ndarray, n: int) -> np.ndarray:
     return np.clip(code, 1, n)  # include.lowest: max value goes to the last bin
 
 
+@_heavy_op("add_module_score")
 @records_seed("seed")
 def add_module_score(X, features, signatures, *, pool=None, nbin: int = 24, ctrl: int = 100,
                      seed: int = 1, name: str = "Cluster", cells=None,

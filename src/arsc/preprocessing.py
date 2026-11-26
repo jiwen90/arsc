@@ -25,6 +25,7 @@ import pandas as pd
 import scipy.sparse as sp
 
 from ._loess import loess_fit
+from ._threads import heavy_op as _heavy_op
 from ._utils import as_csr, check_seed
 from ._seedlog import records_seed
 
@@ -49,6 +50,7 @@ def _lognorm_kernel(indptr, data, out, scale_factor):
                 out[p] = 0.0
 
 
+@_heavy_op("log_normalize")
 def log_normalize(X, scale_factor: float = 1e4, dtype=np.float64) -> sp.csr_matrix:
     """Log-normalize counts per cell: ``log1p(x / total_counts(cell) * scale_factor)``.
 
@@ -177,6 +179,7 @@ def _var_std_clipped(indptr, indices, data, n_rows, n_cols, mu, sd, vmax):
     return out
 
 
+@_heavy_op("hvg_vst")
 def hvg_vst(counts, nfeatures: int = 2000, features=None, loess_span: float = 0.3,
             clip_max="auto", surface: str = "interpolate") -> pd.DataFrame:
     """Seurat v3 "vst" highly-variable features on raw counts (``FindVariableFeatures``).
@@ -236,6 +239,7 @@ def hvg_vst(counts, nfeatures: int = 2000, features=None, loess_span: float = 0.
 
 
 # --------------------------------------------------------------------------- scale
+@_heavy_op("scale")
 def scale(X, center: bool = True, do_scale: bool = True, scale_max: float = 10.0,
           dtype=np.float64) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Seurat ``ScaleData`` (no regression): dense z-scores, s.d. with n-1, values > ``scale_max`` clipped.
@@ -340,6 +344,7 @@ class PCAResult:
         return self.stdev ** 2 / self.total_variance
 
 
+@_heavy_op("pca")
 @records_seed("seed")
 def pca(Z: np.ndarray, n_comps: int = 30, method: str = "auto", seed: int = 42,
         n_oversamples: int | None = None, n_iter: int = 15) -> PCAResult:

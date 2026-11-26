@@ -16,6 +16,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ._utils import check_seed
+from ._threads import heavy_op as _heavy_op
 from ._seedlog import records_seed
 
 __all__ = ["cluster", "umap"]
@@ -176,6 +177,7 @@ def cluster(graph, method: str = "louvain", resolution: float = 0.6, seed: int =
     return labels
 
 
+@_heavy_op("umap")
 @records_seed("seed")
 def umap(emb, n_neighbors: int = 30, min_dist: float = 0.3, metric: str = "cosine", seed: int = 42,
          n_epochs: int | None = None, spread: float = 1.0, init: str = "spectral", knn=None,
